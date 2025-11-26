@@ -1,6 +1,7 @@
 import { HubLayout } from "@/components/HubLayout";
 import { OverviewSection } from "@/components/OverviewSection";
 import { ProposalSection } from "@/components/ProposalSection";
+import { ClientPortalSection } from "@/components/ClientPortalSection";
 import { useLocation } from "react-router-dom";
 
 export default function HubDetail() {
@@ -8,6 +9,7 @@ export default function HubDetail() {
   const path = location.pathname;
 
   const renderSection = () => {
+    if (path.includes('/client-portal')) return <ClientPortalSection />;
     if (path.includes('/proposal')) return <ProposalSection />;
     return <OverviewSection />;
   };

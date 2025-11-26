@@ -1,4 +1,4 @@
-import { Home, FileText, Play, Folder, Mail, Calendar, ClipboardList } from "lucide-react";
+import { Home, FileText, Play, Folder, Mail, Calendar, ClipboardList, Globe } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
 
@@ -15,6 +15,7 @@ import {
 
 const navItems = [
   { title: "Overview", url: "/hub/overview", icon: Home },
+  { title: "Client Portal", url: "/hub/client-portal", icon: Globe },
   { title: "Proposal", url: "/hub/proposal", icon: FileText },
   { title: "Videos", url: "/hub/videos", icon: Play },
   { title: "Documents", url: "/hub/documents", icon: Folder },
