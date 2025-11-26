@@ -42,14 +42,14 @@ export function MeetingsSection() {
               <h1 className="text-3xl font-bold" style={{ color: 'hsl(var(--royal-blue))' }}>
                 Meetings
               </h1>
-              <div className="flex items-center gap-2 mt-1 text-sm" style={{ color: 'hsl(var(--medium-grey))' }}>
-                <span>Showing meetings with @neverlandcreative.com</span>
-                <span className="text-xs">•</span>
-                <span className="flex items-center gap-1">
-                  <Video className="h-3 w-3" />
-                  Synced from Outlook
-                </span>
-              </div>
+            <div className="flex items-center gap-2 mt-1 text-sm" style={{ color: 'hsl(var(--medium-grey))' }}>
+              <span>Showing meetings with @example123.com</span>
+              <span className="text-xs">•</span>
+              <span className="flex items-center gap-1">
+                <Video className="h-3 w-3" />
+                Synced from Outlook
+              </span>
+            </div>
             </div>
             <Dialog open={scheduleOpen} onOpenChange={setScheduleOpen}>
               <DialogTrigger asChild>

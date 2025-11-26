@@ -99,7 +99,7 @@ export function ProposalSection() {
               <FileText className="w-8 h-8 text-[hsl(var(--gradient-blue))] flex-shrink-0 mt-1" />
               <div className="flex-1 min-w-0">
                 <h3 className="font-semibold text-foreground break-words">
-                  AgentFlow Proposal - Neverland Creative.pptx
+                  AgentFlow Proposal - Client Example123.pptx
                 </h3>
                 <div className="flex flex-wrap items-center gap-2 mt-1 text-sm text-muted-foreground">
                   <span>Uploaded Nov 22 by Hamish</span>

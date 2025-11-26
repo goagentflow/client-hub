@@ -17,7 +17,7 @@ interface HubLayoutProps {
 
 export function HubLayout({ 
   children, 
-  hubName = "Neverland Creative Hub",
+  hubName = "Client Example123 Hub",
   viewMode = "internal"
 }: HubLayoutProps) {
   return (

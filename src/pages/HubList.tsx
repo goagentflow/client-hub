@@ -15,7 +15,7 @@ import { Badge } from "@/components/ui/badge";
 const mockHubs = [
   {
     id: 1,
-    companyName: "Neverland Creative",
+    companyName: "Client Example123",
     contactName: "Sarah Mitchell",
     status: "Active",
     lastActivity: "2 days ago",
