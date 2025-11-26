@@ -27,14 +27,14 @@ import {
 const invitedClients = [
   {
     name: "Sarah Mitchell",
-    email: "sarah@example123.com",
+    email: "sarah@neverlandcreative.com",
     invitedDate: "Nov 20",
     lastVisit: "2 hours ago",
     status: "active"
   },
   {
     name: "James Chen",
-    email: "james@example123.com",
+    email: "james@neverlandcreative.com",
     invitedDate: "Nov 22",
     lastVisit: "Not yet logged in",
     status: "pending"
@@ -323,7 +323,7 @@ export function ClientPortalSection() {
                   <Label className="text-[hsl(var(--dark-grey))] font-semibold">Share Link</Label>
                   <div className="flex gap-2">
                     <Input 
-                      value="https://hub.agentflow.com/client-example123" 
+                      value="https://hub.agentflow.com/neverlandcreative" 
                       readOnly
                       className="font-mono text-sm"
                     />

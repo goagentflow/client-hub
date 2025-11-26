@@ -14,7 +14,7 @@ const Login = () => {
     e.preventDefault();
     
     // Check credentials and route accordingly
-    if (email === "sarah@example123.com" && password === "password123") {
+    if (email === "sarah@neverlandcreative.com" && password === "password123") {
       localStorage.setItem("userRole", "client");
       localStorage.setItem("userEmail", email);
       navigate("/portal/overview");
@@ -132,11 +132,11 @@ const Login = () => {
                 {/* Client Demo */}
                 <Card 
                   className="p-4 cursor-pointer hover:border-[hsl(var(--gradient-blue))] hover:shadow-md transition-all duration-200"
-                  onClick={() => fillDemoCredentials("sarah@example123.com", "password123")}
+                  onClick={() => fillDemoCredentials("sarah@neverlandcreative.com", "password123")}
                 >
                   <div className="space-y-1">
                     <p className="text-sm font-semibold text-[hsl(var(--bold-royal-blue))]">Client Login</p>
-                    <p className="text-xs text-[hsl(var(--medium-grey))]">sarah@example123.com</p>
+                    <p className="text-xs text-[hsl(var(--medium-grey))]">sarah@neverlandcreative.com</p>
                     <p className="text-xs text-[hsl(var(--medium-grey))]">password123</p>
                   </div>
                 </Card>

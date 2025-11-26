@@ -53,10 +53,10 @@ export function ClientProposalSection() {
   };
 
   const handleShare = () => {
-    if (!shareEmail.endsWith("@example123.com")) {
+    if (!shareEmail.endsWith("@neverlandcreative.com")) {
       toast({
         title: "Invalid email",
-        description: "You can only share with people at Client Example123",
+        description: "You can only share with people at Neverland Creative",
         variant: "destructive",
       });
       return;
@@ -87,7 +87,7 @@ export function ClientProposalSection() {
             Proposal
           </h1>
           <p className="text-lg text-[hsl(var(--medium-grey))] mt-1">
-            Our Proposal for Client Example123
+            Our Proposal for Neverland Creative
           </p>
           <div className="flex gap-4 mt-3 text-sm text-[hsl(var(--medium-grey))]">
             <span>Prepared November 2025</span>
@@ -341,7 +341,7 @@ export function ClientProposalSection() {
               Share Proposal
             </DialogTitle>
             <DialogDescription className="text-[hsl(var(--medium-grey))]">
-              You can share this with colleagues who have a @example123.com email address
+              You can share this with colleagues who have a @neverlandcreative.com email address
             </DialogDescription>
           </DialogHeader>
 
@@ -353,7 +353,7 @@ export function ClientProposalSection() {
               <Input
                 id="share-email"
                 type="email"
-                placeholder="tom@example123.com"
+                placeholder="tom@neverlandcreative.com"
                 value={shareEmail}
                 onChange={(e) => setShareEmail(e.target.value)}
               />

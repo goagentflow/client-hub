@@ -162,7 +162,7 @@ export function ClientOverviewSection() {
             Here's everything you need for your project with AgentFlow
           </p>
           <p className="text-sm text-[hsl(var(--medium-grey))]">
-            Client Example123
+            Neverland Creative
           </p>
         </div>
 
@@ -195,7 +195,7 @@ export function ClientOverviewSection() {
               </div>
               <div className="flex-1 text-center md:text-left">
                 <h3 className="text-2xl font-semibold text-[hsl(var(--dark-grey))] mb-4">
-                  Our Proposal for Client Example123
+                  Our Proposal for Neverland Creative
                 </h3>
                 <Button className="bg-[hsl(var(--gradient-blue))] hover:bg-[hsl(var(--gradient-blue))]/90 text-white">
                   View Proposal
