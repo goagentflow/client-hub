@@ -6,6 +6,7 @@ import { ClientVideosSection } from "@/components/ClientVideosSection";
 import { ClientDocumentsSection } from "@/components/ClientDocumentsSection";
 import { ClientMessagesSection } from "@/components/ClientMessagesSection";
 import { ClientMeetingsSection } from "@/components/ClientMeetingsSection";
+import { ClientQuestionnaireSection } from "@/components/ClientQuestionnaireSection";
 
 const PortalDetail = () => {
   return (
@@ -17,6 +18,7 @@ const PortalDetail = () => {
         <Route path="documents" element={<ClientDocumentsSection />} />
         <Route path="messages" element={<ClientMessagesSection />} />
         <Route path="meetings" element={<ClientMeetingsSection />} />
+        <Route path="questionnaire" element={<ClientQuestionnaireSection />} />
         <Route path="/" element={<Navigate to="overview" replace />} />
       </Routes>
     </ClientHubLayout>
