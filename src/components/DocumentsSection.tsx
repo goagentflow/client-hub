@@ -29,7 +29,7 @@ import {
 const clientDocuments = [
   {
     id: 1,
-    name: "AgentFlow Proposal - Neverland.pdf",
+    name: "AgentFlow Proposal - Client Example123.pdf",
     type: "pdf",
     category: "Proposal Materials",
     size: "4.2 MB",
@@ -102,7 +102,7 @@ const internalDocuments = [
   },
   {
     id: 9,
-    name: "Neverland Discovery Notes.docx",
+    name: "Client Example123 Discovery Notes.docx",
     type: "word",
     category: "Meeting Prep",
     size: "89 KB",

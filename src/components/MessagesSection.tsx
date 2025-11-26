@@ -46,7 +46,7 @@ const threads: EmailThread[] = [
         id: 1,
         sender: "You",
         senderEmail: "hamish@agentflow.com",
-        recipient: "sarah@neverlandcreative.com",
+        recipient: "sarah@example123.com",
         timestamp: "Nov 22, 10:15 AM",
         body: "Hi Sarah, thanks for your questions about the timeline. I wanted to clarify a few points from our last discussion. We're looking at a 6-8 week implementation period once we receive approval. Let me know if you need more details on any specific phase.",
         isYou: true,
@@ -54,7 +54,7 @@ const threads: EmailThread[] = [
       {
         id: 2,
         sender: "Sarah Mitchell",
-        senderEmail: "sarah@neverlandcreative.com",
+        senderEmail: "sarah@example123.com",
         recipient: "hamish@agentflow.com",
         timestamp: "Nov 22, 2:30 PM",
         body: "Thanks for the quick response Hamish. That timeline works for us. I just want to make sure we understand the onboarding process. Can you walk me through what we need to prepare on our end?",
@@ -64,7 +64,7 @@ const threads: EmailThread[] = [
         id: 3,
         sender: "You",
         senderEmail: "hamish@agentflow.com",
-        recipient: "sarah@neverlandcreative.com",
+        recipient: "sarah@example123.com",
         timestamp: "Nov 22, 3:45 PM",
         body: "Absolutely! I'll prepare a detailed onboarding checklist for you. The main things you'll need are access to your current systems, a list of key stakeholders, and about 2-3 hours of your team's time in the first week for kickoff sessions.",
         isYou: true,
@@ -72,7 +72,7 @@ const threads: EmailThread[] = [
       {
         id: 4,
         sender: "Sarah Mitchell",
-        senderEmail: "sarah@neverlandcreative.com",
+        senderEmail: "sarah@example123.com",
         recipient: "hamish@agentflow.com",
         timestamp: "2 hours ago",
         body: "Perfect! That all sounds manageable. One more thing - can you send over the timeline document with the milestones broken down? It would help me present this to our leadership team.",
@@ -95,7 +95,7 @@ const threads: EmailThread[] = [
       {
         id: 1,
         sender: "Sarah Mitchell",
-        senderEmail: "sarah@neverlandcreative.com",
+        senderEmail: "sarah@example123.com",
         recipient: "hamish@agentflow.com",
         timestamp: "Yesterday, 4:20 PM",
         body: "Hi Hamish, I just finished reviewing the proposal and it looks great! I've shared it with James and the rest of our team. We should have feedback by end of week.",
@@ -115,7 +115,7 @@ const threads: EmailThread[] = [
         id: 1,
         sender: "You",
         senderEmail: "hamish@agentflow.com",
-        recipient: "sarah@neverlandcreative.com, james@neverlandcreative.com",
+        recipient: "sarah@example123.com, james@example123.com",
         timestamp: "Nov 22, 9:30 AM",
         body: "Hi both, Great speaking earlier today. As discussed, I'm sending over the revised proposal with the timeline adjustments we talked about. Looking forward to your feedback.",
         isYou: true,
@@ -134,7 +134,7 @@ const threads: EmailThread[] = [
       {
         id: 1,
         sender: "James Chen",
-        senderEmail: "james@neverlandcreative.com",
+        senderEmail: "james@example123.com",
         recipient: "hamish@agentflow.com",
         timestamp: "Nov 21, 11:45 AM",
         body: "Hi Hamish, Sarah forwarded the proposal to me. It looks comprehensive. I have a quick question about the pricing structure for the advanced analytics module. Can we discuss this on our next call?",
@@ -158,9 +158,9 @@ const threads: EmailThread[] = [
         id: 1,
         sender: "You",
         senderEmail: "hamish@agentflow.com",
-        recipient: "sarah@neverlandcreative.com",
+        recipient: "sarah@example123.com",
         timestamp: "Nov 18, 2:00 PM",
-        body: "Hi Sarah, Thanks for the opportunity to work with Neverland Creative. I've set up your AgentFlow Hub where you can access our proposal, case studies, and all relevant materials. Feel free to explore and let me know if you have any questions!",
+        body: "Hi Sarah, Thanks for the opportunity to work with Client Example123. I've set up your AgentFlow Hub where you can access our proposal, case studies, and all relevant materials. Feel free to explore and let me know if you have any questions!",
         isYou: true,
       },
     ],
@@ -180,7 +180,7 @@ export function MessagesSection() {
         <div>
           <h1 className="text-3xl font-bold text-[hsl(var(--bold-royal-blue))]">Messages</h1>
           <p className="text-sm text-[hsl(var(--medium-grey))] mt-1 flex items-center gap-2">
-            Showing emails with @neverlandcreative.com
+            Showing emails with @example123.com
             <span className="text-xs">• Synced from Outlook</span>
           </p>
         </div>
@@ -198,7 +198,7 @@ export function MessagesSection() {
             <div className="space-y-4 mt-4">
               <div>
                 <label className="text-sm font-medium mb-1 block">To</label>
-                <Input placeholder="sarah@neverlandcreative.com" />
+                <Input placeholder="sarah@example123.com" />
               </div>
               <div>
                 <label className="text-sm font-medium mb-1 block">Subject</label>
@@ -331,12 +331,12 @@ export function MessagesSection() {
                 <div className="space-y-3 text-sm">
                   <div>
                     <p className="font-medium">Sarah Mitchell</p>
-                    <p className="text-xs text-[hsl(var(--medium-grey))]">sarah@neverlandcreative.com</p>
+                    <p className="text-xs text-[hsl(var(--medium-grey))]">sarah@example123.com</p>
                     <p className="text-xs text-[hsl(var(--medium-grey))] mt-1">Last email: 2h ago</p>
                   </div>
                   <div>
                     <p className="font-medium">James Chen</p>
-                    <p className="text-xs text-[hsl(var(--medium-grey))]">james@neverlandcreative.com</p>
+                    <p className="text-xs text-[hsl(var(--medium-grey))]">james@example123.com</p>
                     <p className="text-xs text-[hsl(var(--medium-grey))] mt-1">Last email: Nov 21</p>
                   </div>
                 </div>

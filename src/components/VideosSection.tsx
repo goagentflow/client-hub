@@ -17,7 +17,7 @@ const mockVideos = [
   {
     id: 1,
     title: "Welcome to Your Proposal",
-    description: "Hamish introduces AgentFlow and walks through the key benefits and timeline for Neverland Creative...",
+    description: "Hamish introduces AgentFlow and walks through the key benefits and timeline for Client Example123...",
     duration: "2:34",
     tags: ["Intro"],
     visibility: "client",

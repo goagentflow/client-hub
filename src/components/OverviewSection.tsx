@@ -99,7 +99,7 @@ export function OverviewSection() {
       <div className="flex items-center justify-between mb-6 pb-4 border-b border-[hsl(var(--medium-grey))]/20">
         <div>
           <h1 className="text-4xl font-bold text-[hsl(var(--bold-royal-blue))]">
-            Neverland Creative
+            Client Example123
           </h1>
           <p className="text-lg text-[hsl(var(--medium-grey))]">Pitch Hub</p>
         </div>

@@ -27,14 +27,14 @@ import {
 const invitedClients = [
   {
     name: "Sarah Mitchell",
-    email: "sarah@neverlandcreative.com",
+    email: "sarah@example123.com",
     invitedDate: "Nov 20",
     lastVisit: "2 hours ago",
     status: "active"
   },
   {
     name: "James Chen",
-    email: "james@neverlandcreative.com",
+    email: "james@example123.com",
     invitedDate: "Nov 22",
     lastVisit: "Not yet logged in",
     status: "pending"
@@ -197,7 +197,7 @@ export function ClientPortalSection() {
                               <SelectValue placeholder="Select proposal document" />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="main">AgentFlow Proposal - Neverland Creative.pptx</SelectItem>
+                              <SelectItem value="main">AgentFlow Proposal - Client Example123.pptx</SelectItem>
                             </SelectContent>
                           </Select>
                           <div className="bg-muted rounded-lg p-4 flex items-center justify-center h-32">
@@ -233,7 +233,7 @@ export function ClientPortalSection() {
                                 <SelectValue placeholder="Select proposal document" />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="main">AgentFlow Proposal - Neverland Creative.pptx</SelectItem>
+                                <SelectItem value="main">AgentFlow Proposal - Client Example123.pptx</SelectItem>
                               </SelectContent>
                             </Select>
                           </div>
@@ -323,7 +323,7 @@ export function ClientPortalSection() {
                   <Label className="text-[hsl(var(--dark-grey))] font-semibold">Share Link</Label>
                   <div className="flex gap-2">
                     <Input 
-                      value="https://hub.agentflow.com/neverland-creative" 
+                      value="https://hub.agentflow.com/client-example123" 
                       readOnly
                       className="font-mono text-sm"
                     />
