@@ -4,6 +4,7 @@ import { ProposalSection } from "@/components/ProposalSection";
 import { ClientPortalSection } from "@/components/ClientPortalSection";
 import { VideosSection } from "@/components/VideosSection";
 import { DocumentsSection } from "@/components/DocumentsSection";
+import { MessagesSection } from "@/components/MessagesSection";
 import { useLocation } from "react-router-dom";
 
 export default function HubDetail() {
@@ -15,6 +16,7 @@ export default function HubDetail() {
     if (path.includes('/proposal')) return <ProposalSection />;
     if (path.includes('/videos')) return <VideosSection />;
     if (path.includes('/documents')) return <DocumentsSection />;
+    if (path.includes('/messages')) return <MessagesSection />;
     return <OverviewSection />;
   };
 
