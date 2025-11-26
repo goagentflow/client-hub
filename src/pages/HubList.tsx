@@ -157,6 +157,7 @@ const HubList = () => {
             <Card
               key={hub.id}
               className="p-6 bg-white border-0 shadow-md hover:shadow-xl transition-all duration-300 cursor-pointer group hover:-translate-y-1"
+              onClick={() => window.location.href = '/hub/overview'}
             >
               <div className="space-y-3">
                 {/* Company Name */}
