@@ -20,6 +20,15 @@ export function HubLayout({
   hubName = "Client Example123 Hub",
   viewMode = "internal"
 }: HubLayoutProps) {
+  const userEmail = localStorage.getItem("userEmail") || "";
+  const initials = userEmail ? userEmail.split('@')[0].substring(0, 2).toUpperCase() : "JD";
+
+  const handleSignOut = () => {
+    localStorage.removeItem("userRole");
+    localStorage.removeItem("userEmail");
+    window.location.href = "/login";
+  };
+
   return (
     <SidebarProvider>
       <div className="min-h-screen flex w-full flex-col">
@@ -55,14 +64,17 @@ export function HubLayout({
               <DropdownMenuTrigger asChild>
                 <Avatar className="h-9 w-9 cursor-pointer">
                   <AvatarFallback className="bg-[hsl(var(--gradient-blue))] text-white">
-                    JD
+                    {initials}
                   </AvatarFallback>
                 </Avatar>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="bg-white">
-                <DropdownMenuItem>Profile</DropdownMenuItem>
-                <DropdownMenuItem>Settings</DropdownMenuItem>
-                <DropdownMenuItem>Sign out</DropdownMenuItem>
+                <DropdownMenuItem className="text-[hsl(var(--medium-grey))] cursor-default">
+                  {userEmail}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleSignOut}>
+                  Sign out
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
