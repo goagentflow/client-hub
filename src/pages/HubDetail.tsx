@@ -6,6 +6,7 @@ import { VideosSection } from "@/components/VideosSection";
 import { DocumentsSection } from "@/components/DocumentsSection";
 import { MessagesSection } from "@/components/MessagesSection";
 import { MeetingsSection } from "@/components/MeetingsSection";
+import { QuestionnaireSection } from "@/components/QuestionnaireSection";
 import { useLocation } from "react-router-dom";
 
 export default function HubDetail() {
@@ -19,6 +20,7 @@ export default function HubDetail() {
     if (path.includes('/documents')) return <DocumentsSection />;
     if (path.includes('/messages')) return <MessagesSection />;
     if (path.includes('/meetings')) return <MeetingsSection />;
+    if (path.includes('/questionnaire')) return <QuestionnaireSection />;
     return <OverviewSection />;
   };
 
