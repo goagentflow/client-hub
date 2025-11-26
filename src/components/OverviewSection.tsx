@@ -1,100 +1,95 @@
-import { Play, FileText, Video, Folder, Mail, Calendar, Clipboard, Clock, FileCheck, CalendarCheck, Upload, MessageSquare, Eye, EyeOff, TrendingUp, Link2, Settings, ExternalLink, Edit } from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { UserPlus, Video, FilePlus, Mail, CalendarPlus, ClipboardPlus, Users, Clock, FileText, Folder, Eye, EyeOff, AlertCircle, CheckCircle, Settings, ArrowRight, User } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
-const quickLinks = [
+const hubStatus = [
   {
-    title: "View Proposal",
-    description: "Review our detailed proposal",
-    icon: FileText,
-    color: "text-[hsl(var(--gradient-blue))]",
-    status: "3 views",
+    label: "Clients Invited",
+    value: "2",
+    detail: "Sarah Mitchell, James Chen",
+    icon: Users,
   },
   {
-    title: "Watch Videos",
-    description: "Introduction and demo videos",
-    icon: Video,
-    color: "text-[hsl(var(--rich-violet))]",
-    status: "2 of 4 watched",
+    label: "Last Client Visit",
+    value: "2 hours ago",
+    detail: "",
+    icon: Clock,
   },
   {
-    title: "Browse Documents",
-    description: "Case studies and materials",
+    label: "Content",
+    value: "4 videos, 6 documents",
+    detail: "",
     icon: Folder,
-    color: "text-[hsl(var(--sage-green))]",
-    status: "1 downloaded",
   },
   {
-    title: "Messages",
-    description: "Your conversations",
-    icon: Mail,
-    color: "text-[hsl(var(--gradient-blue))]",
-    badge: "3",
-  },
-  {
-    title: "Upcoming Meeting",
-    description: "Tomorrow, 2pm",
-    icon: Calendar,
-    color: "text-[hsl(var(--soft-coral))]",
-  },
-  {
-    title: "Complete Questionnaire",
-    description: "Status: Not started",
-    icon: Clipboard,
-    color: "text-[hsl(var(--medium-grey))]",
+    label: "Questionnaire",
+    value: "Not completed",
+    detail: "",
+    icon: ClipboardPlus,
   },
 ];
 
-const clientActivity = [
+const quickActions = [
+  { label: "Invite Client", icon: UserPlus, color: "bg-[hsl(var(--soft-coral))] hover:bg-[hsl(var(--soft-coral))]/90", primary: true },
+  { label: "Upload Video", icon: Video, color: "bg-[hsl(var(--gradient-blue))] hover:bg-[hsl(var(--gradient-blue))]/90" },
+  { label: "Upload Document", icon: FilePlus, color: "bg-[hsl(var(--gradient-blue))] hover:bg-[hsl(var(--gradient-blue))]/90" },
+  { label: "Send Message", icon: Mail, color: "bg-[hsl(var(--gradient-blue))] hover:bg-[hsl(var(--gradient-blue))]/90" },
+  { label: "Schedule Meeting", icon: CalendarPlus, color: "bg-[hsl(var(--gradient-blue))] hover:bg-[hsl(var(--gradient-blue))]/90" },
+  { label: "Create Questionnaire", icon: ClipboardPlus, color: "bg-[hsl(var(--gradient-blue))] hover:bg-[hsl(var(--gradient-blue))]/90" },
+];
+
+const recentActivity = [
   {
-    icon: FileText,
     description: "Sarah viewed the proposal",
     timestamp: "2 hours ago",
+    isClientAction: true,
+    user: "Sarah",
   },
   {
-    icon: Video,
-    description: "Sarah watched 'Introduction' video",
+    description: "You uploaded Case Study.pdf",
     timestamp: "Yesterday",
+    isClientAction: false,
   },
   {
-    icon: Eye,
-    description: "Sarah logged in",
+    description: "Sarah watched Introduction video",
     timestamp: "Yesterday",
+    isClientAction: true,
+    user: "Sarah",
   },
   {
-    icon: FileCheck,
-    description: "James Chen was added to hub",
+    description: "You scheduled a meeting for Nov 28",
+    timestamp: "Nov 22",
+    isClientAction: false,
+  },
+  {
+    description: "Sarah was invited to the hub",
     timestamp: "Nov 20",
+    isClientAction: true,
+    user: "Sarah",
+  },
+  {
+    description: "Hub created",
+    timestamp: "Nov 18",
+    isClientAction: false,
   },
 ];
 
-const recentUpdates = [
-  {
-    icon: Upload,
-    description: "You uploaded: Case Study.pdf",
-    timestamp: "2 hours ago",
-  },
-  {
-    icon: CalendarCheck,
-    description: "Meeting scheduled: Nov 28, 2pm",
-    timestamp: "Yesterday",
-  },
-  {
-    icon: MessageSquare,
-    description: "You sent a message",
-    timestamp: "Nov 22",
-  },
+const alerts = [
+  { label: "Questionnaire not created yet", completed: false },
+  { label: "James Chen hasn't logged in yet", completed: false },
+  { label: "Proposal uploaded", completed: true },
+  { label: "Meeting scheduled", completed: true },
 ];
 
 const engagementStats = [
-  { label: "Hub visits", value: "7" },
-  { label: "Last visit", value: "2 hours ago" },
+  { label: "Total hub visits", value: "7" },
+  { label: "Last visit", value: "2 hours ago (Sarah)" },
   { label: "Proposal views", value: "3" },
   { label: "Videos watched", value: "2 of 4" },
   { label: "Documents downloaded", value: "1" },
-  { label: "Questionnaire", value: "Not started" },
-  { label: "Total time on hub", value: "~14 min" },
+  { label: "Avg. time per visit", value: "~4 min" },
 ];
 
 export function OverviewSection() {
@@ -102,91 +97,105 @@ export function OverviewSection() {
     <div className="min-h-screen bg-[hsl(var(--warm-cream))]">
       {/* Top Bar */}
       <div className="flex items-center justify-between mb-6 pb-4 border-b border-[hsl(var(--medium-grey))]/20">
-        <h1 className="text-3xl font-bold text-[hsl(var(--bold-royal-blue))]">
-          Overview
-        </h1>
+        <div>
+          <h1 className="text-4xl font-bold text-[hsl(var(--bold-royal-blue))]">
+            Neverland Creative
+          </h1>
+          <p className="text-lg text-[hsl(var(--medium-grey))]">Pitch Hub</p>
+        </div>
         <div className="flex items-center gap-3">
-          <Badge className="bg-[hsl(var(--deep-navy))] text-white">
-            Internal View
+          <Badge className="bg-[hsl(var(--sage-green))] text-white">
+            Active
           </Badge>
-          <Button variant="outline" className="border-[hsl(var(--gradient-blue))] text-[hsl(var(--gradient-blue))]">
-            <Edit className="w-4 h-4 mr-2" />
-            Edit
+          <Button variant="ghost" size="icon">
+            <Settings className="w-5 h-5 text-[hsl(var(--medium-grey))]" />
           </Button>
         </div>
       </div>
 
-      {/* Welcome Preview */}
-      <div className="mb-8">
-        <p className="text-sm text-[hsl(var(--medium-grey))] italic mb-2">Client sees:</p>
-        <div className="bg-gradient-to-r from-[hsl(var(--gradient-blue))] to-[hsl(var(--gradient-purple))] p-8 rounded-lg">
-          <h2 className="text-4xl font-bold text-[hsl(var(--bold-royal-blue))] mb-2">
-            Welcome, Sarah
-          </h2>
-          <p className="text-lg text-[hsl(var(--dark-grey))]">
-            Here's everything you need for our proposal to Neverland Creative
-          </p>
-        </div>
-      </div>
-
-      {/* Featured Video */}
-      <div className="mb-8">
-        <div className="relative aspect-video bg-[hsl(var(--medium-grey))] rounded-lg flex items-center justify-center mb-2">
-          <Play className="w-16 h-16 text-white opacity-70" />
-        </div>
-        <div className="flex items-center justify-between">
-          <p className="text-sm text-[hsl(var(--dark-grey))]">Watch our introduction</p>
-          <button className="text-sm text-[hsl(var(--medium-grey))] hover:text-[hsl(var(--gradient-blue))] underline">
-            Change video
-          </button>
-        </div>
-      </div>
-
-      {/* Quick Links Preview */}
-      <div className="mb-8">
-        <h3 className="text-xl font-semibold text-[hsl(var(--bold-royal-blue))] mb-4">
-          Quick Access
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {quickLinks.map((link) => (
-            <Card key={link.title} className="hover:shadow-md transition-shadow cursor-pointer">
-              <CardHeader>
-                <div className="flex items-start justify-between">
-                  <link.icon className={`w-8 h-8 ${link.color}`} />
-                  {link.badge && (
-                    <Badge variant="destructive" className="bg-[hsl(var(--soft-coral))]">
-                      {link.badge}
-                    </Badge>
+      {/* Hub Status Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        {hubStatus.map((status) => (
+          <Card key={status.label} className="hover:shadow-md transition-shadow">
+            <CardContent className="pt-6">
+              <div className="flex items-start gap-3">
+                <status.icon className="w-6 h-6 text-[hsl(var(--gradient-blue))]" />
+                <div className="flex-1">
+                  <p className="text-sm text-[hsl(var(--medium-grey))] mb-1">
+                    {status.label}
+                  </p>
+                  <p className="text-xl font-bold text-[hsl(var(--bold-royal-blue))]">
+                    {status.value}
+                  </p>
+                  {status.detail && (
+                    <p className="text-xs text-[hsl(var(--medium-grey))] mt-1">
+                      {status.detail}
+                    </p>
+                  )}
+                  {status.label === "Clients Invited" && (
+                    <div className="flex gap-1 mt-2">
+                      <Avatar className="w-6 h-6">
+                        <AvatarFallback className="text-xs bg-[hsl(var(--gradient-blue))] text-white">
+                          SM
+                        </AvatarFallback>
+                      </Avatar>
+                      <Avatar className="w-6 h-6">
+                        <AvatarFallback className="text-xs bg-[hsl(var(--gradient-purple))] text-white">
+                          JC
+                        </AvatarFallback>
+                      </Avatar>
+                    </div>
                   )}
                 </div>
-                <CardTitle className="text-lg">{link.title}</CardTitle>
-                <CardDescription>{link.description}</CardDescription>
-                {link.status && (
-                  <p className="text-xs text-[hsl(var(--medium-grey))] mt-2">{link.status}</p>
-                )}
-              </CardHeader>
-            </Card>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* Quick Actions */}
+      <div className="mb-8">
+        <h2 className="text-2xl font-bold text-[hsl(var(--dark-grey))] mb-4">
+          Quick Actions
+        </h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {quickActions.map((action) => (
+            <Button
+              key={action.label}
+              className={`${action.color} text-white h-auto py-4 justify-start`}
+            >
+              <action.icon className="w-5 h-5 mr-3" />
+              <span className="text-base font-semibold">{action.label}</span>
+            </Button>
           ))}
         </div>
       </div>
 
       {/* Two-Column Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-        {/* Left Column - Activity & Content */}
+        {/* Left Column */}
         <div className="lg:col-span-2 space-y-6">
-          {/* Client Activity Panel */}
+          {/* Recent Activity */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-[hsl(var(--gradient-blue))] flex items-center gap-2">
-                <TrendingUp className="w-5 h-5" />
-                Client Activity
+              <CardTitle className="text-[hsl(var(--bold-royal-blue))]">
+                Activity
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {clientActivity.map((activity, index) => (
-                  <div key={index} className="flex items-start gap-3 pb-4 border-b last:border-b-0">
-                    <activity.icon className="w-5 h-5 text-[hsl(var(--gradient-blue))] mt-1" />
+                {recentActivity.map((activity, index) => (
+                  <div
+                    key={index}
+                    className={`flex items-start gap-3 pb-4 border-b last:border-b-0 ${
+                      activity.isClientAction ? "bg-[hsl(var(--gradient-blue))]/5 -mx-4 px-4 py-2" : ""
+                    }`}
+                  >
+                    {activity.isClientAction ? (
+                      <User className="w-5 h-5 text-[hsl(var(--gradient-blue))] mt-1" />
+                    ) : (
+                      <CheckCircle className="w-5 h-5 text-[hsl(var(--sage-green))] mt-1" />
+                    )}
                     <div className="flex-1">
                       <p className="text-sm text-[hsl(var(--dark-grey))]">
                         {activity.description}
@@ -202,34 +211,41 @@ export function OverviewSection() {
                 ))}
               </div>
               <button className="text-sm text-[hsl(var(--gradient-blue))] hover:underline mt-4">
-                View all activity
+                View all
               </button>
             </CardContent>
           </Card>
 
-          {/* Recent Updates Panel */}
+          {/* To Do / Alerts */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-[hsl(var(--bold-royal-blue))]">
-                Recent Updates
+              <CardTitle className="text-[hsl(var(--dark-grey))]">
+                Needs Attention
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {recentUpdates.map((update, index) => (
-                  <div key={index} className="flex items-start gap-3 pb-4 border-b last:border-b-0">
-                    <update.icon className="w-5 h-5 text-[hsl(var(--sage-green))] mt-1" />
-                    <div className="flex-1">
-                      <p className="text-sm text-[hsl(var(--dark-grey))]">
-                        {update.description}
-                      </p>
-                      <div className="flex items-center gap-1 mt-1">
-                        <Clock className="w-3 h-3 text-[hsl(var(--medium-grey))]" />
-                        <span className="text-xs text-[hsl(var(--medium-grey))]">
-                          {update.timestamp}
-                        </span>
-                      </div>
-                    </div>
+              <div className="space-y-3">
+                {alerts.map((alert, index) => (
+                  <div
+                    key={index}
+                    className={`flex items-start gap-3 ${
+                      alert.completed ? "opacity-50" : ""
+                    }`}
+                  >
+                    {alert.completed ? (
+                      <CheckCircle className="w-5 h-5 text-[hsl(var(--sage-green))] mt-0.5" />
+                    ) : (
+                      <AlertCircle className="w-5 h-5 text-[hsl(var(--soft-coral))] mt-0.5" />
+                    )}
+                    <p
+                      className={`text-sm ${
+                        alert.completed
+                          ? "text-[hsl(var(--medium-grey))] line-through"
+                          : "text-[hsl(var(--dark-grey))]"
+                      }`}
+                    >
+                      {alert.label}
+                    </p>
                   </div>
                 ))}
               </div>
@@ -237,48 +253,53 @@ export function OverviewSection() {
           </Card>
         </div>
 
-        {/* Right Column - Internal Tools */}
+        {/* Right Column */}
         <div className="lg:col-span-1 space-y-6">
-          {/* Internal Notes Panel */}
+          {/* Internal Notes */}
           <Card className="bg-[hsl(var(--warm-cream))]/50 border-2 border-[hsl(var(--medium-grey))]/20">
             <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <EyeOff className="w-4 h-4" />
-                  Internal Notes
-                </CardTitle>
+              <div className="flex items-center gap-2 mb-1">
+                <EyeOff className="w-4 h-4" />
+                <CardTitle className="text-lg">Internal Notes</CardTitle>
               </div>
-              <p className="text-xs text-[hsl(var(--medium-grey))]">Not visible to client</p>
+              <p className="text-xs text-[hsl(var(--medium-grey))]">
+                Only visible to AgentFlow team
+              </p>
             </CardHeader>
             <CardContent>
               <div className="bg-white/50 p-4 rounded-md border border-[hsl(var(--medium-grey))]/20 min-h-[180px] text-sm text-[hsl(var(--dark-grey))] whitespace-pre-line mb-3">
-                Sarah seems very engaged. Key decision maker is actually James (her boss) - make sure to CC him on important updates.
+                Key contact is Sarah but James is the decision maker.
                 
-                Budget approved but timeline is tight. Emphasise our fast delivery in next call.
+                Budget: £50-75k approved
+                Timeline: Want to launch by Q2
+                
+                Sarah very responsive. James harder to pin down - suggest CC'ing him on all important messages.
                 
                 - Hamish, Nov 24
               </div>
-              <div className="flex items-center justify-between">
-                <button className="text-sm text-[hsl(var(--gradient-blue))] hover:underline">
-                  Edit
-                </button>
-                <p className="text-xs text-[hsl(var(--medium-grey))]">
-                  Last updated: Nov 24 by Hamish
-                </p>
-              </div>
+              <Button variant="outline" size="sm" className="w-full">
+                Edit
+              </Button>
             </CardContent>
           </Card>
 
-          {/* Engagement Stats Panel */}
+          {/* Engagement Stats */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">Engagement</CardTitle>
+              <CardTitle className="text-lg text-[hsl(var(--dark-grey))]">
+                Client Engagement
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
                 {engagementStats.map((stat, index) => (
-                  <div key={index} className="flex justify-between items-center py-2 border-b last:border-b-0">
-                    <span className="text-sm text-[hsl(var(--dark-grey))]">{stat.label}</span>
+                  <div
+                    key={index}
+                    className="flex justify-between items-center py-2 border-b last:border-b-0"
+                  >
+                    <span className="text-sm text-[hsl(var(--dark-grey))]">
+                      {stat.label}
+                    </span>
                     <span className="text-sm font-semibold text-[hsl(var(--bold-royal-blue))]">
                       {stat.value}
                     </span>
@@ -287,53 +308,16 @@ export function OverviewSection() {
               </div>
             </CardContent>
           </Card>
-
-          {/* Quick Actions Panel */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Quick Actions</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              <Button variant="outline" className="w-full justify-start">
-                <Link2 className="w-4 h-4 mr-2" />
-                Copy hub link
-              </Button>
-              <Button variant="outline" className="w-full justify-start">
-                <Settings className="w-4 h-4 mr-2" />
-                Hub settings
-              </Button>
-              <button className="w-full text-left px-4 py-2 text-sm text-[hsl(var(--gradient-blue))] hover:bg-[hsl(var(--gradient-blue))]/10 rounded-md flex items-center">
-                <ExternalLink className="w-4 h-4 mr-2" />
-                Preview as client
-              </button>
-            </CardContent>
-          </Card>
         </div>
       </div>
 
-      {/* Next Steps CTA */}
-      <Card className="bg-[hsl(var(--gradient-purple))]/10">
-        <CardContent className="p-6">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-            <div>
-              <h3 className="text-xl font-semibold text-[hsl(var(--bold-royal-blue))] mb-1">
-                Ready to discuss?
-              </h3>
-              <p className="text-sm text-[hsl(var(--medium-grey))]">
-                Schedule a call with our team
-              </p>
-            </div>
-            <div className="flex items-center gap-3">
-              <Button className="bg-[hsl(var(--soft-coral))] hover:bg-[hsl(var(--soft-coral))]/90">
-                Schedule a Call
-              </Button>
-              <button className="text-sm text-[hsl(var(--gradient-blue))] hover:underline">
-                Edit next steps
-              </button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Preview as Client Link */}
+      <div className="text-center">
+        <button className="text-sm text-[hsl(var(--medium-grey))] hover:text-[hsl(var(--gradient-blue))] inline-flex items-center gap-2">
+          See what Sarah sees
+          <ArrowRight className="w-4 h-4" />
+        </button>
+      </div>
     </div>
   );
 }
