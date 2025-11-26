@@ -5,6 +5,7 @@ import { ClientProposalSection } from "@/components/ClientProposalSection";
 import { ClientVideosSection } from "@/components/ClientVideosSection";
 import { ClientDocumentsSection } from "@/components/ClientDocumentsSection";
 import { ClientMessagesSection } from "@/components/ClientMessagesSection";
+import { ClientMeetingsSection } from "@/components/ClientMeetingsSection";
 
 const PortalDetail = () => {
   return (
@@ -15,7 +16,7 @@ const PortalDetail = () => {
         <Route path="videos" element={<ClientVideosSection />} />
         <Route path="documents" element={<ClientDocumentsSection />} />
         <Route path="messages" element={<ClientMessagesSection />} />
-        <Route path="meetings" element={<div className="text-[hsl(var(--dark-grey))]">Meetings Section (Coming Soon)</div>} />
+        <Route path="meetings" element={<ClientMeetingsSection />} />
         <Route path="/" element={<Navigate to="overview" replace />} />
       </Routes>
     </ClientHubLayout>
