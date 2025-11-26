@@ -36,7 +36,7 @@ const clientNavItems = [
 
 function ClientSidebar() {
   return (
-    <Sidebar className="border-r bg-[hsl(var(--deep-navy))]" collapsible="icon">
+    <Sidebar className="border-r bg-[hsl(var(--deep-navy))] pt-16" collapsible="icon">
       <SidebarContent>
         <SidebarGroup>
           <SidebarGroupContent>

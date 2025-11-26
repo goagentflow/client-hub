@@ -30,7 +30,7 @@ export function HubSidebar() {
   const currentPath = location.pathname;
 
   return (
-    <Sidebar className="border-r border-border/50" collapsible="icon">
+    <Sidebar className="border-r border-border/50 pt-16" collapsible="icon">
       <SidebarContent className="bg-[hsl(var(--deep-navy))]">
         <div className="p-4">
           <img 
