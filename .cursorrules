@@ -1,0 +1,181 @@
+# AgentFlow Pitch Hub v0.1
+
+## Coding Standards
+
+Follow GOLDEN_RULES.md for all development. Key principles:
+- Question → Plan → Approval → Code workflow
+- SRP, DRY, SoC, Security by Default
+- No file over 300 lines, no function over 40 lines
+- Validate all inputs, never hardcode secrets
+
+**Pragmatic application:** This is a wireframe prototype with no backend yet. Apply GOLDEN_RULES.md sensibly — focus on clean components, consistent patterns, and brand guidelines. Full testing, comprehensive error handling, DTOs, and security hardening come later when middleware is connected. Don't over-engineer placeholder screens.
+
+---
+
+## What This Project Is
+
+This is a wireframe prototype for AgentFlow's Pitch Hub — a client portal for managing new business pitches. AgentFlow is using this to pitch its own services before selling the full platform to professional services firms.
+
+**Current status:** Front-end wireframes only. No middleware, no API connections, no real authentication. All buttons, forms, and interactions are visual placeholders.
+
+## Key Documentation
+
+- **GOLDEN_RULES.md** — Coding standards for all development
+- **VISION_AND_ASSUMPTIONS.md** — Read this to understand the product. Explains the full vision, what's in scope for v0.1, and all middleware technical assumptions.
+- **docs/PRD_FULL_PRODUCT.md** — The complete product requirements document for the full AgentFlow Hubs platform. Reference for future features, not current scope.
+- **README.md** — Project setup and brand guidelines.
+
+---
+
+## What We're Building (v0.1 Scope)
+
+Two user experiences:
+
+**AgentFlow Staff View:**
+- Login (Microsoft SSO placeholder)
+- Hub List (dashboard of all pitch hubs)
+- Hub Overview (workspace for managing a pitch)
+- Client Portal (curate what clients see)
+- Videos (upload, record, manage)
+- Documents (client docs and internal docs)
+- Messages (email integration placeholder)
+- Meetings (scheduling, recordings, transcripts)
+- Questionnaire (Microsoft Forms integration)
+
+**Client View:**
+- Overview (welcome page, hero content, quick links)
+- Proposal (document viewer with commenting)
+- Videos (watch shared videos)
+- Documents (view, download, upload back)
+- Messages (conversation history)
+- Meetings (view, join, request)
+- Questionnaire (complete forms)
+- People (access management)
+
+## What We're NOT Building Yet
+
+- Client Hubs (ongoing client delivery) — v0.1 is pitch/new business only
+- Expansion Radar (AI upsell detection)
+- Relationship Health scoring
+- Client Assistant AI (natural language Q&A)
+- Leadership portfolio roll-up views
+- Real Microsoft Graph API integration (Stephen is building middleware separately)
+- Multi-tenant deployment
+
+---
+
+## Tech Stack
+
+- Vite (build tool)
+- TypeScript
+- React
+- Tailwind CSS
+- shadcn/ui components
+
+---
+
+## Brand Guidelines
+
+### Colours
+
+| Name | Hex | Usage |
+|------|-----|-------|
+| Gradient Blue | #a6c3e8 | Headers, buttons, hero sections |
+| Gradient Purple | #c6b8e4 | Backgrounds, accents, gradients |
+| Deep Navy | #2c3e50 | Text overlays, navigation, icons |
+| Warm Cream | #fdfaf6 | Main background |
+| Soft Coral | #f7a89d | Call-to-action buttons (sparingly) |
+| Sage Green | #a1bba2 | Illustrations, icons, balance |
+| Dark Grey | #3c3c3c | Primary body text |
+| Medium Grey | #6b6b6b | Secondary text, metadata |
+| Bold Royal Blue | #3d5fa8 | Headings, emphasis |
+| Rich Violet | #7952b3 | Alternating headings, key terms |
+
+### Typography
+
+- **Font:** Calibri (fallback to system sans-serif)
+- **Headings:** Bold Royal Blue (#3d5fa8) or Rich Violet (#7952b3)
+- **Body:** Dark Grey (#3c3c3c)
+- **Secondary:** Medium Grey (#6b6b6b)
+
+### Logo
+
+https://www.goagentflow.com/assets/images/AgentFlowLogo.svg
+
+---
+
+## Code Patterns
+
+### Component Structure
+
+```tsx
+// Use shadcn/ui components where possible
+import { Button } from "@/components/ui/button"
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
+
+// Tailwind for custom styling, using brand colours
+<div className="bg-[#fdfaf6] text-[#3c3c3c]">
+  <h1 className="text-[#3d5fa8] font-bold">Heading</h1>
+</div>
+```
+
+### Placeholder Data
+
+All data is placeholder. Use realistic-looking fake data that demonstrates the UI:
+
+```tsx
+// Good: Realistic placeholder
+const pitchHubs = [
+  { id: 1, name: "Neverland Creative", status: "Active", lastActivity: "2 hours ago" },
+  { id: 2, name: "Acme Corp", status: "Draft", lastActivity: "Yesterday" },
+];
+
+// Bad: Obviously fake
+const pitchHubs = [
+  { id: 1, name: "Test Client", status: "test", lastActivity: "test" },
+];
+```
+
+### No Real API Calls
+
+This is wireframes only. Don't add:
+- Fetch calls to real endpoints
+- Authentication logic
+- Microsoft Graph API code
+- Database connections
+
+If you need to simulate async behaviour, use setTimeout with placeholder data.
+
+---
+
+## Folder Structure
+
+```
+/
+  .cursorrules          ← You are here
+  GOLDEN_RULES.md       ← Coding standards
+  README.md
+  VISION_AND_ASSUMPTIONS.md
+  package.json
+  /docs
+    PRD_FULL_PRODUCT.md
+  /public
+    (static assets)
+  /src
+    /components
+      /ui               ← shadcn/ui components
+    /pages              ← Page views
+    /lib                ← Utilities
+    /assets             ← Images, icons
+```
+
+---
+
+## When In Doubt
+
+1. Read VISION_AND_ASSUMPTIONS.md — Section 2 defines v0.1 scope
+2. Check GOLDEN_RULES.md — but apply pragmatically for wireframes
+3. Keep it visual — we're building wireframes, not functionality
+4. Use the brand colours — consistency matters
+5. Make it look real — placeholder data should be believable
+6. Don't over-engineer — simple React components, no complex state management yet

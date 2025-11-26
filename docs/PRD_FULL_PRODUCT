@@ -1,0 +1,698 @@
+Product Requirements Document v1.0
+
+November 2025
+
+# 1. Purpose
+
+This document explains what we are building, why it matters, and how the
+system should work. It is written for architects, engineers, and product
+people. It should provide enough clarity to start real design and
+technical planning without going into implementation detail.
+
+# 2. Product Overview
+
+## 2.1 One Line
+
+AgentFlow gives account teams a single place to manage client work and
+pitches, with everything stored in Microsoft 365 and AI that helps
+clients get instant answers while surfacing growth opportunities and
+relationship risk for the agency.
+
+## 2.2 Who This Is For
+
+**Initial focus:**
+
+-   Independent and small network professional services firms
+
+-   Starting beachhead: media and advertising agencies on Microsoft 365
+
+**Typical users:**
+
+-   Account managers and directors (primary users of the hub)
+
+-   Project managers
+
+-   New business teams
+
+-   Practice leaders and partners
+
+-   Senior leadership with revenue responsibility
+
+-   Client-side contacts who work with the firm regularly
+
+## 2.3 Core Principle: Everything Stays in the Client\'s Tenant
+
+All data, including configuration, derived intelligence scores, captured
+communications, and client information, is stored in the agency\'s
+Microsoft 365 tenant. AgentFlow does not maintain its own database of
+client data. The middleware is stateless; it processes and serves, but
+does not persist.
+
+# 3. Insight and Problems
+
+## 3.1 Core Insight
+
+Target firms already use Microsoft 365 for almost everything, but
+neither they nor their clients experience it as a joined-up workspace.
+Information is scattered, work depends on heroic individuals keeping
+everything in their heads, and clients are left chasing for basic
+answers.
+
+**On the firm side:**
+
+-   Client work is spread across Outlook, SharePoint, Teams, Planner,
+    and calendars
+
+-   Pitches are assembled from old decks and emails under time pressure
+
+-   Upsell and cross-sell depend on individual memory
+
+-   Relationship health is judged on gut feel and escalations
+
+**On the client side:**
+
+-   They wait for answers to basic questions like \"where are we on X\"
+
+-   They are unclear what is waiting on them for approval or input
+
+-   When stakeholders change, new people lack context and history
+
+-   They only hear about issues when it is already a problem
+
+## 3.2 Problems We Want to Solve
+
+### 3.2.1 Fragmented Client Delivery
+
+Information is dispersed across tools and inboxes. There is no simple
+view of current projects, decisions, actions, and risks for a given
+client. Clients cannot see what is going on without chasing. Everything
+depends on manual effort from account teams.
+
+### 3.2.2 New Business Chaos
+
+Every pitch starts from scratch. Past pitches and case studies are hard
+to find and reuse. Pitch tasks, deadlines, and responsibilities are
+tracked across email, chat, and temporary docs. Leadership has poor
+visibility of pitch status without heavy involvement.
+
+### 3.2.3 Missed Expansion Opportunities
+
+Signals of additional client needs are buried in months of communication
+and notes. There is no structured way to turn those signals into
+practical cross-sell options that match the firm\'s services. Leadership
+cannot see which accounts hold genuine expansion potential.
+
+### 3.2.4 Hidden Relationship Risk
+
+Early signs that a relationship is cooling are subtle and easy to miss.
+Key accounts can drift away before anyone notices. Churn risk only
+becomes clear when complaints, disputes, or lost renewals appear.
+
+### 3.2.5 Low Perceived Value of \"Yet Another Portal\"
+
+Clients do not care about the agency\'s internal efficiency. They do not
+want another dashboard that mirrors internal tools. If the hub only
+benefits the firm, clients will question why it exists. Any hub must
+give clients clear, direct benefits: faster answers, clearer decisions,
+better visibility, and shared history.
+
+# 4. Product Concept
+
+## 4.1 The Hub as Primary Interface
+
+AgentFlow Hubs is where account managers do their core work. They update
+status, manage approvals, upload deliverables, and communicate with
+clients through the hub. The hub writes to a structured folder system in
+SharePoint that it creates and maintains. The AI reads from these known
+locations, making queries fast and reliable.
+
+Microsoft 365 remains the system of record for mail, documents, chat,
+and tasks. AgentFlow does not aim to replace Outlook, Teams, SharePoint,
+or Planner. It provides a focused interface for client-facing work while
+ensuring everything ends up in the right place.
+
+## 4.2 Multiple Input Routes
+
+We recognise that people will not always work through the hub. The
+system handles multiple input routes, all converging on the same
+structured storage:
+
+**Route 1: Through the hub (primary)**
+
+Account manager updates status, uploads a deliverable, logs an approval.
+The hub writes to the correct SharePoint location automatically.
+
+**Route 2: Via email and Teams (automated capture)**
+
+Account manager sends email to client in Outlook. Graph API filters it
+by client and project. The email or a reference to it lands in the right
+folder in the hub structure. The account manager does not have to do
+anything different; they just email normally.
+
+**Route 3: Direct to SharePoint (manual)**
+
+Account manager or anyone else uploads a file directly to SharePoint.
+They just need to put it in the correct folder, same as
+non-account-management staff. The hub detects the new file and surfaces
+it.
+
+## 4.3 How Non-AM Staff Interact
+
+Strategists, creatives, producers, and other delivery staff do not need
+to use the hub. When they complete a deliverable, they upload it to the
+project folder in SharePoint. That is their only touchpoint with the
+system. The hub surfaces new files to the account manager automatically.
+
+## 4.4 Three Product Areas
+
+There are three main product areas: Client Hubs, New Biz Hubs, and the
+Intelligence Layer. These share the same underlying architecture and
+data.
+
+# 5. Client Hubs
+
+**Goal:** Give internal teams and clients a shared, simple view of all
+work for a client or brand, while making the hub the primary place where
+account managers do their day-to-day work.
+
+## 5.1 Key Principles
+
+-   One hub per client, brand, or stakeholder group
+
+-   Accessible via browser and optionally as an app inside Teams
+
+-   Account managers work in the hub: updating status, managing
+    approvals, uploading documents
+
+-   The hub writes to SharePoint, creating a consistent folder structure
+
+-   Emails and Teams messages are automatically captured and associated
+    with the right client
+
+-   Same underlying data for internal and client views, with different
+    visibility rules
+
+## 5.2 Client-Facing Features
+
+The client hub must feel built for the client, not as a window into
+internal chaos. These features justify the client paying for or
+accepting the hub.
+
+**Instant Answers**
+
+A question box where clients can ask things like \"Where are we on the
+Q1 campaign?\" or \"What changed since last week?\" The AI responds
+using hub data and Microsoft 365 sources. The AI goes to structured data
+first (the project status doc the AM updated in the hub). If structured
+data is stale or missing, it can fall back to captured communications
+but flags this as inferred rather than confirmed.
+
+**Decision Queue**
+
+A section listing \"Waiting on you\" items: approvals, inputs, content,
+sign-offs. Each item has plain language context and a link or simple
+action. Goal is to make it obvious where the client is the bottleneck.
+Items are tracked through a standardised approval workflow, so the AI
+reads from a known list rather than inferring from emails.
+
+**Meeting Prep and Follow-Up**
+
+Before a scheduled status call, the hub shows what has been done, what
+is in progress, and what decisions are needed. This is generated from
+the structured status data the AM maintains. After a call, the hub shows
+agreed actions and decisions in plain English.
+
+**Plain English Performance View**
+
+Short written summaries using existing reporting and KPIs. For example:
+\"Paid social is outperforming benchmark by 15 per cent\" or \"Email
+open rates have dropped. Here is what we recommend.\" The aim is
+narrative and recommendations, not more graphs. Note: This feature
+depends on performance data being available in SharePoint or Power BI;
+if data lives in external platforms, integrations may be required.
+
+**Institutional Memory**
+
+History view for questions like \"What have we done together in the last
+12 months?\" or \"What worked, what did not, and why?\" Helps onboard
+new client-side stakeholders quickly. The AI synthesises both structured
+project summaries and key themes from captured communication.
+
+**Proactive Risk Alerts**
+
+Client sees clear alerts when there is a pacing or delivery risk. Each
+alert comes with options or recommendations. Shows the agency raising
+issues early, not hiding them.
+
+## 5.3 Internal Features
+
+Internal view has everything above plus:
+
+-   Internal notes and risks not visible to client
+
+-   Richer detail on projects and workstreams
+
+-   Quick view of recent activity across channels
+
+-   Relationship Health and Expansion Radar scores for that client
+
+-   The ability to update status, manage approvals, and upload
+    deliverables directly
+
+# 6. New Biz Hubs
+
+**Goal:** Make each pitch more repeatable and less chaotic, and help
+teams reuse previous work.
+
+## 6.1 Key Principles
+
+-   One hub per pitch or RFP
+
+-   Links together the brief, historic work, current response, and
+    workflow
+
+## 6.2 Features
+
+**Brief Intake**
+
+Upload RFP documents and link relevant email threads. AI generates a
+structured summary: client, scope, budget where present, key
+requirements, constraints, deadlines, open questions.
+
+**Historic Work Discovery**
+
+Find similar past pitches or case studies in SharePoint. Rank by
+relevance to current brief. Present snippets and slides with source
+links.
+
+**Pitch Workspace**
+
+View for current response documents and decks stored in SharePoint.
+Clear ownership and status per document.
+
+**Pitch Plan and Tasks**
+
+Simple view of phases, tasks, owners, deadlines. Syncs with Planner or
+chosen task store.
+
+**Leadership Snapshot**
+
+One screen showing high-level pitch summary, progress status, and major
+gaps or risks.
+
+# 7. Intelligence Layer
+
+This runs across both client and pitch hubs. It uses two types of data:
+structured data (created and maintained through the hub) and ambient
+data (captured communications from email and Teams).
+
+## 7.1 Expansion Radar
+
+**Goal:** Help account managers and partners spot credible cross-sell
+and upsell opportunities.
+
+**How it works:**
+
+-   Periodically reads captured emails, chats, and meeting summaries
+    linked to each client
+
+-   Looks for patterns or phrases that indicate needs matched by the
+    firm\'s services
+
+-   Assigns an expansion potential score to each client
+
+-   Presents a small number of suggested plays to the account manager,
+    with evidence and suggested talk track
+
+**Features:**
+
+-   Evidence panel showing the excerpts that triggered each suggestion
+
+-   Simple actions: mark as relevant, not relevant, or not appropriate
+
+-   Feedback loop to improve future suggestions
+
+-   Leadership view of expansion potential across the portfolio
+
+## 7.2 Relationship Health
+
+**Goal:** Give early warning when client relationships may be drifting
+or at risk.
+
+**Inputs:**
+
+-   Language tone in emails and chats over time
+
+-   Response times and dropped threads
+
+-   Participation in key meetings
+
+-   Operational issues such as missed deadlines, escalations, invoice
+    disputes
+
+**Outputs:**
+
+-   Health indicator per client: Strong, Stable, or At Risk
+
+-   Trend arrow where possible
+
+-   Short explanation of the main drivers of the rating
+
+-   Simple suggested actions, for example senior check-in or expectation
+    reset
+
+**Leadership view:** Grid of clients plotted by relationship health and
+expansion potential. Filters by team, sector, and size.
+
+## 7.3 Client Assistant
+
+**Goal:** Provide client-facing value by using the same data to answer
+questions, support decisions, and maintain context.
+
+**Capabilities:**
+
+-   Natural language Q&A over current work, timelines, decisions, and
+    performance
+
+-   Auto-generate and maintain the \"Waiting on you\" list in the client
+    hub
+
+-   Generate pre-meeting briefs and post-meeting notes from underlying
+    data
+
+-   Convert existing reporting into short, human-readable summaries
+
+-   Generate relationship summaries for new stakeholders
+
+Client Assistant must be designed with client trust first. It should be
+clear about what it can and cannot answer. It should not expose internal
+disagreements or sensitive commentary.
+
+## 7.4 AI Source Hierarchy
+
+The AI uses data in a clear priority order:
+
+1.  **Structured data (hub-created)** --- primary, trusted. Project
+    status, milestones, deliverables, approvals. The AI reads from known
+    file paths.
+
+2.  **Captured communications** --- secondary, for signals and context.
+    Emails and Teams messages filtered and associated with clients.
+
+3.  **Broader SharePoint search** --- fallback, for edge cases where
+    specific content cannot be found in known locations.
+
+For most queries, the AI never gets past level 1. The intelligence
+features (Expansion Radar, Relationship Health) use level 2. Level 3 is
+for \"I cannot find this anywhere else\" scenarios.
+
+# 8. Folder Structure and Data Storage
+
+## 8.1 Hub-Created Structure
+
+When a client is created in the hub, the system generates a standardised
+folder structure in the agency\'s SharePoint tenant. This structure is
+consistent across all clients. The AI reads from known paths rather than
+searching.
+
+**Example structure:**
+
+/AgentFlow/Clients/\[ClientName\]/Overview.json
+/AgentFlow/Clients/\[ClientName\]/Projects/\[ProjectName\]/Status.json
+/AgentFlow/Clients/\[ClientName\]/Projects/\[ProjectName\]/Brief.json
+/AgentFlow/Clients/\[ClientName\]/Projects/\[ProjectName\]/Deliverables/
+/AgentFlow/Clients/\[ClientName\]/Projects/\[ProjectName\]/Approvals/
+/AgentFlow/Clients/\[ClientName\]/Communications/
+/AgentFlow/Clients/\[ClientName\]/Intelligence/HealthScore.json
+/AgentFlow/Clients/\[ClientName\]/Intelligence/ExpansionSignals.json
+/AgentFlow/Config/ClientMappings.json /AgentFlow/Config/UserRoles.json
+
+## 8.2 What Gets Stored Where
+
+**Configuration and mappings:**
+
+-   Which email addresses belong to which client
+
+-   Which Teams channels map to which client
+
+-   User roles and permissions within the hub
+
+-   Hub settings per client
+
+These are JSON files in SharePoint under /AgentFlow/Config/
+
+**Derived intelligence:**
+
+-   Relationship Health scores per client
+
+-   Expansion Radar signals and suggested plays
+
+-   Evidence excerpts that triggered suggestions
+
+-   AM feedback on suggestions (relevant/dismissed)
+
+These are JSON files in SharePoint under
+/AgentFlow/Clients/\[ClientName\]/Intelligence/
+
+**Captured communications:**
+
+-   Email references or summaries
+
+-   Teams message references
+
+These are stored in SharePoint under
+/AgentFlow/Clients/\[ClientName\]/Communications/
+
+# 9. High Level Architecture
+
+## 9.1 Principles
+
+-   Microsoft 365 remains the primary store for mail, files, chat, and
+    tasks
+
+-   All data stays in the client\'s tenant, including configuration,
+    derived intelligence, and captured communications
+
+-   The middleware is stateless; it processes and serves but does not
+    persist client data
+
+-   Security and access follow existing Microsoft identity and
+    permission models
+
+-   Architecture should allow deployment inside or alongside the
+    customer\'s cloud environment where needed
+
+## 9.2 Components
+
+**Microsoft 365 Backend**
+
+Office services used:
+
+-   Outlook mail and calendars
+
+-   SharePoint and OneDrive (primary storage for all hub data)
+
+-   Teams channels, messages, and meetings
+
+-   Planner or other task systems where agreed
+
+Accessed through Microsoft Graph and related APIs. Authentication and
+authorisation through Microsoft identity.
+
+**AgentFlow Middleware (Stateless)**
+
+Responsibilities:
+
+-   Create and manage folder structures in SharePoint on client/project
+    setup
+
+-   Provide the primary interface for account managers to update status,
+    approvals, deliverables
+
+-   Write structured data to known SharePoint locations
+
+-   Capture emails and Teams messages via Graph API, routing them to the
+    correct client context
+
+-   Read from known file paths for AI queries (deterministic, not
+    search-based)
+
+-   Run intelligence workflows over captured communications for
+    sentiment and expansion signals
+
+-   Write derived intelligence (scores, signals, evidence) back to
+    SharePoint
+
+-   Enforce access control based on Microsoft identity
+
+-   Expose API for the front end
+
+The middleware does not maintain its own database of client data. It
+reads from SharePoint, processes with AI, writes back to SharePoint. All
+persistent data lives in the client\'s tenant.
+
+**Front End GUI**
+
+-   Web application
+
+-   Consumes middleware APIs
+
+-   Provides Client Hubs, Pitch Hubs, and Leadership views
+
+-   Embeds into Teams as an app where required
+
+## 9.3 Graph API Permissions Required
+
+The system needs the following Microsoft Graph API permissions:
+
+-   Files.ReadWrite.All --- SharePoint read/write for folder structure
+    and all data
+
+-   Mail.Read --- Outlook access for email capture
+
+-   ChannelMessage.Read.All --- Teams conversation access
+
+-   Calendars.Read --- Calendar access for meeting prep
+
+-   Tasks.Read --- Planner access for task tracking
+
+-   User.Read --- User authentication
+
+## 9.4 Trade-Offs of Stateless Architecture
+
+Benefits:
+
+1.  Simpler security story: \"All your data stays in your M365 tenant\"
+
+2.  Easier compliance: data residency handled by existing M365 setup
+
+3.  Cleaner architecture: no database to manage, scaling is simpler
+
+4.  No data liability for AgentFlow
+
+Considerations:
+
+1.  Graph API latency: reading/writing via API is slower than a local
+    database. May need in-memory caching for high-frequency reads.
+
+2.  Query complexity: cannot do SQL-style queries across JSON files. May
+    need summary index files for cross-client queries.
+
+3.  SharePoint rate limits: Microsoft throttles Graph API calls. Bulk
+    operations need batching and pacing.
+
+# 10. Users and Key Journeys
+
+## 10.1 Main User Types
+
+**Internal delivery:** Account managers and directors, project managers,
+new business teams
+
+**Internal leadership:** Practice heads, partners, C-level roles
+
+**Client-side:** Day-to-day client contacts, senior client stakeholders
+
+**Non-AM delivery staff:** Strategists, creatives, producers (minimal
+touchpoint with system)
+
+## 10.2 Example Journeys
+
+**Account manager updates project status**
+
+Logs in with Microsoft identity. Opens Client A hub. Updates project
+status for Q1 campaign --- marks milestone complete, adds note about
+client feedback, uploads revised creative. Hub writes all changes to the
+correct SharePoint locations. Checks Relationship Health score, notes it
+is stable.
+
+**Client checks status instead of emailing**
+
+Client opens hub via secure link. Asks \"Where are we on the Q1
+campaign?\" Gets a short answer based on the structured status data,
+plus links to relevant documents and next key date. Sees \"Waiting on
+you\" list and completes an overdue approval directly in the hub.
+
+**Account manager prepares for client meeting**
+
+Opens hub 24 hours before scheduled status call. Clicks \"Generate
+meeting prep\". Hub produces a two-paragraph brief: what has been done
+since last meeting, what is pending, what decisions are needed. AM
+reviews, makes minor edits, shares with team.
+
+**Creative uploads final deliverable**
+
+Creative receives folder link from account manager. Uploads final video
+asset directly to SharePoint in the project deliverables folder. Hub
+detects new file, notifies AM. AM reviews in hub, triggers approval
+request to client.
+
+**New biz lead sets up a pitch hub**
+
+Creates a new pitch hub and uploads the RFP. System generates a summary
+and list of open questions. System suggests three previous pitches plus
+case studies based on relevance. New biz lead pins the most relevant
+examples and assigns tasks.
+
+**Partner reviews portfolio**
+
+Opens leadership view. Sees accounts plotted by relationship health and
+expansion potential. Drills into one \"At risk but high potential\"
+client, reviews evidence driving the health score, triggers a senior
+check-in.
+
+# 11. Scope for First Release
+
+## 11.1 Likely In Scope for v1
+
+**Client Hubs (internal and client-facing):**
+
+Consolidated view of projects, key documents, actions, and meetings per
+client. Account managers can update status, manage approvals, upload
+deliverables. Basic client-facing view with instant answers and decision
+queue.
+
+**Basic Pitch Hubs:**
+
+Brief intake and structured summaries. Simple historic work suggestions
+from SharePoint.
+
+**Initial Intelligence:**
+
+Relationship Health and Expansion Radar scores as computed values per
+client. Meeting prep generation.
+
+**Core Integrations:**
+
+Microsoft identity and Microsoft Graph for mail, calendars, SharePoint,
+OneDrive, Teams metadata, and Planner.
+
+## 11.2 Likely Out of Scope for v1
+
+Full performance visibility (requires external platform integrations).
+Complex task automation and pitch workflow automation. Sophisticated
+expansion playbooks. Advanced reporting and analytics. These boundaries
+can be revisited once technical discovery starts.
+
+# 12. Open Questions for Design and Architecture
+
+These need decisions during discovery:
+
+How do we handle email capture --- do we store copies of emails,
+references/pointers, or AI-generated summaries?
+
+What happens when someone edits a file directly in SharePoint --- does
+the hub sync bidirectionally, or is there a primary direction?
+
+How do we handle SharePoint rate limits for bulk operations like
+recalculating all health scores?
+
+Do we need summary index files for cross-client queries (e.g., \"show
+all clients with health below X\")?
+
+How configurable should hubs be per firm and per client?
+
+What is the compliance monitoring approach --- how do we detect stale
+data and nudge AMs to update?
+
+How do we handle the Admin Consent workflow for Graph API permissions
+--- what is our strategy for IT approval?
