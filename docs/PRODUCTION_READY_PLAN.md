@@ -197,17 +197,28 @@ For each of: Overview, Proposal, Videos, Documents, Messages, Meetings, Question
 
 When this plan is complete:
 
-- [ ] `docs/FRONTEND_AUDIT.md` exists with complete section-by-section analysis
+### Phase 1: Audit & Document ✅
+- [x] `docs/FRONTEND_AUDIT.md` exists with complete section-by-section analysis
+
+### Phase 2: Data Architecture
 - [ ] `src/types/` contains TypeScript interfaces for all data
 - [ ] `src/services/` contains API abstraction with mock implementations
 - [ ] `src/hooks/` contains React Query hooks for all data fetching
 - [ ] `src/routes/guards.tsx` implements role-based route protection
+
+### Phase 3: Section Implementation
 - [ ] All 19 sections use hooks instead of inline mock data
 - [ ] All buttons trigger appropriate service calls
 - [ ] Loading and error states display correctly
 - [ ] Engagement tracking fires on all key user actions
+
+### Phase 4: Integration Documentation
 - [ ] `docs/API_SPECIFICATION.md` documents the complete API contract
+- [ ] Stephen can read the spec and know exactly what endpoints to build
+
+### Phase 5: Testing
 - [ ] CI pipeline runs typecheck, lint, build, and Playwright tests
 - [ ] Playwright tests exist for all sections and pass
-- [ ] Stephen can read the spec and know exactly what endpoints to build
+
+### Final
 - [ ] Swapping mock services for real API calls requires only: MSAL config + API base URL
