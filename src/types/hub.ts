@@ -31,12 +31,12 @@ export interface Hub {
   convertedBy?: EntityId;
 }
 
-// Type guards for hub type discrimination
-export function isPitchHub(hub: Hub): boolean {
+// Type predicates for hub type discrimination (enables TypeScript narrowing)
+export function isPitchHub(hub: Hub): hub is Hub & { hubType: "pitch" } {
   return hub.hubType === "pitch";
 }
 
-export function isClientHub(hub: Hub): boolean {
+export function isClientHub(hub: Hub): hub is Hub & { hubType: "client" } {
   return hub.hubType === "client";
 }
 

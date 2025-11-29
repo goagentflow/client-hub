@@ -22,6 +22,7 @@ export interface AsyncJobBase {
   createdAt: ISODateString;
   expiresAt: ISODateString; // Job TTL (default: createdAt + 1 hour)
   pollIntervalHint: number; // Suggested poll interval in ms (default: 2000)
+  retryAfter?: number; // Seconds to wait before retrying (set when rate-limited)
   completedAt?: ISODateString;
   error?: string; // Only if status="error"
 }

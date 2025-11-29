@@ -468,7 +468,9 @@ GET    /hubs/{hubId}/meetings?projectId={projectId}
 **Filter Semantics:**
 - No `projectId` param → Returns ALL artifacts (assigned + unassigned)
 - `projectId={id}` → Returns only artifacts assigned to that project
-- `projectId=null` or `projectId=unassigned` → Returns only UNASSIGNED artifacts (projectId is null/undefined)
+- `projectId=unassigned` → Returns only UNASSIGNED artifacts (projectId is null/undefined)
+
+**Note:** Use `"unassigned"` string value (not `null`) for URL-friendliness. Types use `EntityId | "unassigned"`.
 
 **Assigning artifacts to projects:**
 ```

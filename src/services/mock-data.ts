@@ -35,6 +35,11 @@ export const mockStaffUser: User = {
   email: "hamish@goagentflow.com",
   displayName: "Hamish Nicklin",
   role: "staff",
+  permissions: {
+    isAdmin: true, // Hamish has admin access for leadership views
+    canConvertHubs: true,
+    canViewAllHubs: true,
+  },
   tenantId: "agentflow-tenant-id",
   domain: "goagentflow.com",
 };
@@ -44,11 +49,16 @@ export const mockClientUser: User = {
   email: "sarah@whitmorelaw.co.uk",
   displayName: "Sarah Mitchell",
   role: "client",
+  permissions: {
+    isAdmin: false, // Clients never have admin access
+    canConvertHubs: false,
+    canViewAllHubs: false,
+  },
   tenantId: "whitmore-tenant-id",
   domain: "whitmorelaw.co.uk",
 };
 
-// Mock Hubs
+// Mock Hubs (all pitch hubs for now - Phase 2 will add client hub examples)
 export const mockHubs: Hub[] = [
   {
     id: "hub-1",
@@ -56,6 +66,7 @@ export const mockHubs: Hub[] = [
     contactName: "Sarah Mitchell",
     contactEmail: "sarah@whitmorelaw.co.uk",
     status: "active",
+    hubType: "pitch",
     createdAt: daysAgo(30),
     updatedAt: daysAgo(1),
     lastActivity: hoursAgo(2),
@@ -69,6 +80,7 @@ export const mockHubs: Hub[] = [
     contactName: "John Chen",
     contactEmail: "john@hartleygrant.com",
     status: "draft",
+    hubType: "pitch",
     createdAt: daysAgo(7),
     updatedAt: daysAgo(1),
     lastActivity: daysAgo(1),
@@ -82,6 +94,7 @@ export const mockHubs: Hub[] = [
     contactName: "Alex Torres",
     contactEmail: "alex@meridiandigital.co",
     status: "won",
+    hubType: "pitch",
     createdAt: daysAgo(60),
     updatedAt: daysAgo(14),
     lastActivity: daysAgo(14),
@@ -95,6 +108,7 @@ export const mockHubs: Hub[] = [
     contactName: "Emma Davies",
     contactEmail: "emma@ashfordconsulting.com",
     status: "active",
+    hubType: "pitch",
     createdAt: daysAgo(21),
     updatedAt: daysAgo(3),
     lastActivity: daysAgo(3),
@@ -108,6 +122,7 @@ export const mockHubs: Hub[] = [
     contactName: "Marcus Webb",
     contactEmail: "marcus@clearwaterit.co.uk",
     status: "lost",
+    hubType: "pitch",
     createdAt: daysAgo(45),
     updatedAt: daysAgo(10),
     lastActivity: daysAgo(10),
