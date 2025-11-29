@@ -17,7 +17,7 @@ export default defineConfig({
   reporter: process.env.CI ? "github" : "html",
 
   use: {
-    baseURL: "http://localhost:5173",
+    baseURL: process.env.CI ? "http://localhost:4173" : "http://localhost:5173",
     trace: "on-first-retry",
     screenshot: "only-on-failure",
   },
@@ -31,9 +31,11 @@ export default defineConfig({
 
   // Start dev server before running tests
   webServer: {
-    command: "npm run dev",
-    url: "http://localhost:5173",
+    command: process.env.CI ? "npm run build && npm run preview" : "npm run dev",
+    url: process.env.CI ? "http://localhost:4173" : "http://localhost:5173",
     reuseExistingServer: !process.env.CI,
-    timeout: 120 * 1000,
+    timeout: 180 * 1000,
+    stdout: "pipe",
+    stderr: "pipe",
   },
 });
