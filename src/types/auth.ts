@@ -1,5 +1,7 @@
 /**
  * Authentication and authorization types
+ *
+ * Phase 2: Added UserPermissions for granular access control (leadership views, hub conversion)
  */
 
 import type { EntityId, ISODateString } from "./common";
@@ -7,15 +9,28 @@ import type { EntityId, ISODateString } from "./common";
 // User roles
 export type UserRole = "staff" | "client";
 
+// User permissions for granular access control (Phase 2)
+export interface UserPermissions {
+  isAdmin: boolean; // Required for /leadership/* endpoints
+  canConvertHubs: boolean; // Can convert pitch hubs to client hubs
+  canViewAllHubs: boolean; // Can see all hubs, not just assigned ones
+}
+
 // Current authenticated user
 export interface User {
   id: EntityId;
   email: string;
   displayName: string;
   role: UserRole;
+  permissions: UserPermissions; // Phase 2: Granular permissions
   avatarUrl?: string;
   tenantId: string; // Azure AD tenant ID (read-only, for debugging)
   domain: string; // Email domain (read-only, for display/debugging)
+}
+
+// Helper to check admin access
+export function hasAdminAccess(user: User): boolean {
+  return user.role === "staff" && user.permissions.isAdmin;
 }
 
 // Auth state for the application

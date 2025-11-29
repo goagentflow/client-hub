@@ -24,6 +24,7 @@ export type DocumentCategory =
 export interface Document {
   id: EntityId;
   hubId: EntityId;
+  projectId?: EntityId; // Phase 2: Optional project association
   name: string;
   description: string | null;
   fileName: string;
@@ -67,6 +68,7 @@ export interface UpdateDocumentRequest {
   description?: string;
   category?: DocumentCategory;
   visibility?: DocumentVisibility;
+  projectId?: EntityId | null; // Phase 2: Assign to project (null to unassign)
 }
 
 // Document engagement analytics
@@ -99,4 +101,5 @@ export interface BulkDocumentActionRequest {
 export interface DocumentFilterParams {
   visibility?: DocumentVisibility;
   category?: DocumentCategory;
+  projectId?: EntityId | "unassigned"; // Phase 2: Filter by project ("unassigned" for null projectId)
 }

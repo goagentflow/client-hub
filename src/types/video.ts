@@ -14,6 +14,7 @@ export type VideoVisibility = "client" | "internal";
 export interface Video {
   id: EntityId;
   hubId: EntityId;
+  projectId?: EntityId; // Phase 2: Optional project association
   title: string;
   description: string | null;
   sourceType: VideoSourceType;
@@ -49,6 +50,13 @@ export interface UpdateVideoRequest {
   title?: string;
   description?: string;
   visibility?: VideoVisibility;
+  projectId?: EntityId | null; // Phase 2: Assign to project (null to unassign)
+}
+
+// Video filter params (Phase 2)
+export interface VideoFilterParams {
+  visibility?: VideoVisibility;
+  projectId?: EntityId | "unassigned"; // Filter by project ("unassigned" for null projectId)
 }
 
 // Video engagement analytics

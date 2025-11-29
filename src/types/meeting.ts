@@ -15,6 +15,7 @@ export type MeetingStatus = "scheduled" | "in_progress" | "completed" | "cancell
 export interface Meeting {
   id: EntityId;
   hubId: EntityId;
+  projectId?: EntityId; // Phase 2: Optional project association
   title: string;
   description: string | null;
   startTime: ISODateString;
@@ -95,4 +96,10 @@ export interface MeetingFilterParams {
   status?: MeetingStatus;
   fromDate?: ISODateString;
   toDate?: ISODateString;
+  projectId?: EntityId | "unassigned"; // Phase 2: Filter by project
+}
+
+// Update meeting project assignment (Phase 2)
+export interface UpdateMeetingProjectRequest {
+  projectId?: EntityId | null; // Assign to project (null to unassign)
 }

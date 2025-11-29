@@ -21,6 +21,7 @@ export type {
 // Authentication types
 export type {
   UserRole,
+  UserPermissions,
   User,
   AuthState,
   TokenScopes,
@@ -30,9 +31,11 @@ export type {
   HubAccessCheckResponse,
   HubPermissions,
 } from "./auth";
+export { hasAdminAccess } from "./auth";
 
 // Hub types
 export type {
+  HubType,
   HubStatus,
   Hub,
   CreateHubRequest,
@@ -46,6 +49,7 @@ export type {
   PortalSectionConfig,
   UpdatePortalConfigRequest,
 } from "./hub";
+export { isPitchHub, isClientHub } from "./hub";
 
 // Proposal types
 export type {
@@ -172,3 +176,78 @@ export type {
   ActivityFeedItem,
   ActivityType,
 } from "./activity";
+
+// ============================================================================
+// Phase 2: Client Hub Types
+// ============================================================================
+
+// Project types
+export type {
+  ProjectStatus,
+  MilestoneStatus,
+  Project,
+  ProjectMilestone,
+  CreateProjectRequest,
+  UpdateProjectRequest,
+  CreateMilestoneRequest,
+  UpdateMilestoneRequest,
+  ProjectFilterParams,
+} from "./project";
+
+// Client Intelligence types (AI features)
+export type {
+  AsyncJobStatus,
+  AsyncJobBase,
+  InstantAnswerRequest,
+  InstantAnswerJob,
+  ConfidenceLevel,
+  DecisionStatus,
+  DecisionRelatedResource,
+  DecisionItem,
+  DecisionTransition,
+  CreateDecisionRequest,
+  UpdateDecisionRequest,
+  MeetingPrep,
+  MeetingFollowUp,
+  PerformanceNarrative,
+  GeneratePerformanceRequest,
+  HistoryEventType,
+  EventSignificance,
+  InstitutionalMemoryEvent,
+  HistoryFilterParams,
+  RiskAlertType,
+  RiskSeverity,
+  RiskAlert,
+  AcknowledgeAlertRequest,
+  AcknowledgeAlertResponse,
+} from "./client-intelligence";
+export { VALID_DECISION_TRANSITIONS, isValidDecisionTransition } from "./client-intelligence";
+
+// Relationship Intelligence types
+export type {
+  EvidenceSource,
+  Evidence,
+  HealthStatus,
+  HealthTrend,
+  HealthDriverType,
+  HealthDriver,
+  RelationshipHealth,
+  ExpansionStatus,
+  ExpansionConfidence,
+  ExpansionOpportunity,
+  UpdateExpansionRequest,
+  ExpansionOpportunitiesResponse,
+  PortfolioOverview,
+  PortfolioClient,
+  PortfolioClientsResponse,
+  PortfolioFilterParams,
+} from "./relationship-intelligence";
+
+// Video filter params (Phase 2 addition)
+export type { VideoFilterParams } from "./video";
+
+// Message update request (Phase 2 addition)
+export type { UpdateThreadRequest } from "./message";
+
+// Meeting project assignment (Phase 2 addition)
+export type { UpdateMeetingProjectRequest } from "./meeting";

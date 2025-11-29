@@ -13,6 +13,7 @@ import type { EntityId, ISODateString } from "./common";
 export interface MessageThreadSummary {
   id: EntityId;
   hubId: EntityId;
+  projectId?: EntityId; // Phase 2: Optional project association
   subject: string;
   participants: ThreadParticipant[];
   lastMessageAt: ISODateString;
@@ -21,12 +22,14 @@ export interface MessageThreadSummary {
   isRead: boolean;
   isArchived: boolean;
   hasTeamNotes: boolean;
+  requiresDecision?: boolean; // Phase 2: Flag for Decision Queue source
 }
 
 // Full thread detail with messages
 export interface MessageThreadDetail {
   id: EntityId;
   hubId: EntityId;
+  projectId?: EntityId; // Phase 2: Optional project association
   subject: string;
   participants: ThreadParticipant[];
   lastMessageAt: ISODateString;
@@ -34,6 +37,7 @@ export interface MessageThreadDetail {
   messageCount: number;
   isRead: boolean;
   isArchived: boolean;
+  requiresDecision?: boolean; // Phase 2: Flag for Decision Queue source
   teamNotes: string | null; // Internal notes stored in backend, not Graph
   messages: Message[];
 }
@@ -105,4 +109,12 @@ export interface ArchiveThreadRequest {
 export interface MessageFilterParams {
   isArchived?: boolean;
   isRead?: boolean;
+  projectId?: EntityId | "unassigned"; // Phase 2: Filter by project
+  requiresDecision?: boolean; // Phase 2: Filter for Decision Queue sources
+}
+
+// Update thread request (Phase 2)
+export interface UpdateThreadRequest {
+  projectId?: EntityId | null; // Assign to project (null to unassign)
+  requiresDecision?: boolean; // Flag for Decision Queue
 }
