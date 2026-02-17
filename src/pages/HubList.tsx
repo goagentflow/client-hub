@@ -2,7 +2,6 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card } from "@/components/ui/card";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,41 +11,14 @@ import {
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Search, Plus, ChevronDown, Loader2, BarChart3 } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { useHubs, useCurrentUser, useLogout } from "@/hooks";
 import { hasAdminAccess } from "@/types";
 import type { HubStatus, HubType } from "@/types";
-
-const getStatusColor = (status: HubStatus) => {
-  switch (status) {
-    case "active":
-      return "bg-sage-green text-white";
-    case "won":
-      return "bg-gradient-blue text-white";
-    case "lost":
-      return "bg-medium-grey text-white";
-    case "draft":
-      return "bg-muted text-muted-foreground";
-    default:
-      return "bg-muted text-muted-foreground";
-  }
-};
+import { CreateHubDialog } from "@/components/CreateHubDialog";
+import { HubCard } from "@/components/HubCard";
 
 const formatStatus = (status: HubStatus) => {
   return status.charAt(0).toUpperCase() + status.slice(1);
-};
-
-const formatLastActivity = (date: string) => {
-  const now = new Date();
-  const activityDate = new Date(date);
-  const diffMs = now.getTime() - activityDate.getTime();
-  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-
-  if (diffDays === 0) return "Today";
-  if (diffDays === 1) return "1 day ago";
-  if (diffDays < 7) return `${diffDays} days ago`;
-  if (diffDays < 14) return "1 week ago";
-  return `${Math.floor(diffDays / 7)} weeks ago`;
 };
 
 const HubList = () => {
@@ -54,6 +26,7 @@ const HubList = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<HubStatus | "all">("all");
   const [hubTypeTab, setHubTypeTab] = useState<HubType>("pitch");
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
 
   // Build filter string for hub query
   const filterParam = hubTypeTab === "pitch" ? "hubType:pitch" : "hubType:client";
@@ -160,7 +133,10 @@ const HubList = () => {
           <h2 className="text-3xl md:text-4xl font-bold text-royal-blue">
             Your Hubs
           </h2>
-          <Button className="bg-soft-coral hover:bg-soft-coral/90 text-white font-semibold shadow-lg hover:shadow-xl transition-all duration-300 w-full md:w-auto">
+          <Button
+            className="bg-soft-coral hover:bg-soft-coral/90 text-white font-semibold shadow-lg hover:shadow-xl transition-all duration-300 w-full md:w-auto"
+            onClick={() => setCreateDialogOpen(true)}
+          >
             <Plus className="w-5 h-5 mr-2" />
             Create New Hub
           </Button>
@@ -249,45 +225,13 @@ const HubList = () => {
         {!isLoading && !isError && filteredHubs && filteredHubs.length > 0 && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredHubs.map((hub) => (
-              <Card
-                key={hub.id}
-                className="p-6 bg-white border-0 shadow-md hover:shadow-xl transition-all duration-300 cursor-pointer group hover:-translate-y-1"
-                onClick={() => navigate(`/hub/${hub.id}/overview`)}
-              >
-                <div className="space-y-3">
-                  {/* Company Name + Hub Type Badge */}
-                  <div className="flex items-start justify-between gap-2">
-                    <h3 className="text-xl font-bold text-dark-grey group-hover:text-royal-blue transition-colors">
-                      {hub.companyName}
-                    </h3>
-                    {hub.hubType === "client" && (
-                      <Badge
-                        variant="outline"
-                        className="border-[hsl(var(--rich-violet))] text-[hsl(var(--rich-violet))] text-xs flex-shrink-0"
-                      >
-                        Client
-                      </Badge>
-                    )}
-                  </div>
-
-                  {/* Contact Name */}
-                  <p className="text-medium-grey text-sm">{hub.contactName}</p>
-
-                  {/* Status Badge */}
-                  <Badge className={`${getStatusColor(hub.status)} px-3 py-1 text-xs font-medium`}>
-                    {formatStatus(hub.status)}
-                  </Badge>
-
-                  {/* Last Activity */}
-                  <p className="text-medium-grey text-xs pt-2">
-                    Last activity: {formatLastActivity(hub.lastActivity)}
-                  </p>
-                </div>
-              </Card>
+              <HubCard key={hub.id} hub={hub} />
             ))}
           </div>
         )}
       </main>
+
+      <CreateHubDialog open={createDialogOpen} onOpenChange={setCreateDialogOpen} />
     </div>
   );
 };

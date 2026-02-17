@@ -12,6 +12,7 @@
 import { Navigate, useLocation, useParams } from "react-router-dom";
 import { useCurrentUser, useHubAccess } from "@/hooks";
 import { hasAdminAccess } from "@/types";
+import { isFeatureLive } from "@/services/api";
 
 interface GuardProps {
   children: React.ReactNode;
@@ -126,6 +127,12 @@ export function RequireAdmin({ children }: GuardProps) {
  */
 export function RequireClient({ children }: GuardProps) {
   const { data: authData, isLoading } = useCurrentUser();
+
+  // When Supabase hubs are live, the portal handles its own password gate
+  // so we skip the demo auth check entirely.
+  if (isFeatureLive("hubs")) {
+    return <>{children}</>;
+  }
 
   if (isLoading) {
     return <AuthLoading />;

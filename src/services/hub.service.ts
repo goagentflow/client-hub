@@ -16,8 +16,10 @@ import type {
   PaginationParams,
   ActivityFeedItem,
 } from "@/types";
-import { api, isMockApiEnabled, simulateDelay } from "./api";
+import { api, isMockApiEnabled, isFeatureLive, simulateDelay } from "./api";
 import { mockHubs, mockHubOverview, mockPortalConfig, mockActivityFeed, mockActivityByHub } from "./mock-data";
+import { fetchHubs as supabaseFetchHubs, fetchHub as supabaseFetchHub, createHubInSupabase } from "./supabase-data";
+import { applyHubFilters } from "./hub-filters";
 
 // Re-export conversion functions for backwards compatibility
 export {
@@ -31,61 +33,14 @@ export {
  * Get paginated list of hubs
  */
 export async function getHubs(params?: PaginationParams): Promise<PaginatedList<Hub>> {
+  if (isFeatureLive("hubs")) {
+    const result = await supabaseFetchHubs();
+    return applyHubFilters(result.items, params);
+  }
+
   if (isMockApiEnabled()) {
     await simulateDelay(300);
-
-    let filtered = [...mockHubs];
-
-    // Apply search filter
-    if (params?.search) {
-      const search = params.search.toLowerCase();
-      filtered = filtered.filter(
-        (h) =>
-          h.companyName.toLowerCase().includes(search) ||
-          h.contactName.toLowerCase().includes(search)
-      );
-    }
-
-    // Apply filters (supports multiple filters comma-separated)
-    if (params?.filter) {
-      const filters = params.filter.split(",");
-      for (const f of filters) {
-        const [field, value] = f.split(":");
-        if (field === "status" && value) {
-          filtered = filtered.filter((h) => h.status === value);
-        }
-        if (field === "hubType" && value) {
-          filtered = filtered.filter((h) => h.hubType === value);
-        }
-      }
-    }
-
-    // Apply sorting
-    if (params?.sort) {
-      const [field, direction] = params.sort.split(":");
-      filtered.sort((a, b) => {
-        const aVal = a[field as keyof Hub];
-        const bVal = b[field as keyof Hub];
-        const cmp = String(aVal).localeCompare(String(bVal));
-        return direction === "desc" ? -cmp : cmp;
-      });
-    }
-
-    // Apply pagination
-    const page = params?.page || 1;
-    const pageSize = params?.pageSize || 20;
-    const start = (page - 1) * pageSize;
-    const items = filtered.slice(start, start + pageSize);
-
-    return {
-      items,
-      pagination: {
-        page,
-        pageSize,
-        totalItems: filtered.length,
-        totalPages: Math.ceil(filtered.length / pageSize),
-      },
-    };
+    return applyHubFilters(mockHubs, params);
   }
 
   const queryParams: Record<string, string> = {};
@@ -102,6 +57,10 @@ export async function getHubs(params?: PaginationParams): Promise<PaginatedList<
  * Get single hub by ID
  */
 export async function getHub(hubId: string): Promise<Hub> {
+  if (isFeatureLive("hubs")) {
+    return supabaseFetchHub(hubId);
+  }
+
   if (isMockApiEnabled()) {
     await simulateDelay(200);
     const hub = mockHubs.find((h) => h.id === hubId);
@@ -116,6 +75,10 @@ export async function getHub(hubId: string): Promise<Hub> {
  * Create a new hub
  */
 export async function createHub(data: CreateHubRequest): Promise<Hub> {
+  if (isFeatureLive("hubs")) {
+    return createHubInSupabase(data);
+  }
+
   if (isMockApiEnabled()) {
     await simulateDelay(500);
 

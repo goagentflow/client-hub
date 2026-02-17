@@ -7,8 +7,10 @@
  */
 
 import type { User, AuthMeResponse, HubAccessCheckResponse } from "@/types";
-import { api, isMockApiEnabled, simulateDelay } from "./api";
+import { api, isMockApiEnabled, isFeatureLive, simulateDelay } from "./api";
 import { mockStaffUser, mockClientUser, mockClientHubUser, mockHubs } from "./mock-data";
+import { verifyHubPassword } from "./supabase-data";
+import { simpleHash } from "@/lib/hash";
 
 // Demo credentials for wireframe testing
 const DEMO_CREDENTIALS = {
@@ -148,4 +150,35 @@ export async function logout(): Promise<void> {
 export function storeDemoSession(user: User): void {
   localStorage.setItem("userRole", user.role);
   localStorage.setItem("userEmail", user.email);
+}
+
+/**
+ * Login with hub password (client portal access)
+ * Hashes the password client-side, then verifies via Supabase RPC.
+ * The stored hash never leaves the database.
+ */
+export async function loginWithHubPassword(
+  hubId: string,
+  password: string
+): Promise<User | null> {
+  if (!isFeatureLive("hubs")) return null;
+
+  const result = await verifyHubPassword(hubId, simpleHash(password));
+  if (!result.valid) return null;
+
+  const user: User = {
+    id: `client-${hubId}`,
+    email: result.contact_email || "",
+    displayName: result.contact_name || "",
+    role: "client",
+    permissions: { isAdmin: false, canConvertHubs: false, canViewAllHubs: false },
+    tenantId: "hub-access",
+    domain: result.client_domain || "",
+  };
+
+  localStorage.setItem("userRole", "client");
+  localStorage.setItem("userEmail", user.email);
+  localStorage.setItem("hubAccessId", hubId);
+
+  return user;
 }

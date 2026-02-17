@@ -11,8 +11,9 @@ import type {
   ProposalComment,
   CreateProposalCommentRequest,
 } from "@/types";
-import { api, isMockApiEnabled, simulateDelay } from "./api";
+import { api, isMockApiEnabled, isFeatureLive, simulateDelay } from "./api";
 import { mockProposal } from "./mock-data";
+import { fetchProposal as supabaseFetchProposal } from "./supabase-data";
 
 // Mock engagement data
 const mockEngagement: ProposalEngagement = {
@@ -31,6 +32,10 @@ const mockEngagement: ProposalEngagement = {
  * Get proposal for a hub
  */
 export async function getProposal(hubId: string): Promise<Proposal | null> {
+  if (isFeatureLive("proposals")) {
+    return supabaseFetchProposal(hubId);
+  }
+
   if (isMockApiEnabled()) {
     await simulateDelay(300);
     return hubId === "hub-1" ? mockProposal : null;
@@ -126,6 +131,10 @@ export async function getProposalEngagement(hubId: string): Promise<ProposalEnga
  * Returns null if not visible to client
  */
 export async function getPortalProposal(hubId: string): Promise<Proposal | null> {
+  if (isFeatureLive("proposals")) {
+    return supabaseFetchProposal(hubId);
+  }
+
   if (isMockApiEnabled()) {
     await simulateDelay(300);
     return mockProposal.settings.isClientVisible ? mockProposal : null;

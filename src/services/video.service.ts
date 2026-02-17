@@ -14,8 +14,9 @@ import type {
   BulkVideoActionRequest,
   VideoFilterParams,
 } from "@/types";
-import { api, isMockApiEnabled, simulateDelay } from "./api";
+import { api, isMockApiEnabled, isFeatureLive, simulateDelay } from "./api";
 import { mockVideos } from "./mock-data";
+import { fetchVideos as supabaseFetchVideos, fetchPortalVideos as supabaseFetchPortalVideos } from "./supabase-data";
 
 /**
  * Get videos for a hub
@@ -24,6 +25,10 @@ export async function getVideos(
   hubId: string,
   params?: PaginationParams & VideoFilterParams
 ): Promise<PaginatedList<Video>> {
+  if (isFeatureLive("videos")) {
+    return supabaseFetchVideos(hubId);
+  }
+
   if (isMockApiEnabled()) {
     await simulateDelay(300);
 
@@ -248,6 +253,10 @@ export async function getPortalVideos(
   hubId: string,
   params?: PaginationParams
 ): Promise<PaginatedList<Video>> {
+  if (isFeatureLive("videos")) {
+    return supabaseFetchPortalVideos(hubId);
+  }
+
   if (isMockApiEnabled()) {
     await simulateDelay(300);
     const filtered = mockVideos.filter((v) => v.hubId === hubId && v.visibility === "client");

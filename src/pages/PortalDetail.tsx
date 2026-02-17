@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { Routes, Route, Navigate, useParams } from "react-router-dom";
 import { Loader2, AlertCircle } from "lucide-react";
 import { ClientHubLayout } from "@/components/ClientHubLayout";
@@ -14,8 +15,10 @@ import { ClientInstantAnswers } from "@/components/client-instant-answers";
 import { ClientDecisionQueue } from "@/components/client-decision-queue";
 import { ClientPerformance } from "@/components/client-performance";
 import { ClientHistory } from "@/components/client-history";
+import { PasswordGate } from "@/components/PasswordGate";
 import { HubProvider } from "@/contexts/hub-context";
 import { useCurrentUser, useHub } from "@/hooks";
+import { isFeatureLive } from "@/services/api";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
@@ -24,23 +27,25 @@ const PortalDetail = () => {
   const { data: authData, isLoading, isFetching } = useCurrentUser();
   const { data: hub, isLoading: hubLoading } = useHub(hubId || "");
 
-  // Verify user has access to this hub
+  // Password gate state — check sessionStorage for existing access
+  const [passwordUnlocked, setPasswordUnlocked] = useState(
+    () => hubId ? sessionStorage.getItem(`hub_access_${hubId}`) === "true" : false
+  );
+
+  const isLiveHub = isFeatureLive("hubs");
+
+  // Verify user has access to this hub (mock/demo flow)
   const hubAccess = authData?.hubAccess?.find((h) => h.hubId === hubId);
-  const hubName = hubAccess?.hubName || "Your AgentFlow Hub";
+  const hubName = hubAccess?.hubName || hub?.companyName || "Your AgentFlow Hub";
   const hubType = hub?.hubType || "pitch";
 
-  // Show loading state while auth data is being fetched
-  if (isLoading || hubLoading || (isFetching && !authData)) {
+  // Show loading state while data is being fetched
+  if (hubLoading || (isLoading && !isLiveHub)) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <Loader2 className="h-8 w-8 animate-spin text-[hsl(var(--gradient-blue))]" />
       </div>
     );
-  }
-
-  // Not authenticated - redirect to login (handled by RequireClient guard, but just in case)
-  if (!authData) {
-    return <Navigate to="/login" replace />;
   }
 
   // No hubId in URL
@@ -60,7 +65,49 @@ const PortalDetail = () => {
     );
   }
 
-  // User doesn't have access to this hub
+  // Live Supabase hub — use password gate instead of demo auth
+  if (isLiveHub && hub) {
+    if (!passwordUnlocked) {
+      // For live hubs, show password gate (fetches hash from Supabase directly)
+      return (
+        <PasswordGateWrapper
+          hubId={hubId}
+          companyName={hub.companyName}
+          onSuccess={() => setPasswordUnlocked(true)}
+        />
+      );
+    }
+
+    // Password unlocked or no password — show the portal
+    return (
+      <HubProvider hubId={hubId}>
+        <ClientHubLayout hubName={hubName} hubType={hubType} viewMode="client">
+          <Routes>
+            <Route path="overview" element={<ClientOverviewSection />} />
+            <Route path="documents" element={<ClientDocumentsSection />} />
+            <Route path="messages" element={<ClientMessagesSection />} />
+            <Route path="proposal" element={<ClientProposalSection />} />
+            <Route path="videos" element={<ClientVideosSection />} />
+            <Route path="meetings" element={<ClientMeetingsSection />} />
+            <Route path="questionnaire" element={<ClientQuestionnaireSection />} />
+            <Route path="people" element={<ClientPeopleSection />} />
+            <Route path="instant-answers" element={<ClientInstantAnswers hubId={hubId} />} />
+            <Route path="decisions" element={<ClientDecisionQueue hubId={hubId} />} />
+            <Route path="performance" element={<ClientPerformance hubId={hubId} />} />
+            <Route path="history" element={<ClientHistory hubId={hubId} />} />
+            <Route path="/" element={<Navigate to="overview" replace />} />
+          </Routes>
+        </ClientHubLayout>
+      </HubProvider>
+    );
+  }
+
+  // Demo/mock flow — require demo login
+  if (!authData) {
+    return <Navigate to="/login" replace />;
+  }
+
+  // User doesn't have access to this hub (demo flow)
   if (!hubAccess) {
     return (
       <div className="flex items-center justify-center min-h-screen p-8">
@@ -109,5 +156,52 @@ const PortalDetail = () => {
     </HubProvider>
   );
 };
+
+/**
+ * Wrapper that checks if a hub has a password and shows the gate if so.
+ * Uses Supabase RPC — the password hash never leaves the database.
+ */
+function PasswordGateWrapper({
+  hubId,
+  companyName,
+  onSuccess,
+}: {
+  hubId: string;
+  companyName: string;
+  onSuccess: () => void;
+}) {
+  const [hasPassword, setHasPassword] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    import("@/services/supabase-data").then(({ hubHasPassword }) => {
+      hubHasPassword(hubId).then((result) => {
+        if (!result) {
+          // No password set — auto-unlock
+          sessionStorage.setItem(`hub_access_${hubId}`, "true");
+          onSuccess();
+        }
+        setHasPassword(result);
+      });
+    });
+  }, [hubId, onSuccess]);
+
+  if (hasPassword === null) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader2 className="h-8 w-8 animate-spin text-[hsl(var(--gradient-blue))]" />
+      </div>
+    );
+  }
+
+  if (!hasPassword) return null;
+
+  return (
+    <PasswordGate
+      hubId={hubId}
+      companyName={companyName}
+      onSuccess={onSuccess}
+    />
+  );
+}
 
 export default PortalDetail;

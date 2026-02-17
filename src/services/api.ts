@@ -156,3 +156,15 @@ export const api = {
 export function simulateDelay(ms: number = 300): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
+
+/**
+ * Check if a specific feature has a live Supabase implementation.
+ * Features not in this list fall back to mock data even when mock API is off.
+ */
+const LIVE_FEATURES = ["hubs", "videos", "proposals", "documents"] as const;
+type LiveFeature = (typeof LIVE_FEATURES)[number];
+
+export function isFeatureLive(feature: LiveFeature): boolean {
+  if (isMockApiEnabled()) return false;
+  return LIVE_FEATURES.includes(feature);
+}
