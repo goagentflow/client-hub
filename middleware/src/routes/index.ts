@@ -19,10 +19,14 @@ import { projectsRouter } from './projects.route.js';
 import { conversionRouter } from './conversion.route.js';
 import { leadershipRouter } from './leadership.route.js';
 import { clientIntelligenceRouter } from './client-intelligence.route.js';
+import { authRouter } from './auth.route.js';
 
 export { healthRouter } from './health.js';
 
 export const apiRouter = Router();
+
+// Auth
+apiRouter.use('/auth', authRouter);
 
 // Hub CRUD
 apiRouter.use('/hubs', hubsRouter);

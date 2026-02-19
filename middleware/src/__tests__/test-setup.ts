@@ -119,6 +119,8 @@ vi.mock('../config/env.js', () => ({
     LOG_LEVEL: 'silent',
     AZURE_TENANT_ID: 'test',
     AZURE_CLIENT_ID: 'test',
+    AZURE_JWKS_URI: undefined,
+    STAFF_ROLE_NAME: 'Staff',
     PORTAL_TOKEN_SECRET: 'test-portal-secret-must-be-at-least-32-chars-long',
     TRUST_PROXY: false,
   },

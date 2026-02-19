@@ -194,20 +194,29 @@ export function RedirectByRole() {
     return <Navigate to="/hubs" replace />;
   }
 
-  // Client: redirect to their first hub (or show error if no access)
+  // Client: redirect to their first hub
   const firstHub = authData.hubAccess?.[0];
-  if (!firstHub) {
-    return (
-      <div className="flex h-screen items-center justify-center bg-[#fdfaf6]">
-        <div className="text-center max-w-md px-4">
-          <h1 className="text-2xl font-bold text-[#3d5fa8]">No Hub Access</h1>
-          <p className="mt-2 text-[#6b6b6b]">
-            You don't have access to any hubs yet. Please contact the person who invited you.
-          </p>
-        </div>
-      </div>
-    );
+  if (firstHub) {
+    return <Navigate to={`/portal/${firstHub.hubId}/overview`} replace />;
   }
 
-  return <Navigate to={`/portal/${firstHub.hubId}/overview`} replace />;
+  // Hub access list may be empty while membership tables are being built.
+  // Check localStorage for a recent hub access (from portal password flow).
+  const lastHubId = localStorage.getItem("hubAccessId");
+  if (lastHubId) {
+    return <Navigate to={`/portal/${lastHubId}/overview`} replace />;
+  }
+
+  // No hub access at all — show helpful message
+  return (
+    <div className="flex h-screen items-center justify-center bg-[#fdfaf6]">
+      <div className="text-center max-w-md px-4">
+        <h1 className="text-2xl font-bold text-[#3d5fa8]">No Hub Access</h1>
+        <p className="mt-2 text-[#6b6b6b]">
+          You don't have access to any hubs yet. Please contact the person who invited you,
+          or use a direct portal link if you have one.
+        </p>
+      </div>
+    </div>
+  );
 }

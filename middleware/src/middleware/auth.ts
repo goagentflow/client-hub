@@ -1,12 +1,17 @@
 /**
  * Auth middleware
  *
- * DEMO_MODE=true: reads X-Dev-User-Email header, derives role server-side.
- * DEMO_MODE=false: validates Bearer JWT via MSAL (not yet implemented).
+ * Bearer token flow:
+ *   1. Try portal JWT (HS256, type=portal) → portal user context
+ *   2. Try Azure AD JWT (RS256, JWKS) → staff/client user context
+ *   3. Fall through to demo header (DEMO_MODE only) or 401
+ *
+ * DEMO_MODE=true: also accepts X-Dev-User-Email header for dev/test.
+ * DEMO_MODE=false: requires real Azure AD JWT.
  */
 
 import { Request, Response, NextFunction } from 'express';
-import { jwtVerify } from 'jose';
+import { jwtVerify, createRemoteJWKSet, createLocalJWKSet } from 'jose';
 import { env } from '../config/env.js';
 import { logger } from '../utils/logger.js';
 import type { UserContext } from '../types/api.js';
@@ -23,6 +28,23 @@ declare global {
       user: UserContext;
     }
   }
+}
+
+// JWKS resolver — overridable for testing via setJwksResolver()
+let _jwksResolver: ReturnType<typeof createRemoteJWKSet> | ReturnType<typeof createLocalJWKSet> | null = null;
+
+/** Test-only: inject a local JWKS resolver to avoid hitting Azure AD */
+export function setJwksResolver(resolver: ReturnType<typeof createRemoteJWKSet> | ReturnType<typeof createLocalJWKSet>): void {
+  _jwksResolver = resolver;
+}
+
+function getJwks(): ReturnType<typeof createRemoteJWKSet> {
+  if (!_jwksResolver) {
+    const uri = env.AZURE_JWKS_URI
+      || `https://login.microsoftonline.com/${env.AZURE_TENANT_ID}/discovery/v2.0/keys`;
+    _jwksResolver = createRemoteJWKSet(new URL(uri));
+  }
+  return _jwksResolver as ReturnType<typeof createRemoteJWKSet>;
 }
 
 // Demo user mapping — role is derived server-side, never from client headers
@@ -51,16 +73,16 @@ const DEMO_USERS: Record<string, UserContext> = {
 };
 
 export async function authMiddleware(req: Request, res: Response, next: NextFunction): Promise<void> {
-  // Check for Bearer token (portal JWT)
   const authHeader = req.headers.authorization;
   if (authHeader?.startsWith('Bearer ')) {
     const token = authHeader.slice(7);
+
+    // 1. Try portal JWT (HS256)
     try {
       const { payload } = await jwtVerify(token, portalSecret, {
         issuer: PORTAL_ISSUER,
         audience: PORTAL_AUDIENCE,
       });
-      // Manual assertion: sub must be a string (hub UUID) and type must be 'portal'
       if (payload.type === 'portal' && typeof payload.sub === 'string') {
         req.user = {
           userId: `portal-${payload.sub}`,
@@ -73,16 +95,74 @@ export async function authMiddleware(req: Request, res: Response, next: NextFunc
         next();
         return;
       }
-      // Not a portal token (wrong type/missing sub) — fall through
     } catch {
-      // Invalid/expired/bad-signature token — fall through to demo header check
+      // Not a portal token — try Azure AD
     }
+
+    // 2. Try Azure AD JWT (RS256 via JWKS)
+    const azureResult = await handleAzureJwt(token, req, res, next);
+    if (azureResult) return; // Handled (success or error response sent)
+
+    // Bearer token present but neither portal nor Azure AD accepted it — reject immediately.
+    // Do NOT fall through to demo auth: a supplied token that fails validation is an error.
+    res.status(401).json({
+      code: 'UNAUTHENTICATED',
+      message: 'Invalid or expired Bearer token',
+      correlationId: req.correlationId,
+    });
+    return;
   }
 
+  // 3. Demo mode fallback: X-Dev-User-Email header (only when no Bearer token provided)
   if (env.DEMO_MODE) {
     return handleDemoAuth(req, res, next);
   }
-  return handleJwtAuth(req, res, next);
+
+  // No valid auth
+  res.status(401).json({
+    code: 'UNAUTHENTICATED',
+    message: 'Missing or invalid authentication',
+    correlationId: req.correlationId,
+  });
+}
+
+/**
+ * Validate Azure AD JWT. Returns true if handled (success or error sent).
+ * Returns false if token is not a valid Azure AD JWT (fall through).
+ */
+async function handleAzureJwt(
+  token: string, req: Request, res: Response, next: NextFunction
+): Promise<boolean> {
+  try {
+    const { payload } = await jwtVerify(token, getJwks(), {
+      issuer: `https://login.microsoftonline.com/${env.AZURE_TENANT_ID}/v2.0`,
+      audience: [env.AZURE_CLIENT_ID, `api://${env.AZURE_CLIENT_ID}`],
+    });
+
+    const userId = payload.oid as string;
+    const email = (payload.preferred_username || payload.email || '') as string;
+    const name = (payload.name || email) as string;
+    const tenantId = payload.tid as string;
+
+    if (!userId || !tenantId) {
+      res.status(401).json({
+        code: 'UNAUTHENTICATED',
+        message: 'Invalid token claims',
+        correlationId: req.correlationId,
+      });
+      return true;
+    }
+
+    const roles = (payload.roles || []) as string[];
+    const isStaff = roles.includes(env.STAFF_ROLE_NAME);
+
+    req.user = { userId, email, name, tenantId, isStaff };
+    next();
+    return true;
+  } catch {
+    // Invalid Azure AD token — fall through
+    return false;
+  }
 }
 
 function handleDemoAuth(req: Request, res: Response, next: NextFunction): void {
@@ -110,13 +190,4 @@ function handleDemoAuth(req: Request, res: Response, next: NextFunction): void {
 
   req.user = user;
   next();
-}
-
-function handleJwtAuth(req: Request, res: Response, _next: NextFunction): void {
-  // TODO: Implement MSAL JWT validation when DEMO_MODE=false
-  res.status(501).json({
-    code: 'NOT_IMPLEMENTED',
-    message: 'JWT authentication is not yet available. Set DEMO_MODE=true.',
-    correlationId: req.correlationId,
-  });
 }

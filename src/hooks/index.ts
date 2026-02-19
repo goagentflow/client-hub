@@ -14,6 +14,7 @@ export {
   useCurrentUser,
   useHubAccess,
   useLogin,
+  useMsalLogin,
   useLogout,
   useIsAuthenticated,
   useUserRole,

@@ -10,6 +10,8 @@ export { api, isMockApiEnabled, simulateDelay, ApiRequestError, setTokenGetter, 
 // Auth service
 export {
   loginWithCredentials,
+  loginWithMsal,
+  getAccessToken,
   getCurrentUser,
   checkHubAccess,
   logout,

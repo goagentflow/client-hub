@@ -9,6 +9,7 @@ import { useNavigate } from "react-router-dom";
 import type { User, AuthMeResponse, HubAccessCheckResponse } from "@/types";
 import {
   loginWithCredentials,
+  loginWithMsal,
   getCurrentUser,
   checkHubAccess,
   logout,
@@ -53,20 +54,38 @@ export function useLogin() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
 
-  return useMutation<User | null, Error, { email: string; password: string }>({
+  return useMutation<User, Error, { email: string; password: string }>({
     mutationFn: ({ email, password }) => loginWithCredentials(email, password),
     onSuccess: (user) => {
-      if (user) {
-        storeDemoSession(user);
-        queryClient.invalidateQueries({ queryKey: authKeys.all });
+      storeDemoSession(user);
+      queryClient.invalidateQueries({ queryKey: authKeys.all });
 
-        // Navigate based on role
-        // Staff goes to hubs list, clients redirect via RedirectByRole to get proper hubId
-        if (user.role === "staff") {
-          navigate("/hubs");
-        } else {
-          navigate("/");
-        }
+      if (user.role === "staff") {
+        navigate("/hubs");
+      } else {
+        navigate("/");
+      }
+    },
+  });
+}
+
+/**
+ * Hook for MSAL (Azure AD) login mutation
+ */
+export function useMsalLogin() {
+  const queryClient = useQueryClient();
+  const navigate = useNavigate();
+
+  return useMutation<User, Error>({
+    mutationFn: loginWithMsal,
+    onSuccess: (user) => {
+      storeDemoSession(user);
+      queryClient.invalidateQueries({ queryKey: authKeys.all });
+
+      if (user.role === "staff") {
+        navigate("/hubs");
+      } else {
+        navigate("/");
       }
     },
   });

@@ -1,9 +1,11 @@
 /**
  * Authentication service
  *
- * Handles user authentication via MSAL and auth state management.
- * For now, uses mock data. When MSAL is configured, this will acquire
- * real tokens for the backend API scope.
+ * Two auth modes:
+ *   Mock/Demo: hardcoded credentials for wireframe testing
+ *   MSAL: Azure AD login via popup, token acquisition for backend API
+ *
+ * Portal auth (hub password) works in both modes.
  */
 
 import type { User, AuthMeResponse, HubAccessCheckResponse } from "@/types";
@@ -19,14 +21,17 @@ const DEMO_CREDENTIALS = {
 };
 
 /**
- * Login with demo credentials
- * Returns user if credentials match, null otherwise
+ * Login with demo credentials (mock mode only)
+ * Throws on invalid credentials so React Query isError triggers.
  */
 export async function loginWithCredentials(
   email: string,
   password: string
-): Promise<User | null> {
-  // Auth has no real backend — always use demo credentials
+): Promise<User> {
+  if (!isMockApiEnabled()) {
+    throw new Error("Demo login is not available in production mode. Use Microsoft sign-in.");
+  }
+
   await simulateDelay(500);
 
   if (email === DEMO_CREDENTIALS.staff.email && password === DEMO_CREDENTIALS.staff.password) {
@@ -38,15 +43,100 @@ export async function loginWithCredentials(
   if (email === DEMO_CREDENTIALS.clientHub.email && password === DEMO_CREDENTIALS.clientHub.password) {
     return mockClientHubUser;
   }
-  return null;
+  throw new Error("Invalid credentials");
 }
 
 /**
- * Get current authenticated user
- * Called on app init to restore session
+ * Login with MSAL (Azure AD popup)
+ * Acquires a token for the backend API scope, then fetches user profile.
+ */
+export async function loginWithMsal(): Promise<User> {
+  const { getMsalInstance, API_SCOPES } = await import("@/config/msal");
+  const msalInstance = getMsalInstance();
+
+  await msalInstance.initialize();
+  const response = await msalInstance.loginPopup({ scopes: API_SCOPES });
+  const account = response.account;
+  if (!account) throw new Error("Microsoft sign-in did not return an account");
+
+  msalInstance.setActiveAccount(account);
+
+  const user = await fetchCurrentUser();
+  if (!user) throw new Error("Failed to fetch user profile after sign-in");
+  storeDemoSession(user);
+  return user;
+}
+
+/**
+ * Get access token for backend API calls (MSAL silent acquisition)
+ * Returns null if no active session or token can't be acquired silently.
+ */
+export async function getAccessToken(): Promise<string | null> {
+  if (isMockApiEnabled()) return null;
+
+  try {
+    const { getMsalInstance, isMsalConfigured, API_SCOPES } = await import("@/config/msal");
+    if (!isMsalConfigured()) return null;
+
+    const msalInstance = getMsalInstance();
+    await msalInstance.initialize();
+
+    // Try active account first, then fall back to first cached account (session recovery after reload)
+    let account = msalInstance.getActiveAccount();
+    if (!account) {
+      const accounts = msalInstance.getAllAccounts();
+      if (accounts.length > 0) {
+        account = accounts[0];
+        msalInstance.setActiveAccount(account);
+      }
+    }
+    if (!account) return null;
+
+    const response = await msalInstance.acquireTokenSilent({
+      scopes: API_SCOPES,
+      account,
+    });
+    return response.accessToken;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Fetch current user profile from middleware GET /auth/me
+ */
+async function fetchCurrentUser(): Promise<User | null> {
+  try {
+    const { api } = await import("./api");
+    const result = await api.get<{ user: User; hubAccess: unknown[] }>("/auth/me");
+    return result.user;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Get current authenticated user (restores session on app init)
+ *
+ * Production: calls GET /auth/me (backend-validated)
+ * Mock mode: reads from localStorage + mock data
  */
 export async function getCurrentUser(): Promise<AuthMeResponse | null> {
-  // Auth has no real backend — always use demo session from localStorage
+  // Production mode: validate session against backend
+  if (!isMockApiEnabled()) {
+    try {
+      const { isMsalConfigured } = await import("@/config/msal");
+      if (!isMsalConfigured()) return null;
+
+      const { api } = await import("./api");
+      const result = await api.get<AuthMeResponse>("/auth/me");
+      return result;
+    } catch {
+      return null;
+    }
+  }
+
+  // Mock mode: restore from localStorage + mock data
   await simulateDelay(200);
 
   const storedRole = localStorage.getItem("userRole");
@@ -76,7 +166,6 @@ export async function getCurrentUser(): Promise<AuthMeResponse | null> {
  * Check user's access to a specific hub
  */
 export async function checkHubAccess(hubId: string): Promise<HubAccessCheckResponse> {
-  // Auth has no real backend — always use demo access checks
   await simulateDelay(100);
 
   const storedRole = localStorage.getItem("userRole");
@@ -121,9 +210,24 @@ export async function checkHubAccess(hubId: string): Promise<HubAccessCheckRespo
  * Logout - clear session
  */
 export async function logout(): Promise<void> {
-  // Auth has no real backend — always clear demo session
   localStorage.removeItem("userRole");
   localStorage.removeItem("userEmail");
+
+  // Also sign out of MSAL if active
+  if (!isMockApiEnabled()) {
+    try {
+      const { getMsalInstance, isMsalConfigured } = await import("@/config/msal");
+      if (isMsalConfigured()) {
+        const msalInstance = getMsalInstance();
+        const account = msalInstance.getActiveAccount();
+        if (account) {
+          await msalInstance.logoutPopup({ account });
+        }
+      }
+    } catch {
+      // Silent failure — localStorage already cleared
+    }
+  }
 }
 
 /**
@@ -136,8 +240,6 @@ export function storeDemoSession(user: User): void {
 
 /**
  * Login with hub password (client portal access)
- * Hashes the password client-side, then verifies via Supabase RPC.
- * The stored hash never leaves the database.
  */
 export async function loginWithHubPassword(
   hubId: string,
@@ -152,7 +254,6 @@ export async function loginWithHubPassword(
   );
   if (!result.data.valid || !result.data.token) return null;
 
-  // Store portal token for this hub
   sessionStorage.setItem(`portal_token_${hubId}`, result.data.token);
   sessionStorage.setItem(`hub_access_${hubId}`, "true");
 

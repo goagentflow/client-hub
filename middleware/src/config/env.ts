@@ -21,6 +21,10 @@ const envSchema = z.object({
   AZURE_CLIENT_ID: z.string().min(1, 'AZURE_CLIENT_ID is required'),
   AZURE_CLIENT_SECRET: z.string().min(1).optional(),
 
+  // Azure AD JWT validation
+  AZURE_JWKS_URI: z.string().url().optional(),
+  STAFF_ROLE_NAME: z.string().default('Staff'),
+
   // SharePoint (optional in demo mode)
   SHAREPOINT_SITE_URL: z.string().url().optional(),
 
@@ -52,28 +56,21 @@ function loadEnv(): z.infer<typeof envSchema> {
 
   const data = result.data;
 
-  /**
-   * Intentional deployment gate (P1):
-   * - DEMO_MODE=true is blocked in production.
-   * - DEMO_MODE=false is blocked until JWT/MSAL auth is implemented.
-   *
-   * This middleware is dev/test-only until real JWT auth is shipped.
-   * Do not remove this guard without implementing and validating authMiddleware JWT flow.
-   */
+  // DEMO_MODE=true is blocked in production (must use real JWT auth)
   if (data.DEMO_MODE && data.NODE_ENV === 'production') {
     throw new Error('DEMO_MODE=true is not allowed in production. Set DEMO_MODE=false and configure SharePoint.');
   }
 
-  // Validate Supabase config when DEMO_MODE is on
+  // Validate mode-specific config
   if (data.DEMO_MODE) {
     if (!data.SUPABASE_URL || !data.SUPABASE_SERVICE_ROLE_KEY) {
       throw new Error('SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required when DEMO_MODE=true');
     }
-  }
-
-  // DEMO_MODE=false hard-fail — JWT auth not yet implemented
-  if (!data.DEMO_MODE) {
-    throw new Error('JWT authentication is not yet implemented. Set DEMO_MODE=true for development.');
+  } else {
+    // Production: SharePoint is required, AZURE_CLIENT_SECRET deferred to OBO phase
+    if (!data.SHAREPOINT_SITE_URL) {
+      throw new Error('SHAREPOINT_SITE_URL is required when DEMO_MODE=false');
+    }
   }
 
   // Validate portal token secret in production

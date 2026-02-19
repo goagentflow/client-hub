@@ -532,10 +532,14 @@ Add to `middleware/src/__tests__/`:
 
 **In `middleware/src/middleware/auth.ts`:**
 ```typescript
-// Overridable for testing — do not mock the jose module globally
-export let _jwksResolver: ReturnType<typeof createRemoteJWKSet> | null = null;
+// Overridable for testing via setJwksResolver() — ESM exports are read-only
+let _jwksResolver: /* ... */ | null = null;
 
-function getJwks(): ReturnType<typeof createRemoteJWKSet> {
+export function setJwksResolver(resolver: /* ... */): void {
+  _jwksResolver = resolver;
+}
+
+function getJwks() {
   if (!_jwksResolver) {
     const uri = env.AZURE_JWKS_URI
       || `https://login.microsoftonline.com/${env.AZURE_TENANT_ID}/discovery/v2.0/keys`;
@@ -549,22 +553,18 @@ function getJwks(): ReturnType<typeof createRemoteJWKSet> {
 ```typescript
 import { generateKeyPair, exportJWK, SignJWT, createLocalJWKSet } from 'jose';
 
-// Generate RS256 key pair for test signing
 const { publicKey, privateKey } = await generateKeyPair('RS256');
 const jwk = await exportJWK(publicKey);
 jwk.kid = 'test-key-id';
 jwk.alg = 'RS256';
 jwk.use = 'sig';
 
-// Inject test JWKS resolver into auth module (no global jose mock)
-import * as authModule from '../middleware/auth.js';
-
-beforeAll(() => {
-  // Point the auth module's JWKS resolver at our test key set
-  authModule._jwksResolver = createLocalJWKSet({ keys: [jwk] });
+beforeAll(async () => {
+  // Inject test JWKS resolver via setter (not direct assignment — ESM read-only)
+  const { setJwksResolver } = await import('../middleware/auth.js');
+  setJwksResolver(createLocalJWKSet({ keys: [jwk] }));
 });
 
-// Create test token — uses jose directly (not mocked)
 const token = await new SignJWT({ oid: 'user-1', tid: 'tenant-1', roles: ['Staff'] })
   .setProtectedHeader({ alg: 'RS256', kid: 'test-key-id' })
   .setIssuer(`https://login.microsoftonline.com/tenant-1/v2.0`)

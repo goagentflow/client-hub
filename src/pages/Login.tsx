@@ -3,12 +3,17 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useState } from "react";
-import { useLogin } from "@/hooks";
+import { useLogin, useMsalLogin } from "@/hooks";
+import { isMsalConfigured } from "@/config/msal";
+import { isMockApiEnabled } from "@/services/api";
 
 const Login = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const { mutate: login, isPending, isError } = useLogin();
+  const { mutate: msalLogin, isPending: isMsalPending, isError: isMsalError } = useMsalLogin();
+  const msalAvailable = isMsalConfigured();
+  const isDemoMode = isMockApiEnabled();
 
   const handleSignIn = (e: React.FormEvent) => {
     e.preventDefault();
@@ -52,14 +57,17 @@ const Login = () => {
 
               {/* Sign In Button - Illustrative Only */}
               <div className="space-y-4">
-                <Button 
-                  disabled
-                  className="w-full h-14 text-lg font-semibold bg-gradient-to-r from-gradient-blue to-gradient-blue/90 text-white shadow-lg opacity-60 cursor-not-allowed"
+                <Button
+                  disabled={!msalAvailable || isMsalPending}
+                  onClick={() => msalLogin()}
+                  className={`w-full h-14 text-lg font-semibold bg-gradient-to-r from-gradient-blue to-gradient-blue/90 text-white shadow-lg ${
+                    !msalAvailable ? "opacity-60 cursor-not-allowed" : "hover:shadow-xl transition-all duration-300"
+                  }`}
                 >
-                  <svg 
-                    className="w-6 h-6 mr-3" 
-                    viewBox="0 0 23 23" 
-                    fill="none" 
+                  <svg
+                    className="w-6 h-6 mr-3"
+                    viewBox="0 0 23 23"
+                    fill="none"
                     xmlns="http://www.w3.org/2000/svg"
                   >
                     <path d="M11 0H0V11H11V0Z" fill="#F25022"/>
@@ -67,58 +75,68 @@ const Login = () => {
                     <path d="M11 12H0V23H11V12Z" fill="#00A4EF"/>
                     <path d="M23 12H12V23H23V12Z" fill="#FFB900"/>
                   </svg>
-                  Sign in with Microsoft (Illustrative)
+                  {isMsalPending ? "Signing in..." : msalAvailable ? "Sign in with Microsoft" : "Sign in with Microsoft (Not Configured)"}
                 </Button>
+                {isMsalError && (
+                  <p className="text-sm text-red-600 text-center">
+                    Microsoft sign-in failed. Please try again{isDemoMode ? " or use demo credentials below" : ""}.
+                  </p>
+                )}
 
-                {/* OR Divider */}
-                <div className="relative">
-                  <div className="absolute inset-0 flex items-center">
-                    <div className="w-full border-t border-[hsl(var(--gradient-purple))]/20"></div>
-                  </div>
-                  <div className="relative flex justify-center text-xs uppercase">
-                    <span className="bg-white px-2 text-[hsl(var(--medium-grey))]">Or</span>
-                  </div>
-                </div>
+                {/* Demo mode: show email/password form */}
+                {isDemoMode && (
+                  <>
+                    {/* OR Divider */}
+                    <div className="relative">
+                      <div className="absolute inset-0 flex items-center">
+                        <div className="w-full border-t border-[hsl(var(--gradient-purple))]/20"></div>
+                      </div>
+                      <div className="relative flex justify-center text-xs uppercase">
+                        <span className="bg-white px-2 text-[hsl(var(--medium-grey))]">Or use demo credentials</span>
+                      </div>
+                    </div>
 
-                {/* Email/Password Form */}
-                <form onSubmit={handleSignIn} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="email" className="text-[hsl(var(--dark-grey))]">Email</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      placeholder="email@example.com"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      className="h-12"
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="password" className="text-[hsl(var(--dark-grey))]">Password</Label>
-                    <Input
-                      id="password"
-                      type="password"
-                      placeholder="••••••••"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      className="h-12"
-                      required
-                    />
-                  </div>
-                  {isError && (
-                    <p className="text-sm text-red-600 text-center">
-                      Invalid credentials. Please use demo credentials.
-                    </p>
-                  )}
-                  <Button
-                    type="submit"
-                    disabled={isPending}
-                    className="w-full h-12 text-base font-semibold bg-[hsl(var(--soft-coral))] hover:bg-[hsl(var(--soft-coral))]/90 text-white shadow-md hover:shadow-lg transition-all duration-300 disabled:opacity-60"
-                  >
-                    {isPending ? "Signing in..." : "Sign In"}
-                  </Button>
-                </form>
+                    {/* Email/Password Form */}
+                    <form onSubmit={handleSignIn} className="space-y-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="email" className="text-[hsl(var(--dark-grey))]">Email</Label>
+                        <Input
+                          id="email"
+                          type="email"
+                          placeholder="email@example.com"
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                          className="h-12"
+                          required
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="password" className="text-[hsl(var(--dark-grey))]">Password</Label>
+                        <Input
+                          id="password"
+                          type="password"
+                          placeholder="••••••••"
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                          className="h-12"
+                          required
+                        />
+                      </div>
+                      {isError && (
+                        <p className="text-sm text-red-600 text-center">
+                          Invalid credentials. Please use demo credentials.
+                        </p>
+                      )}
+                      <Button
+                        type="submit"
+                        disabled={isPending}
+                        className="w-full h-12 text-base font-semibold bg-[hsl(var(--soft-coral))] hover:bg-[hsl(var(--soft-coral))]/90 text-white shadow-md hover:shadow-lg transition-all duration-300 disabled:opacity-60"
+                      >
+                        {isPending ? "Signing in..." : "Sign In"}
+                      </Button>
+                    </form>
+                  </>
+                )}
               </div>
 
               {/* Footer */}
@@ -130,8 +148,8 @@ const Login = () => {
             </div>
           </Card>
 
-          {/* Right Side: Demo Credentials */}
-          <Card className="lg:w-96 p-6 md:p-8 shadow-xl border-0 bg-white/95 backdrop-blur-sm">
+          {/* Right Side: Demo Credentials (only in demo/mock mode) */}
+          {isDemoMode && <Card className="lg:w-96 p-6 md:p-8 shadow-xl border-0 bg-white/95 backdrop-blur-sm">
             <div className="space-y-4">
               <div>
                 <h2 className="text-xl font-bold text-[hsl(var(--bold-royal-blue))] mb-2">
@@ -199,7 +217,7 @@ const Login = () => {
                 </p>
               </div>
             </div>
-          </Card>
+          </Card>}
         </div>
       </div>
 

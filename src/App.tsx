@@ -12,9 +12,15 @@ import PortalDetail from "./pages/PortalDetail";
 import LeadershipPortfolio from "./pages/LeadershipPortfolio";
 import NotFound from "./pages/NotFound";
 import { RequireStaff, RequireAdmin, RequireClient } from "./routes/guards";
-import { setUnauthorizedHandler } from "./services/api";
+import { setUnauthorizedHandler, setTokenGetter, isMockApiEnabled } from "./services/api";
+import { getAccessToken } from "./services/auth.service";
 
 const queryClient = new QueryClient();
+
+// Wire MSAL token acquisition into API client (production only)
+if (!isMockApiEnabled()) {
+  setTokenGetter(getAccessToken);
+}
 
 /**
  * Registers the 401 handler to clear cache and redirect to login
