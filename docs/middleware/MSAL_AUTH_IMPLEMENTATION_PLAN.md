@@ -1,9 +1,19 @@
 # MSAL JWT Authentication — Implementation Plan
 
-**Status:** Proposed (v3 — addresses 9 findings from two rounds of senior dev review)
+**Status:** Proposed (v4 — addresses 12 findings from three rounds of senior dev review)
 **Prerequisite:** P1 plan complete (all 13 priorities shipped, reviewed, approved)
 **Removes:** DEMO_MODE deployment gate in `middleware/src/config/env.ts`
-**Scope:** Azure AD JWT validation in middleware + MSAL.js in frontend
+**Scope:** Auth-foundation only (JWT validation + MSAL.js). NOT production-deployable — see Deployment Milestones below.
+
+### Deployment Milestones
+
+| Milestone | What ships | OBO secret needed? | Production-deployable? |
+|-----------|-----------|-------------------|----------------------|
+| **This plan (auth foundation)** | JWT validation, MSAL.js login, `/auth/me`, lazy Supabase adapter | No | No — data layer still uses Supabase; SharePoint adapter not built |
+| **Phase B: SharePoint adapter** | Route handlers use SharePoint instead of Supabase for data | No | Partially — auth + data work, but no Graph-powered features |
+| **Phase 4: OBO + Graph endpoints** | Messages, meetings, files via Graph API | **Yes** — `AZURE_CLIENT_SECRET` required | Yes — full production |
+
+This plan is **auth-foundation deployable**: staff can log in with Azure AD, middleware validates real JWTs, portal auth still works. But data still comes from Supabase until the SharePoint adapter is built (Phase B, separate plan).
 
 ---
 
@@ -288,9 +298,9 @@ if (data.DEMO_MODE) {
   if (!data.SHAREPOINT_SITE_URL) {
     throw new Error('SHAREPOINT_SITE_URL is required when DEMO_MODE=false');
   }
-  if (!data.AZURE_CLIENT_SECRET) {
-    throw new Error('AZURE_CLIENT_SECRET is required when DEMO_MODE=false (needed for OBO flow)');
-  }
+  // Note: AZURE_CLIENT_SECRET is NOT required here.
+  // It is only needed for OBO token exchange (Phase 4, deferred).
+  // Auth-only rollout validates JWTs using public JWKS keys — no secret needed.
 }
 ```
 
@@ -421,36 +431,7 @@ export async function getAccessToken(): Promise<string | null> {
 }
 ```
 
-#### 3c. Update api.ts token attachment
-
-**File:** `src/services/api.ts`
-
-In `apiFetch`, replace the `X-Dev-User-Email` header logic with MSAL token acquisition:
-
-```typescript
-// Staff auth: MSAL token (production) or dev header (demo)
-if (isMockApiEnabled()) {
-  // Demo mode: use dev header
-  const email = localStorage.getItem("userEmail");
-  if (email) headers["X-Dev-User-Email"] = email;
-} else {
-  // Production: acquire Azure AD token
-  const token = await getAccessToken();
-  if (token) {
-    headers["Authorization"] = `Bearer ${token}`;
-  }
-}
-```
-
-**Auth precedence (finding #6 — preserving P1 collision fix):** The existing `api.ts` token injection follows a strict **staff-first** order established in the P1 fix:
-
-1. If `getAccessToken` returns a token (MSAL) → attach as `Authorization: Bearer`
-2. Else if `X-Dev-User-Email` exists in localStorage → attach as dev header
-3. **Only if neither staff auth is present** (`!headers["Authorization"] && !headers["X-Dev-User-Email"]`) → check for portal token on allowlisted endpoints
-
-This prevents the portal-token collision bug where a staff user on a portal page could accidentally authenticate as a portal user. The P1 fix (lines 101-119 of `api.ts`) enforces this order — **do not change it**. The MSAL integration slots into step 1 via `setTokenGetter`, which is the existing extension point.
-
-#### 3d. Wire `setTokenGetter` in app initialisation (finding #3)
+#### 3c. Wire `setTokenGetter` in app initialisation — NO changes to `api.ts` itself
 
 **Problem:** `src/services/api.ts` uses a `getAccessToken` variable that defaults to `null`. The existing code at line 27 exposes `setTokenGetter()` — this must be called during app startup to wire MSAL token acquisition into the API layer. Without this, `getAccessToken` stays null and no Bearer token is ever attached to requests.
 
@@ -472,9 +453,15 @@ This ensures:
 - In production: every `apiFetch` call acquires an Azure AD token via MSAL before making the request
 - The existing token injection logic in `api.ts` (lines 104-116) already handles both paths correctly — it checks `getAccessToken` first, falls back to dev header
 
-**No changes needed to `api.ts` itself** — the `setTokenGetter` / `getAccessToken` pattern is already correct. We just need to call it.
+**No changes needed to `api.ts` itself.** The existing token injection logic (lines 101-119) already implements the correct staff-first precedence:
 
-#### 3e. Auth state management
+1. If `getAccessToken` returns a token (MSAL via `setTokenGetter`) → attach as `Authorization: Bearer`
+2. Else if `X-Dev-User-Email` exists in localStorage → attach as dev header
+3. **Only if neither staff auth is present** → check for portal token on allowlisted endpoints
+
+This prevents the portal-token collision bug fixed in P1. The MSAL integration slots into step 1 via `setTokenGetter` — no other changes to `api.ts`.
+
+#### 3d. Auth state management
 
 The existing `AuthContext` and `useAuth` hook in the frontend need updating to:
 1. Initialise MSAL on app load (`msalInstance.initialize()`)
@@ -570,10 +557,11 @@ jwk.alg = 'RS256';
 jwk.use = 'sig';
 
 // Inject test JWKS resolver into auth module (no global jose mock)
-import { _jwksResolver } from '../middleware/auth.js';
+import * as authModule from '../middleware/auth.js';
+
 beforeAll(() => {
   // Point the auth module's JWKS resolver at our test key set
-  (await import('../middleware/auth.js'))._jwksResolver = createLocalJWKSet({ keys: [jwk] });
+  authModule._jwksResolver = createLocalJWKSet({ keys: [jwk] });
 });
 
 // Create test token — uses jose directly (not mocked)
@@ -616,7 +604,7 @@ const token = await new SignJWT({ oid: 'user-1', tid: 'tenant-1', roles: ['Staff
 | `DEMO_MODE` | `true` | `false` |
 | `AZURE_TENANT_ID` | Test tenant UUID | Customer tenant UUID |
 | `AZURE_CLIENT_ID` | Backend app reg ID | Backend app reg ID |
-| `AZURE_CLIENT_SECRET` | — (not needed for demo) | App registration secret |
+| `AZURE_CLIENT_SECRET` | — (not needed for demo) | — (not needed for auth-only rollout; required later for OBO in Phase 4) |
 | `AZURE_JWKS_URI` | — (auto-derived) | — (auto-derived from tenant ID) |
 | `STAFF_ROLE_NAME` | `Staff` | `Staff` (or customer-specific) |
 | `PORTAL_TOKEN_SECRET` | Dev default | 32+ char random secret |
