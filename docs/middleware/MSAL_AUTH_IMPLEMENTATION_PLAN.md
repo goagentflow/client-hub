@@ -1,6 +1,6 @@
 # MSAL JWT Authentication — Implementation Plan
 
-**Status:** Proposed (awaiting senior dev review)
+**Status:** Proposed (v2 — addresses 6 findings from senior dev review)
 **Prerequisite:** P1 plan complete (all 13 priorities shipped, reviewed, approved)
 **Removes:** DEMO_MODE deployment gate in `middleware/src/config/env.ts`
 **Scope:** Azure AD JWT validation in middleware + MSAL.js in frontend
@@ -28,7 +28,7 @@
 │  MSAL.js initialised with:                                  │
 │    clientId: VITE_AZURE_CLIENT_ID                           │
 │    authority: https://login.microsoftonline.com/{tenantId}  │
-│    scope: api://{backendClientId}/.default                  │
+│    scope: api://{backendClientId}/access_as_user             │
 │                                                             │
 │  On login → acquireTokenSilent() or acquireTokenPopup()     │
 │  Token stored in MSAL cache (sessionStorage)                │
@@ -70,7 +70,8 @@ Not code, but required before any implementation can be tested.
 **Backend App Registration:**
 - Name: `AgentFlow Middleware`
 - Supported account types: Single tenant (customer's Azure AD)
-- Expose an API: `api://{clientId}` with scope `.default`
+- Expose an API: Application ID URI `api://{clientId}`
+- Add delegated scope: `access_as_user` (display name: "Access AgentFlow as user", admin consent description: "Allows the AgentFlow frontend to call the middleware API on behalf of the signed-in user")
 - App roles (optional, for role-based access):
   - `Staff` — full hub management
   - `Client` — view-only portal access
@@ -79,7 +80,7 @@ Not code, but required before any implementation can be tested.
 - Name: `AgentFlow Frontend`
 - Supported account types: Single tenant
 - Redirect URI: `http://localhost:5173` (dev), production URL
-- API permissions: Add scope from backend app registration
+- API permissions: Add delegated permission `api://{backendClientId}/access_as_user` from the backend app registration
 - Authentication: SPA platform, implicit grant disabled, auth code flow with PKCE
 
 **Output:** `AZURE_TENANT_ID`, `AZURE_CLIENT_ID` (backend), `VITE_AZURE_CLIENT_ID` (frontend)
@@ -169,7 +170,78 @@ async function handleJwtAuth(token: string, req: Request, res: Response, next: N
 
 4. **Fallback for no-roles tenants:** If the customer hasn't configured app roles, `isStaff` defaults to `false`. An alternative approach (tenant-level config or domain matching) can be added later if needed.
 
-#### 2c. Update auth flow ordering
+#### 2c. Implement `GET /auth/me` endpoint (finding #4)
+
+**Problem:** `loginWithMsal()` calls `fetchCurrentUser()` to get the user profile + hub access after acquiring a token. There is no middleware endpoint to serve this — it's a missing deliverable.
+
+**File:** `middleware/src/routes/auth.route.ts` (NEW)
+
+```typescript
+import { Router, type Request, type Response } from 'express';
+import { supabase } from '../adapters/supabase.adapter.js';
+import { sendItem } from '../utils/response.js';
+
+export const authRouter = Router();
+
+/**
+ * GET /auth/me — returns current user profile + hub access list
+ * Reads from req.user (populated by auth middleware)
+ */
+authRouter.get('/me', async (req: Request, res: Response) => {
+  const user = req.user!;
+
+  // For portal users, return minimal profile (no hub access list)
+  if (user.portalHubId) {
+    sendItem(res, {
+      user: {
+        id: user.userId,
+        email: user.email,
+        displayName: user.name,
+        role: 'client',
+        tenantId: user.tenantId,
+      },
+      hubAccess: [],
+    });
+    return;
+  }
+
+  // For staff/client users, look up hub memberships
+  // (placeholder — hub_member table query, to be implemented with real data layer)
+  sendItem(res, {
+    user: {
+      id: user.userId,
+      email: user.email,
+      displayName: user.name,
+      role: user.isStaff ? 'staff' : 'client',
+      tenantId: user.tenantId,
+    },
+    hubAccess: [], // TODO: query hub_member table for user's hub access
+  });
+});
+```
+
+**Mount in `middleware/src/routes/index.ts`:**
+```typescript
+import { authRouter } from './auth.route.js';
+// Inside apiRouter setup:
+apiRouter.use('/auth', authRouter);
+```
+
+This endpoint is auth-protected (sits behind `authMiddleware`), so `req.user` is always populated. The `hubAccess` array is a stub for now — it will be populated when hub membership is implemented. The frontend `User` type and `HubAccessSummary` type already match this response shape (see `src/types/auth.ts`).
+
+**Frontend `fetchCurrentUser` implementation** (in `auth.service.ts`):
+```typescript
+async function fetchCurrentUser(): Promise<User | null> {
+  try {
+    const result = await api.get<{ data: { user: User; hubAccess: HubAccessSummary[] } }>('/auth/me');
+    return result.data.user;
+  } catch {
+    return null;
+  }
+}
+```
+
+#### 2d. Update auth flow ordering
 
 **File:** `middleware/src/middleware/auth.ts`
 
@@ -216,6 +288,52 @@ if (data.DEMO_MODE) {
 }
 ```
 
+#### 2e. Conditional adapter construction (finding #2)
+
+**Problem:** `middleware/src/adapters/supabase.adapter.ts` unconditionally calls `createClient(env.SUPABASE_URL!, ...)` at module load. When `DEMO_MODE=false`, these env vars are undefined → runtime crash.
+
+**Fix:** Make the Supabase client lazy and guarded:
+
+**File:** `middleware/src/adapters/supabase.adapter.ts`
+
+Replace the top-level `createClient` call:
+```typescript
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { env } from '../config/env.js';
+
+// Lazy singleton — only constructed when DEMO_MODE=true
+let _supabase: SupabaseClient | null = null;
+
+export function getSupabase(): SupabaseClient {
+  if (!_supabase) {
+    if (!env.DEMO_MODE) {
+      throw new Error('Supabase adapter is not available when DEMO_MODE=false. Use SharePoint adapter.');
+    }
+    _supabase = createClient(
+      env.SUPABASE_URL!,
+      env.SUPABASE_SERVICE_ROLE_KEY!,
+      { auth: { autoRefreshToken: false, persistSession: false } }
+    );
+  }
+  return _supabase;
+}
+
+// Backwards-compatible named export (used by all route handlers)
+// In DEMO_MODE=true this is safe; in DEMO_MODE=false route handlers
+// must use SharePoint adapter instead (see Phase B adapter pattern below).
+export const supabase: SupabaseClient = new Proxy({} as SupabaseClient, {
+  get(_target, prop) {
+    return (getSupabase() as Record<string | symbol, unknown>)[prop];
+  },
+});
+```
+
+**Why a Proxy:** All existing route handlers import `supabase` directly. The Proxy defers the `createClient` call until the first actual database operation, not at import time. This means `DEMO_MODE=false` can start up without Supabase env vars, and will only fail if a route handler actually tries to use Supabase (which shouldn't happen once SharePoint adapter is wired in Phase B).
+
+**Phase B adapter pattern (future, not this plan):** When SharePoint endpoints are implemented, introduce an `AdapterFactory` that returns Supabase or SharePoint adapter based on `DEMO_MODE`. Route handlers call `getAdapter().from('hub')` instead of `supabase.from('hub')`. This is out of scope for the auth plan but is the logical next step.
+
+**Important:** All existing tests mock `supabase.from` — the Proxy is transparent to mocks because `vi.mocked(supabase.from)` resolves through the Proxy to the lazy client, which in test setup is already mocked before any route handler runs.
+
 ---
 
 ### Phase 3: Frontend MSAL.js Integration
@@ -248,8 +366,8 @@ const msalConfig: Configuration = {
 
 export const msalInstance = new PublicClientApplication(msalConfig);
 
-// Scope for backend API calls
-export const API_SCOPES = [`api://${import.meta.env.VITE_AZURE_BACKEND_CLIENT_ID}/.default`];
+// Delegated scope for backend API calls (defined in backend app registration)
+export const API_SCOPES = [`api://${import.meta.env.VITE_AZURE_BACKEND_CLIENT_ID}/access_as_user`];
 ```
 
 **New env vars** (`.env` / `.env.local`):
@@ -318,15 +436,46 @@ if (isMockApiEnabled()) {
 }
 ```
 
-Portal token logic (already implemented in P1) stays unchanged — it takes precedence for portal endpoints.
+**Auth precedence (finding #6 — preserving P1 collision fix):** The existing `api.ts` token injection follows a strict **staff-first** order established in the P1 fix:
 
-#### 3d. Auth state management
+1. If `getAccessToken` returns a token (MSAL) → attach as `Authorization: Bearer`
+2. Else if `X-Dev-User-Email` exists in localStorage → attach as dev header
+3. **Only if neither staff auth is present** (`!headers["Authorization"] && !headers["X-Dev-User-Email"]`) → check for portal token on allowlisted endpoints
+
+This prevents the portal-token collision bug where a staff user on a portal page could accidentally authenticate as a portal user. The P1 fix (lines 101-119 of `api.ts`) enforces this order — **do not change it**. The MSAL integration slots into step 1 via `setTokenGetter`, which is the existing extension point.
+
+#### 3d. Wire `setTokenGetter` in app initialisation (finding #3)
+
+**Problem:** `src/services/api.ts` uses a `getAccessToken` variable that defaults to `null`. The existing code at line 27 exposes `setTokenGetter()` — this must be called during app startup to wire MSAL token acquisition into the API layer. Without this, `getAccessToken` stays null and no Bearer token is ever attached to requests.
+
+**File:** `src/App.tsx` (or equivalent app initialisation point)
+
+During app startup, after MSAL initialisation:
+```typescript
+import { setTokenGetter } from './services/api';
+import { getAccessToken } from './services/auth.service';
+
+// Wire MSAL token acquisition into the API client
+if (!isMockApiEnabled()) {
+  setTokenGetter(getAccessToken);
+}
+```
+
+This ensures:
+- In demo mode: `getAccessToken` stays null, API falls through to `X-Dev-User-Email` header (existing behaviour)
+- In production: every `apiFetch` call acquires an Azure AD token via MSAL before making the request
+- The existing token injection logic in `api.ts` (lines 104-116) already handles both paths correctly — it checks `getAccessToken` first, falls back to dev header
+
+**No changes needed to `api.ts` itself** — the `setTokenGetter` / `getAccessToken` pattern is already correct. We just need to call it.
+
+#### 3e. Auth state management
 
 The existing `AuthContext` and `useAuth` hook in the frontend need updating to:
 1. Initialise MSAL on app load (`msalInstance.initialize()`)
 2. Check for existing session (`msalInstance.getActiveAccount()`)
 3. Provide `loginWithMsal()` instead of `loginWithCredentials()`
 4. Handle token expiry (silent renewal or redirect to login)
+5. Call `setTokenGetter(getAccessToken)` during initialisation (see 3d above)
 
 The exact implementation depends on how the frontend auth context is structured — this should be reviewed against the existing `AuthContext` provider.
 
@@ -457,7 +606,7 @@ const token = await new SignJWT({ oid: 'user-1', tid: 'tenant-1', roles: ['Staff
 | `VITE_AZURE_CLIENT_ID` | Frontend app reg ID | Frontend app reg ID |
 | `VITE_AZURE_TENANT_ID` | Test tenant UUID | Customer tenant UUID |
 | `VITE_AZURE_BACKEND_CLIENT_ID` | Backend app reg ID | Backend app reg ID |
-| `VITE_API_URL` | `http://localhost:3001` | Production middleware URL |
+| `VITE_API_BASE_URL` | `http://localhost:3001` | Production middleware URL (matches existing `api.ts:17`) |
 
 ---
 
@@ -467,13 +616,16 @@ const token = await new SignJWT({ oid: 'user-1', tid: 'tenant-1', roles: ['Staff
 |--------|------|-------------|
 | **CHANGE** | `middleware/src/middleware/auth.ts` | Replace `handleJwtAuth` 501 stub with RS256 JWT validation via `jose` JWKS |
 | **CHANGE** | `middleware/src/config/env.ts` | Remove DEMO_MODE=false hard-fail; add `AZURE_JWKS_URI`, `STAFF_ROLE_NAME`; add SharePoint/secret validation for production |
-| **CREATE** | `src/config/msal.ts` | MSAL.js configuration (PublicClientApplication, scopes) |
-| **CHANGE** | `src/services/auth.service.ts` | Add `loginWithMsal()`, `getAccessToken()`; keep demo login for DEMO_MODE |
-| **CHANGE** | `src/services/api.ts` | Token attachment: MSAL token in production, dev header in demo |
+| **CHANGE** | `middleware/src/adapters/supabase.adapter.ts` | Lazy/guarded Supabase client construction via Proxy (prevents crash when DEMO_MODE=false) |
+| **CREATE** | `middleware/src/routes/auth.route.ts` | `GET /auth/me` endpoint — returns user profile + hub access |
+| **CHANGE** | `middleware/src/routes/index.ts` | Mount `authRouter` at `/auth` |
+| **CREATE** | `src/config/msal.ts` | MSAL.js configuration (PublicClientApplication, delegated scope `access_as_user`) |
+| **CHANGE** | `src/services/auth.service.ts` | Add `loginWithMsal()`, `getAccessToken()`, `fetchCurrentUser()`; keep demo login for DEMO_MODE |
+| **CHANGE** | `src/App.tsx` (or init point) | Wire `setTokenGetter(getAccessToken)` during app startup |
 | **CHANGE** | `package.json` | Add `@azure/msal-browser` dependency |
 | **CREATE** | `middleware/src/__tests__/jwt-auth.test.ts` | Azure AD JWT validation tests with mocked JWKS |
 
-**No changes to:** portal auth, hub-access middleware, public routes, staff guards, existing tests.
+**No changes to:** portal auth flow, hub-access middleware, public routes, staff guards, existing `api.ts` token precedence logic, existing tests.
 
 ---
 
@@ -486,6 +638,8 @@ const token = await new SignJWT({ oid: 'user-1', tid: 'tenant-1', roles: ['Staff
 | Staff role not configured in customer tenant | Medium | Default to `isStaff: false`; document app role setup in deployment guide |
 | MSAL popup blocked by browser | Low | Offer `loginRedirect` as fallback; document popup requirements |
 | Demo mode regression | Low | Existing tests cover demo flow; DEMO_MODE=true path untouched |
+| Supabase Proxy breaks test mocks | Low | Proxy is transparent to `vi.mocked()` — test setup mocks before any route handler runs. Verify in CI. |
+| `hubAccess` array empty until membership table built | Medium | Frontend already handles empty array gracefully; staff get full access via `isStaff` regardless |
 
 ---
 
