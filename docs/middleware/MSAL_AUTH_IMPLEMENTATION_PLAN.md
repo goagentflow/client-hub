@@ -1,6 +1,6 @@
 # MSAL JWT Authentication — Implementation Plan
 
-**Status:** Proposed (v2 — addresses 6 findings from senior dev review)
+**Status:** Proposed (v3 — addresses 9 findings from two rounds of senior dev review)
 **Prerequisite:** P1 plan complete (all 13 priorities shipped, reviewed, approved)
 **Removes:** DEMO_MODE deployment gate in `middleware/src/config/env.ts`
 **Scope:** Azure AD JWT validation in middleware + MSAL.js in frontend
@@ -72,9 +72,9 @@ Not code, but required before any implementation can be tested.
 - Supported account types: Single tenant (customer's Azure AD)
 - Expose an API: Application ID URI `api://{clientId}`
 - Add delegated scope: `access_as_user` (display name: "Access AgentFlow as user", admin consent description: "Allows the AgentFlow frontend to call the middleware API on behalf of the signed-in user")
-- App roles (optional, for role-based access):
-  - `Staff` — full hub management
-  - `Client` — view-only portal access
+- App roles (**mandatory** — required for staff access):
+  - `Staff` — full hub management (must be assigned to all AgentFlow staff users before go-live)
+  - `Client` — view-only portal access (optional — portal users authenticate via hub-bound JWT, not Azure AD)
 
 **Frontend App Registration:**
 - Name: `AgentFlow Frontend`
@@ -132,9 +132,13 @@ function getJwks(): ReturnType<typeof createRemoteJWKSet> {
 
 async function handleJwtAuth(token: string, req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
+    // Azure AD v2.0 tokens set `aud` to the Application ID URI (api://...)
+    // when a delegated scope like `access_as_user` is requested.
+    // If the app registration only has the GUID as identifier, `aud` will be the GUID.
+    // Accept both to handle either configuration.
     const { payload } = await jwtVerify(token, getJwks(), {
       issuer: `https://login.microsoftonline.com/${env.AZURE_TENANT_ID}/v2.0`,
-      audience: env.AZURE_CLIENT_ID,
+      audience: [env.AZURE_CLIENT_ID, `api://${env.AZURE_CLIENT_ID}`],
     });
 
     // Extract standard Azure AD claims
@@ -162,13 +166,15 @@ async function handleJwtAuth(token: string, req: Request, res: Response, next: N
 
 **Key design decisions:**
 
-1. **`jose` not `@azure/msal-node`:** We already use `jose` for portal tokens. `createRemoteJWKSet` handles JWKS fetching, key rotation, and caching automatically. No need for the full MSAL Node SDK just for token validation.
+1. **JWT `aud` claim contract (finding #7):** Azure AD v2.0 tokens set the `aud` claim to the Application ID URI (`api://{clientId}`) when a delegated scope is requested, but may use the raw GUID if only the GUID is configured as the identifier. We accept both formats (`env.AZURE_CLIENT_ID` and `api://${env.AZURE_CLIENT_ID}`) to handle either app registration configuration. This is a deliberate choice — not ambiguity.
 
-2. **RS256 via JWKS:** Azure AD signs tokens with RS256. `jose` fetches public keys from the JWKS endpoint and caches them. Key rotation is handled transparently.
+2. **`jose` not `@azure/msal-node`:** We already use `jose` for portal tokens. `createRemoteJWKSet` handles JWKS fetching, key rotation, and caching automatically. No need for the full MSAL Node SDK just for token validation.
 
-3. **Staff detection via `roles` claim:** Azure AD app roles are the standard way to assign roles. The backend app registration defines a `Staff` role; Azure AD admins assign it to users. The claim appears as `"roles": ["Staff"]` in the token. Configurable via `STAFF_ROLE_NAME` env var.
+3. **RS256 via JWKS:** Azure AD signs tokens with RS256. `jose` fetches public keys from the JWKS endpoint and caches them. Key rotation is handled transparently.
 
-4. **Fallback for no-roles tenants:** If the customer hasn't configured app roles, `isStaff` defaults to `false`. An alternative approach (tenant-level config or domain matching) can be added later if needed.
+4. **Staff detection via `roles` claim:** Azure AD app roles are the standard way to assign roles. The backend app registration defines a `Staff` role; Azure AD admins assign it to users. The claim appears as `"roles": ["Staff"]` in the token. Configurable via `STAFF_ROLE_NAME` env var.
+
+6. **App roles are a hard rollout prerequisite, not optional (finding #8):** If the `Staff` role is not configured in the customer's Azure AD, **all users default to `isStaff: false`** — every staff endpoint returns 403 and the app is non-functional for staff. App role assignment must be part of the deployment checklist as a mandatory step, not an optional operational setup. The deployment guide must include: (a) create `Staff` app role in backend app registration, (b) assign it to all AgentFlow staff users in Azure AD, (c) verify via `GET /auth/me` that `role: "staff"` is returned before going live. Add a startup health check: on first authenticated request, if `isStaff: false` is returned for a user expected to be staff, log a `WARN` pointing to the app role configuration docs.
 
 #### 2c. Implement `GET /auth/me` endpoint (finding #4)
 
@@ -533,27 +539,44 @@ Add to `middleware/src/__tests__/`:
 | Demo header still works in DEMO_MODE | Existing demo tests must keep passing |
 | DEMO_MODE=false + valid JWT → authenticated | Remove deployment gate, verify JWT path works |
 
-**JWKS mocking approach:** Use `jose` to generate an RS256 key pair in tests. Mock the JWKS endpoint to return the test public key. Sign test tokens with the private key. This avoids hitting Azure AD in tests.
+**JWKS mocking approach (finding #9 — scoped, not global):** The JWT auth tests live in a **separate test file** (`jwt-auth.test.ts`) that does NOT share mock setup with portal auth tests. This prevents a global `jose` mock from interfering with portal JWT validation (which uses HS256 + local secret, not JWKS).
 
+**Isolation strategy:** Instead of mocking `jose` globally, inject the JWKS resolver via the auth module. The `getJwks()` function in `auth.ts` is extracted as a module-level variable that tests can override:
+
+**In `middleware/src/middleware/auth.ts`:**
 ```typescript
-import { generateKeyPair, exportJWK, SignJWT } from 'jose';
+// Overridable for testing — do not mock the jose module globally
+export let _jwksResolver: ReturnType<typeof createRemoteJWKSet> | null = null;
 
+function getJwks(): ReturnType<typeof createRemoteJWKSet> {
+  if (!_jwksResolver) {
+    const uri = env.AZURE_JWKS_URI
+      || `https://login.microsoftonline.com/${env.AZURE_TENANT_ID}/discovery/v2.0/keys`;
+    _jwksResolver = createRemoteJWKSet(new URL(uri));
+  }
+  return _jwksResolver;
+}
+```
+
+**In `middleware/src/__tests__/jwt-auth.test.ts`:**
+```typescript
+import { generateKeyPair, exportJWK, SignJWT, createLocalJWKSet } from 'jose';
+
+// Generate RS256 key pair for test signing
 const { publicKey, privateKey } = await generateKeyPair('RS256');
 const jwk = await exportJWK(publicKey);
 jwk.kid = 'test-key-id';
 jwk.alg = 'RS256';
 jwk.use = 'sig';
 
-// Mock JWKS endpoint in test setup
-vi.mock('jose', async (importOriginal) => {
-  const actual = await importOriginal();
-  return {
-    ...actual,
-    createRemoteJWKSet: () => actual.createLocalJWKSet({ keys: [jwk] }),
-  };
+// Inject test JWKS resolver into auth module (no global jose mock)
+import { _jwksResolver } from '../middleware/auth.js';
+beforeAll(() => {
+  // Point the auth module's JWKS resolver at our test key set
+  (await import('../middleware/auth.js'))._jwksResolver = createLocalJWKSet({ keys: [jwk] });
 });
 
-// Create test token
+// Create test token — uses jose directly (not mocked)
 const token = await new SignJWT({ oid: 'user-1', tid: 'tenant-1', roles: ['Staff'] })
   .setProtectedHeader({ alg: 'RS256', kid: 'test-key-id' })
   .setIssuer(`https://login.microsoftonline.com/tenant-1/v2.0`)
@@ -561,6 +584,8 @@ const token = await new SignJWT({ oid: 'user-1', tid: 'tenant-1', roles: ['Staff
   .setExpirationTime('1h')
   .sign(privateKey);
 ```
+
+**Why this is safe:** Portal auth tests (`portal-auth.test.ts`) use `jose.jwtVerify` with a local HS256 secret — they never touch `createRemoteJWKSet`. By injecting the JWKS resolver instead of mocking the module, both test files can run in the same vitest process without interference.
 
 ### Integration Tests
 
