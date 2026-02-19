@@ -468,7 +468,7 @@ The existing `AuthContext` and `useAuth` hook in the frontend need updating to:
 2. Check for existing session (`msalInstance.getActiveAccount()`)
 3. Provide `loginWithMsal()` instead of `loginWithCredentials()`
 4. Handle token expiry (silent renewal or redirect to login)
-5. Call `setTokenGetter(getAccessToken)` during initialisation (see 3d above)
+5. Call `setTokenGetter(getAccessToken)` during initialisation (see 3c above)
 
 The exact implementation depends on how the frontend auth context is structured — this should be reviewed against the existing `AuthContext` provider.
 
