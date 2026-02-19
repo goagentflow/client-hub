@@ -47,7 +47,7 @@ Output only clean final code.
 4. Avoid O(n²) where O(n) exists
 5. Cache repeated reads and API calls
 6. Paginate and limit results by default
-7. All endpoints return `{status, message, data}`
+7. Single-item endpoints return the DTO directly; list endpoints return `{items, pagination}`; errors return `{code, message, correlationId?}`
 8. Handle and log errors with context
 9. Document APIs with inline examples or OpenAPI
 10. Validate all request data before processing

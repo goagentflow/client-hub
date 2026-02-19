@@ -15,9 +15,8 @@ import type {
   DocumentVisibility,
   BulkDocumentActionRequest,
 } from "@/types";
-import { api, isMockApiEnabled, isFeatureLive, simulateDelay } from "./api";
+import { api, isMockApiEnabled, simulateDelay } from "./api";
 import { mockDocuments } from "./mock-data";
-import { fetchDocuments as supabaseFetchDocuments, fetchPortalDocuments as supabaseFetchPortalDocuments } from "./supabase-data";
 
 /**
  * Get documents for a hub
@@ -26,10 +25,6 @@ export async function getDocuments(
   hubId: string,
   params?: PaginationParams & DocumentFilterParams
 ): Promise<PaginatedList<Document>> {
-  if (isFeatureLive("documents")) {
-    return supabaseFetchDocuments(hubId);
-  }
-
   if (isMockApiEnabled()) {
     await simulateDelay(300);
 
@@ -247,10 +242,6 @@ export async function getPortalDocuments(
   hubId: string,
   params?: PaginationParams
 ): Promise<PaginatedList<Document>> {
-  if (isFeatureLive("documents")) {
-    return supabaseFetchPortalDocuments(hubId);
-  }
-
   if (isMockApiEnabled()) {
     await simulateDelay(300);
     const filtered = mockDocuments.filter(

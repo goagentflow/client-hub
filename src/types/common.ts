@@ -45,7 +45,8 @@ export type ApiErrorCode =
   | "PAYLOAD_TOO_LARGE"
   | "RATE_LIMITED"
   | "INTERNAL_ERROR"
-  | "VALIDATION_ERROR";
+  | "VALIDATION_ERROR"
+  | "NOT_IMPLEMENTED";
 
 // Date string in ISO 8601 format
 export type ISODateString = string;

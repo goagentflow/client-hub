@@ -206,7 +206,7 @@ export async function acceptInvite(token: string): Promise<AcceptInviteResponse>
     };
   }
 
-  return api.post<AcceptInviteResponse>(`/invites/${token}/accept`);
+  return api.post<AcceptInviteResponse>(`/public/invites/${token}/accept`);
 }
 
 /**

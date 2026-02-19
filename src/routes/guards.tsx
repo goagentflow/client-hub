@@ -12,7 +12,7 @@
 import { Navigate, useLocation, useParams } from "react-router-dom";
 import { useCurrentUser, useHubAccess } from "@/hooks";
 import { hasAdminAccess } from "@/types";
-import { isFeatureLive } from "@/services/api";
+import { isMockApiEnabled } from "@/services/api";
 
 interface GuardProps {
   children: React.ReactNode;
@@ -130,7 +130,7 @@ export function RequireClient({ children }: GuardProps) {
 
   // When Supabase hubs are live, the portal handles its own password gate
   // so we skip the demo auth check entirely.
-  if (isFeatureLive("hubs")) {
+  if (!isMockApiEnabled()) {
     return <>{children}</>;
   }
 

@@ -12,7 +12,7 @@ import { Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { simpleHash } from "@/lib/hash";
-import { verifyHubPassword } from "@/services/supabase-data";
+import { api } from "@/services/api";
 
 interface PasswordGateProps {
   hubId: string;
@@ -34,9 +34,13 @@ export function PasswordGate({ hubId, companyName, onSuccess }: PasswordGateProp
     setError("");
 
     try {
-      const result = await verifyHubPassword(hubId, simpleHash(trimmed));
+      const result = await api.post<{ data: { valid: boolean; token?: string } }>(
+        `/public/hubs/${hubId}/verify-password`,
+        { passwordHash: simpleHash(trimmed) }
+      );
 
-      if (result.valid) {
+      if (result.data.valid && result.data.token) {
+        sessionStorage.setItem(`portal_token_${hubId}`, result.data.token);
         sessionStorage.setItem(`hub_access_${hubId}`, "true");
         onSuccess();
       } else {

@@ -16,9 +16,8 @@ import type {
   PaginationParams,
   ActivityFeedItem,
 } from "@/types";
-import { api, isMockApiEnabled, isFeatureLive, simulateDelay } from "./api";
+import { api, isMockApiEnabled, simulateDelay } from "./api";
 import { mockHubs, mockHubOverview, mockPortalConfig, mockActivityFeed, mockActivityByHub } from "./mock-data";
-import { fetchHubs as supabaseFetchHubs, fetchHub as supabaseFetchHub, createHubInSupabase } from "./supabase-data";
 import { applyHubFilters } from "./hub-filters";
 
 // Re-export conversion functions for backwards compatibility
@@ -33,11 +32,6 @@ export {
  * Get paginated list of hubs
  */
 export async function getHubs(params?: PaginationParams): Promise<PaginatedList<Hub>> {
-  if (isFeatureLive("hubs")) {
-    const result = await supabaseFetchHubs();
-    return applyHubFilters(result.items, params);
-  }
-
   if (isMockApiEnabled()) {
     await simulateDelay(300);
     return applyHubFilters(mockHubs, params);
@@ -57,10 +51,6 @@ export async function getHubs(params?: PaginationParams): Promise<PaginatedList<
  * Get single hub by ID
  */
 export async function getHub(hubId: string): Promise<Hub> {
-  if (isFeatureLive("hubs")) {
-    return supabaseFetchHub(hubId);
-  }
-
   if (isMockApiEnabled()) {
     await simulateDelay(200);
     const hub = mockHubs.find((h) => h.id === hubId);
@@ -75,10 +65,6 @@ export async function getHub(hubId: string): Promise<Hub> {
  * Create a new hub
  */
 export async function createHub(data: CreateHubRequest): Promise<Hub> {
-  if (isFeatureLive("hubs")) {
-    return createHubInSupabase(data);
-  }
-
   if (isMockApiEnabled()) {
     await simulateDelay(500);
 

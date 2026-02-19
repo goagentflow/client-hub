@@ -4,11 +4,18 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Play, Share2, Clock, Video, Loader2, Mail } from "lucide-react";
+import { Play, Share2, Clock, Video, Loader2, Mail, Headphones } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useHubId } from "@/contexts/hub-context";
 import { usePortalVideos, useTrackEngagement, useInviteColleague } from "@/hooks";
 import type { Video as VideoType } from "@/types";
+
+const YOUTUBE_EMBED_ORIGIN = "https://www.youtube.com/embed/";
+
+function getYouTubeId(url: string): string | null {
+  const match = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&\s]+)/);
+  return match ? match[1] : null;
+}
 
 export function ClientVideosSection() {
   const hubId = useHubId();
@@ -110,17 +117,31 @@ export function ClientVideosSection() {
 
       {/* Video Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {videos.map((video) => (
+        {videos.map((video) => {
+          const ytId = video.sourceType === "youtube" ? getYouTubeId(video.sourceUrl) : null;
+          return (
           <Card
             key={video.id}
             className="group cursor-pointer hover:shadow-lg transition-all overflow-hidden"
             onClick={() => handleVideoSelect(video)}
           >
             <CardContent className="p-0">
-              <div className="relative aspect-video bg-muted flex items-center justify-center">
+              <div className="relative aspect-video bg-muted flex items-center justify-center overflow-hidden">
+                {ytId && (
+                  <img
+                    src={`https://img.youtube.com/vi/${ytId}/hqdefault.jpg`}
+                    alt={video.title}
+                    className="absolute inset-0 w-full h-full object-cover"
+                    loading="lazy"
+                  />
+                )}
                 <div className="absolute inset-0 bg-black/40 group-hover:bg-black/50 transition-colors flex items-center justify-center">
                   <div className="w-14 h-14 rounded-full bg-white/90 flex items-center justify-center group-hover:scale-110 transition-transform">
-                    <Play className="h-7 w-7 text-[hsl(var(--bold-royal-blue))] ml-1" fill="currentColor" />
+                    {video.sourceType === "audio" ? (
+                      <Headphones className="h-7 w-7 text-[hsl(var(--bold-royal-blue))]" />
+                    ) : (
+                      <Play className="h-7 w-7 text-[hsl(var(--bold-royal-blue))] ml-1" fill="currentColor" />
+                    )}
                   </div>
                 </div>
                 <div className="absolute bottom-3 right-3 bg-black/75 text-white text-xs px-2 py-1 rounded flex items-center gap-1">
@@ -142,7 +163,8 @@ export function ClientVideosSection() {
               </div>
             </CardContent>
           </Card>
-        ))}
+          );
+        })}
       </div>
 
       {/* Video Player Modal */}
@@ -152,28 +174,48 @@ export function ClientVideosSection() {
             <DialogTitle className="text-2xl text-[hsl(var(--bold-royal-blue))]">{selectedVideo?.title}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="relative aspect-video bg-muted rounded-lg flex items-center justify-center">
-              <div className="w-20 h-20 rounded-full bg-[hsl(var(--gradient-blue))] flex items-center justify-center">
-                <Play className="h-10 w-10 text-white ml-1" fill="currentColor" />
+            {selectedVideo?.sourceType === "youtube" && getYouTubeId(selectedVideo.sourceUrl) ? (
+              <div className="relative aspect-video rounded-lg overflow-hidden">
+                <iframe
+                  src={`${YOUTUBE_EMBED_ORIGIN}${getYouTubeId(selectedVideo.sourceUrl)}?autoplay=1`}
+                  title={selectedVideo.title}
+                  className="absolute inset-0 w-full h-full"
+                  sandbox="allow-scripts allow-same-origin allow-presentation allow-popups"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                />
               </div>
-              <div className="absolute bottom-0 left-0 right-0 bg-black/75 p-3 rounded-b-lg">
-                <div className="flex items-center gap-3">
-                  <Button variant="ghost" size="icon" className="text-white hover:text-white/80">
-                    <Play className="h-5 w-5" />
-                  </Button>
-                  <div className="flex-1 h-1 bg-white/30 rounded-full overflow-hidden">
-                    <div className="h-full w-1/3 bg-white rounded-full" />
+            ) : selectedVideo?.sourceType === "audio" ? (
+              <div className="bg-muted rounded-lg p-8 flex flex-col items-center gap-6">
+                <div className="w-24 h-24 rounded-full bg-[hsl(var(--gradient-blue))]/10 flex items-center justify-center">
+                  <Headphones className="h-12 w-12 text-[hsl(var(--gradient-blue))]" />
+                </div>
+                <audio controls autoPlay src={selectedVideo.sourceUrl} className="w-full" />
+              </div>
+            ) : (
+              <div className="relative aspect-video bg-muted rounded-lg flex items-center justify-center">
+                <div className="w-20 h-20 rounded-full bg-[hsl(var(--gradient-blue))] flex items-center justify-center">
+                  <Play className="h-10 w-10 text-white ml-1" fill="currentColor" />
+                </div>
+                <div className="absolute bottom-0 left-0 right-0 bg-black/75 p-3 rounded-b-lg">
+                  <div className="flex items-center gap-3">
+                    <Button variant="ghost" size="icon" className="text-white hover:text-white/80">
+                      <Play className="h-5 w-5" />
+                    </Button>
+                    <div className="flex-1 h-1 bg-white/30 rounded-full overflow-hidden">
+                      <div className="h-full w-1/3 bg-white rounded-full" />
+                    </div>
+                    <span className="text-white text-sm">0:00 / {formatDuration(selectedVideo?.duration)}</span>
                   </div>
-                  <span className="text-white text-sm">0:00 / {formatDuration(selectedVideo?.duration)}</span>
                 </div>
               </div>
-            </div>
+            )}
             <p className="text-[hsl(var(--dark-grey))]">{selectedVideo?.description}</p>
             <div className="flex gap-3">
               <Button
                 variant="outline"
                 className="border-[hsl(var(--gradient-blue))] text-[hsl(var(--gradient-blue))]"
-                onClick={() => selectedVideo && handleShareClick(selectedVideo.id, {} as React.MouseEvent)}
+                onClick={(e) => selectedVideo && handleShareClick(selectedVideo.id, e)}
               >
                 <Share2 className="h-4 w-4 mr-2" />
                 Share this video

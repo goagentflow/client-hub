@@ -65,6 +65,25 @@ function buildUrl(endpoint: string, params?: Record<string, string>): string {
   return url.toString();
 }
 
+// Positive allowlist: only these endpoint patterns receive portal tokens.
+// Derived from actual route mounts in middleware/src/routes/index.ts,
+// frontend service calls in src/services/*.service.ts,
+// and PortalDetail.tsx route config.
+const PORTAL_ENDPOINT_PATTERNS = [
+  /^\/public\//,                                    // public endpoints (portal-meta, verify-password)
+  /^\/hubs\/[^/]+\/portal(?:\/|$)/,                 // portal sub-routes
+  /^\/hubs\/[^/]+\/instant-answer(?:\/|$)/,          // client intelligence: instant answers
+  /^\/hubs\/[^/]+\/decision-queue(?:\/|$)/,          // client intelligence: decision queue
+  /^\/hubs\/[^/]+\/performance(?:\/|$)/,             // client intelligence: performance narratives
+  /^\/hubs\/[^/]+\/history$/,                        // client intelligence: institutional memory
+  /^\/hubs\/[^/]+\/risk-alerts(?:\/|$)/,             // client intelligence: risk alerts
+  /^\/hubs\/[^/]+\/meetings\/[^/]+\/prep(?:\/|$)/,   // client intelligence: meeting prep
+  /^\/hubs\/[^/]+\/meetings\/[^/]+\/follow-up(?:\/|$)/, // client intelligence: meeting follow-up
+];
+
+// Events: portal can only POST (engagement tracking), GET is staff-only
+const PORTAL_EVENTS_PATTERN = /^\/hubs\/[^/]+\/events$/;
+
 // Core fetch wrapper with auth and error handling
 async function apiFetch<T>(
   endpoint: string,
@@ -74,15 +93,50 @@ async function apiFetch<T>(
   const url = buildUrl(endpoint, queryParams);
 
   const headers: Record<string, string> = {
-    "Content-Type": "application/json",
+    ...(options.body instanceof FormData ? {} : { "Content-Type": "application/json" }),
     ...(options.headers as Record<string, string>),
   };
 
-  // Add auth token if available
+  // --- Token injection (strict order) ---
+  let usedPortalToken = false;
+  let portalHubIdForCleanup: string | null = null;
+
+  // Step 1: Resolve staff token (MSAL or dev header)
   if (getAccessToken) {
     const token = await getAccessToken();
     if (token) {
       headers["Authorization"] = `Bearer ${token}`;
+    } else {
+      const email = localStorage.getItem('userEmail');
+      if (email) headers['X-Dev-User-Email'] = email;
+    }
+  } else {
+    const email = localStorage.getItem('userEmail');
+    if (email) headers['X-Dev-User-Email'] = email;
+  }
+
+  // Step 2: Portal token — only if NO staff auth was set above (Bearer OR dev header)
+  const hasStaffAuth = !!headers["Authorization"] || !!headers["X-Dev-User-Email"];
+  if (!hasStaffAuth) {
+    const portalMatch = window.location.pathname.match(/^\/portal\/([^/]+)/);
+    if (portalMatch) {
+      const portalHubId = portalMatch[1];
+      const portalToken = sessionStorage.getItem(`portal_token_${portalHubId}`);
+      if (portalToken) {
+        const method = (options.method || 'GET').toUpperCase();
+        const isPortalEndpoint = PORTAL_ENDPOINT_PATTERNS.some(p => p.test(endpoint))
+          || (method === 'POST' && PORTAL_EVENTS_PATTERN.test(endpoint));
+        // Verify endpoint hubId matches page hubId (no cross-hub token sends)
+        const endpointHubMatch = endpoint.match(/^\/hubs\/([^/]+)\//);
+        const endpointHubId = endpointHubMatch?.[1];
+        const hubIdMatches = !endpointHubId || endpointHubId === portalHubId;
+
+        if (isPortalEndpoint && hubIdMatches) {
+          headers["Authorization"] = `Bearer ${portalToken}`;
+          usedPortalToken = true;
+          portalHubIdForCleanup = portalHubId;
+        }
+      }
     }
   }
 
@@ -93,9 +147,21 @@ async function apiFetch<T>(
 
   // Handle non-OK responses
   if (!response.ok) {
-    // Handle 401 Unauthorized - session expired or invalid token
-    if (response.status === 401 && onUnauthorized) {
-      onUnauthorized();
+    // Handle 401 Unauthorized
+    if (response.status === 401) {
+      if (usedPortalToken && portalHubIdForCleanup) {
+        // Portal token rejected — clear stale session, redirect to password gate
+        sessionStorage.removeItem(`portal_token_${portalHubIdForCleanup}`);
+        sessionStorage.removeItem(`hub_access_${portalHubIdForCleanup}`);
+        window.location.href = `/portal/${portalHubIdForCleanup}`;
+        // Short-circuit to prevent noisy error handling before navigation
+        throw new ApiRequestError(
+          { code: 'UNAUTHENTICATED', message: 'Portal session expired' },
+          401
+        );
+      }
+      // Staff auth failure — use existing global handler
+      if (onUnauthorized) onUnauthorized();
     }
 
     let error: ApiError;
@@ -155,16 +221,4 @@ export const api = {
 // Simulate network delay for mock API (makes UI feel more realistic)
 export function simulateDelay(ms: number = 300): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-/**
- * Check if a specific feature has a live Supabase implementation.
- * Features not in this list fall back to mock data even when mock API is off.
- */
-const LIVE_FEATURES = ["hubs", "videos", "proposals", "documents"] as const;
-type LiveFeature = (typeof LIVE_FEATURES)[number];
-
-export function isFeatureLive(feature: LiveFeature): boolean {
-  if (isMockApiEnabled()) return false;
-  return LIVE_FEATURES.includes(feature);
 }

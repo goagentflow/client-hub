@@ -78,14 +78,6 @@ export function ClientProposalSection() {
   const canDownload = proposal.settings?.isDownloadEnabled ?? true;
   const title = proposal.fileName?.replace(/\.[^/.]+$/, "") || "Our Proposal";
 
-  const handlePrevSlide = () => {
-    setCurrentSlide(Math.max(1, currentSlide - 1));
-  };
-
-  const handleNextSlide = () => {
-    setCurrentSlide(Math.min(totalSlides, currentSlide + 1));
-  };
-
   const handleSlideSelect = (slideNum: number) => {
     setCurrentSlide(slideNum);
   };
@@ -154,27 +146,26 @@ export function ClientProposalSection() {
       />
 
       {/* Main Content */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        {/* Slide Thumbnails - Sidebar */}
-        <div className="lg:col-span-1 order-2 lg:order-1">
-          <SlideThumbnails
-            totalSlides={totalSlides}
-            currentSlide={currentSlide}
-            commentedSlides={commentedSlides}
-            onSlideSelect={handleSlideSelect}
-          />
-        </div>
+      <div className={`grid grid-cols-1 ${proposal.embedUrl ? "" : "lg:grid-cols-4"} gap-6`}>
+        {/* Slide Thumbnails - Sidebar (hidden when Office embed handles its own navigation) */}
+        {!proposal.embedUrl && (
+          <div className="lg:col-span-1 order-2 lg:order-1">
+            <SlideThumbnails
+              totalSlides={totalSlides}
+              currentSlide={currentSlide}
+              commentedSlides={commentedSlides}
+              onSlideSelect={handleSlideSelect}
+            />
+          </div>
+        )}
 
         {/* Main Viewer */}
-        <div className="lg:col-span-3 order-1 lg:order-2">
+        <div className={proposal.embedUrl ? "" : "lg:col-span-3 order-1 lg:order-2"}>
           <ProposalSlideViewer
             currentSlide={currentSlide}
-            totalSlides={totalSlides}
-            onPrevSlide={handlePrevSlide}
-            onNextSlide={handleNextSlide}
             onSlideComment={handleSlideComment}
             onSlideTimeSpent={handleSlideTimeSpent}
-            commentedSlides={commentedSlides}
+            embedUrl={proposal.embedUrl}
           />
         </div>
       </div>

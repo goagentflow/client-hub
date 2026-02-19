@@ -1,17 +1,15 @@
 import { Request, Response, NextFunction } from 'express';
 import { ZodError } from 'zod';
 import { logger } from '../utils/logger.js';
-import type { ApiError } from '../types/api.js';
 
 /**
- * Custom application error with code and retryable flag
+ * Custom application error with code
  */
 export class AppError extends Error {
   constructor(
     public readonly code: string,
     message: string,
     public readonly statusCode: number = 500,
-    public readonly retryable: boolean = false,
     public readonly details?: Record<string, unknown>
   ) {
     super(message);
@@ -23,82 +21,77 @@ export class AppError extends Error {
  * Common error factory functions
  */
 export const Errors = {
-  notFound: (resource: string, id: string): AppError =>
-    new AppError(`${resource.toUpperCase()}_NOT_FOUND`, `${resource} with ID '${id}' not found`, 404, false, {
-      [`${resource.toLowerCase()}Id`]: id,
-    }),
+  notFound: (resource: string, id?: string | string[]): AppError => {
+    const idStr = Array.isArray(id) ? id[0] : id;
+    return new AppError('NOT_FOUND', idStr ? `${resource} with ID '${idStr}' not found` : `${resource} not found`, 404, idStr ? {
+      [`${resource.toLowerCase()}Id`]: idStr,
+    } : undefined);
+  },
 
   unauthorized: (message = 'Invalid or expired token'): AppError =>
-    new AppError('UNAUTHORIZED', message, 401, false),
+    new AppError('UNAUTHENTICATED', message, 401),
 
-  forbidden: (message = 'Access denied'): AppError => new AppError('FORBIDDEN', message, 403, false),
+  forbidden: (message = 'Access denied'): AppError => new AppError('FORBIDDEN', message, 403),
 
   badRequest: (message: string, details?: Record<string, unknown>): AppError =>
-    new AppError('BAD_REQUEST', message, 400, false, details),
+    new AppError('VALIDATION_ERROR', message, 400, details),
 
   tenantMismatch: (hubTenant: string, userTenant: string): AppError =>
-    new AppError('TENANT_MISMATCH', 'Hub does not belong to your tenant', 403, false, {
+    new AppError('FORBIDDEN', 'Hub does not belong to your tenant', 403, {
       hubTenant,
       userTenant,
     }),
 
-  graphError: (message: string, retryable = true): AppError =>
-    new AppError('GRAPH_API_ERROR', message, 502, retryable),
+  graphError: (message: string): AppError =>
+    new AppError('INTERNAL_ERROR', message, 502),
 
-  rateLimited: (): AppError => new AppError('RATE_LIMITED', 'Too many requests', 429, true),
+  rateLimited: (): AppError => new AppError('RATE_LIMITED', 'Too many requests', 429),
 };
 
 /**
- * Global error handler middleware
+ * Global error handler middleware — flat error shape matching frontend ApiError
  */
 export function errorHandler(err: Error, req: Request, res: Response, _next: NextFunction): void {
   const correlationId = req.correlationId || 'unknown';
 
   // Handle Zod validation errors
   if (err instanceof ZodError) {
-    const response: ApiError = {
-      error: {
-        code: 'VALIDATION_ERROR',
-        message: 'Request validation failed',
-        details: { issues: err.issues },
-        retryable: false,
-      },
-    };
     logger.warn({ correlationId, issues: err.issues }, 'Validation error');
-    res.status(400).json(response);
+    res.status(400).json({
+      code: 'VALIDATION_ERROR',
+      message: 'Request validation failed',
+      details: { issues: err.issues },
+      correlationId,
+    });
     return;
   }
 
   // Handle application errors
   if (err instanceof AppError) {
-    const errorObj: ApiError['error'] = {
-      code: err.code,
-      message: err.message,
-      retryable: err.retryable,
-    };
-    if (err.details !== undefined) {
-      errorObj.details = err.details;
-    }
-    const response: ApiError = { error: errorObj };
-
     if (err.statusCode >= 500) {
       logger.error({ correlationId, err }, 'Application error');
     } else {
       logger.warn({ correlationId, code: err.code, message: err.message }, 'Client error');
     }
 
-    res.status(err.statusCode).json(response);
+    const body: Record<string, unknown> = {
+      code: err.code,
+      message: err.message,
+      correlationId,
+    };
+    if (err.details !== undefined) {
+      body.details = err.details;
+    }
+
+    res.status(err.statusCode).json(body);
     return;
   }
 
   // Handle unexpected errors
   logger.error({ correlationId, err }, 'Unexpected error');
-  const response: ApiError = {
-    error: {
-      code: 'INTERNAL_ERROR',
-      message: 'An unexpected error occurred',
-      retryable: true,
-    },
-  };
-  res.status(500).json(response);
+  res.status(500).json({
+    code: 'INTERNAL_ERROR',
+    message: 'An unexpected error occurred',
+    correlationId,
+  });
 }

@@ -1,37 +1,29 @@
 /**
- * Standard API response format
- * Per PRD_MVP_SUMMARY.md API Contract
+ * Standard API types
+ * Flat error shape matching frontend src/types/common.ts
  */
 
-export interface ApiResponse<T> {
-  data: T;
-  metadata: {
-    timestamp: string;
-    correlationId: string;
-  };
-}
-
-export interface ApiListResponse<T> {
-  items: T[];
-  pagination: {
-    page: number;
-    pageSize: number;
-    totalItems: number;
-    totalPages: number;
-  };
-}
-
 export interface ApiError {
-  error: {
-    code: string;
-    message: string;
-    details?: Record<string, unknown>;
-    retryable: boolean;
-  };
+  code: string;
+  message: string;
+  details?: Record<string, unknown>;
+  correlationId?: string;
+}
+
+export interface PaginationMeta {
+  page: number;
+  pageSize: number;
+  totalItems: number;
+  totalPages: number;
+}
+
+export interface PaginatedList<T> {
+  items: T[];
+  pagination: PaginationMeta;
 }
 
 /**
- * User context extracted from JWT token
+ * User context extracted from JWT token or dev headers
  */
 export interface UserContext {
   userId: string;
@@ -39,6 +31,7 @@ export interface UserContext {
   email: string;
   name: string;
   isStaff: boolean;
+  portalHubId?: string;
 }
 
 /**

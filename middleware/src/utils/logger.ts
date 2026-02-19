@@ -3,6 +3,13 @@ import { env } from '../config/env.js';
 
 const baseOptions: LoggerOptions = {
   level: env.LOG_LEVEL,
+  redact: [
+    'req.headers.authorization',
+    'req.headers["x-dev-user-email"]',
+    '*.password',
+    '*.password_hash',
+    '*.passwordHash',
+  ],
   formatters: {
     level: (label) => ({ level: label }),
   },

@@ -5,7 +5,7 @@
 import type { EntityId, ISODateString } from "./common";
 
 // Video source type
-export type VideoSourceType = "upload" | "link";
+export type VideoSourceType = "upload" | "link" | "youtube" | "audio";
 
 // Video visibility (lowercase for consistency)
 export type VideoVisibility = "client" | "internal";

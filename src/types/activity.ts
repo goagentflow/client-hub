@@ -151,6 +151,17 @@ export interface LeadershipAccessedMetadata {
   view: "overview" | "all" | "at-risk" | "expansion";
 }
 
+// Leadership event display DTO (hub-free, for global events)
+export interface LeadershipEvent {
+  id: EntityId;
+  eventType: EventType;
+  userId: EntityId;
+  userName: string;
+  userEmail: string;
+  timestamp: ISODateString;
+  metadata: LeadershipAccessedMetadata;
+}
+
 // Activity feed item (for display)
 export interface ActivityFeedItem {
   id: EntityId;

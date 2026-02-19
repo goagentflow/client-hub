@@ -7,9 +7,8 @@
  */
 
 import type { User, AuthMeResponse, HubAccessCheckResponse } from "@/types";
-import { api, isMockApiEnabled, isFeatureLive, simulateDelay } from "./api";
+import { isMockApiEnabled, simulateDelay } from "./api";
 import { mockStaffUser, mockClientUser, mockClientHubUser, mockHubs } from "./mock-data";
-import { verifyHubPassword } from "./supabase-data";
 import { simpleHash } from "@/lib/hash";
 
 // Demo credentials for wireframe testing
@@ -27,23 +26,19 @@ export async function loginWithCredentials(
   email: string,
   password: string
 ): Promise<User | null> {
-  if (isMockApiEnabled()) {
-    await simulateDelay(500);
+  // Auth has no real backend — always use demo credentials
+  await simulateDelay(500);
 
-    if (email === DEMO_CREDENTIALS.staff.email && password === DEMO_CREDENTIALS.staff.password) {
-      return mockStaffUser;
-    }
-    if (email === DEMO_CREDENTIALS.client.email && password === DEMO_CREDENTIALS.client.password) {
-      return mockClientUser;
-    }
-    if (email === DEMO_CREDENTIALS.clientHub.email && password === DEMO_CREDENTIALS.clientHub.password) {
-      return mockClientHubUser;
-    }
-    return null;
+  if (email === DEMO_CREDENTIALS.staff.email && password === DEMO_CREDENTIALS.staff.password) {
+    return mockStaffUser;
   }
-
-  // Real API call would go here
-  return api.post<User>("/auth/login", { email, password });
+  if (email === DEMO_CREDENTIALS.client.email && password === DEMO_CREDENTIALS.client.password) {
+    return mockClientUser;
+  }
+  if (email === DEMO_CREDENTIALS.clientHub.email && password === DEMO_CREDENTIALS.clientHub.password) {
+    return mockClientHubUser;
+  }
+  return null;
 }
 
 /**
@@ -51,97 +46,84 @@ export async function loginWithCredentials(
  * Called on app init to restore session
  */
 export async function getCurrentUser(): Promise<AuthMeResponse | null> {
-  if (isMockApiEnabled()) {
-    await simulateDelay(200);
+  // Auth has no real backend — always use demo session from localStorage
+  await simulateDelay(200);
 
-    // Check localStorage for demo session
-    const storedRole = localStorage.getItem("userRole");
-    const storedEmail = localStorage.getItem("userEmail");
+  const storedRole = localStorage.getItem("userRole");
+  const storedEmail = localStorage.getItem("userEmail");
 
-    if (!storedRole || !storedEmail) {
-      return null;
-    }
-
-    // Determine which user based on stored email
-    let user = mockStaffUser;
-    if (storedRole === "client") {
-      user = storedEmail === mockClientHubUser.email ? mockClientHubUser : mockClientUser;
-    }
-    const hubAccess = mockHubs
-      .filter((h) => storedRole === "staff" || h.clientDomain === user.domain)
-      .map((h) => ({
-        hubId: h.id,
-        hubName: h.companyName,
-        accessLevel: "full_access" as const,
-        grantedAt: h.createdAt,
-      }));
-
-    return { user, hubAccess };
+  if (!storedRole || !storedEmail) {
+    return null;
   }
 
-  return api.get<AuthMeResponse>("/auth/me");
+  let user = mockStaffUser;
+  if (storedRole === "client") {
+    user = storedEmail === mockClientHubUser.email ? mockClientHubUser : mockClientUser;
+  }
+  const hubAccess = mockHubs
+    .filter((h) => storedRole === "staff" || h.clientDomain === user.domain)
+    .map((h) => ({
+      hubId: h.id,
+      hubName: h.companyName,
+      accessLevel: "full_access" as const,
+      grantedAt: h.createdAt,
+    }));
+
+  return { user, hubAccess };
 }
 
 /**
  * Check user's access to a specific hub
  */
 export async function checkHubAccess(hubId: string): Promise<HubAccessCheckResponse> {
-  if (isMockApiEnabled()) {
-    await simulateDelay(100);
+  // Auth has no real backend — always use demo access checks
+  await simulateDelay(100);
 
-    const storedRole = localStorage.getItem("userRole");
-    const hub = mockHubs.find((h) => h.id === hubId);
+  const storedRole = localStorage.getItem("userRole");
+  const hub = mockHubs.find((h) => h.id === hubId);
 
-    if (!hub) {
-      return {
-        hasAccess: false,
-        accessLevel: null,
-        permissions: {
-          canViewProposal: false,
-          canViewDocuments: false,
-          canViewVideos: false,
-          canViewMessages: false,
-          canViewMeetings: false,
-          canViewQuestionnaire: false,
-          canInviteMembers: false,
-          canManageAccess: false,
-        },
-      };
-    }
-
-    // Staff has full access, clients have view access
-    const isStaff = storedRole === "staff";
-
+  if (!hub) {
     return {
-      hasAccess: true,
-      accessLevel: isStaff ? "full_access" : "view_only",
+      hasAccess: false,
+      accessLevel: null,
       permissions: {
-        canViewProposal: true,
-        canViewDocuments: true,
-        canViewVideos: true,
-        canViewMessages: true,
-        canViewMeetings: true,
-        canViewQuestionnaire: true,
-        canInviteMembers: isStaff,
-        canManageAccess: isStaff,
+        canViewProposal: false,
+        canViewDocuments: false,
+        canViewVideos: false,
+        canViewMessages: false,
+        canViewMeetings: false,
+        canViewQuestionnaire: false,
+        canInviteMembers: false,
+        canManageAccess: false,
       },
     };
   }
 
-  return api.get<HubAccessCheckResponse>(`/hubs/${hubId}/access`);
+  const isStaff = storedRole === "staff";
+
+  return {
+    hasAccess: true,
+    accessLevel: isStaff ? "full_access" : "view_only",
+    permissions: {
+      canViewProposal: true,
+      canViewDocuments: true,
+      canViewVideos: true,
+      canViewMessages: true,
+      canViewMeetings: true,
+      canViewQuestionnaire: true,
+      canInviteMembers: isStaff,
+      canManageAccess: isStaff,
+    },
+  };
 }
 
 /**
  * Logout - clear session
  */
 export async function logout(): Promise<void> {
-  if (isMockApiEnabled()) {
-    localStorage.removeItem("userRole");
-    localStorage.removeItem("userEmail");
-    return;
-  }
-
-  return api.post("/auth/logout");
+  // Auth has no real backend — always clear demo session
+  localStorage.removeItem("userRole");
+  localStorage.removeItem("userEmail");
 }
 
 /**
@@ -161,19 +143,27 @@ export async function loginWithHubPassword(
   hubId: string,
   password: string
 ): Promise<User | null> {
-  if (!isFeatureLive("hubs")) return null;
+  if (isMockApiEnabled()) return null;
 
-  const result = await verifyHubPassword(hubId, simpleHash(password));
-  if (!result.valid) return null;
+  const { api } = await import("./api");
+  const result = await api.post<{ data: { valid: boolean; token?: string } }>(
+    `/public/hubs/${hubId}/verify-password`,
+    { passwordHash: simpleHash(password) }
+  );
+  if (!result.data.valid || !result.data.token) return null;
+
+  // Store portal token for this hub
+  sessionStorage.setItem(`portal_token_${hubId}`, result.data.token);
+  sessionStorage.setItem(`hub_access_${hubId}`, "true");
 
   const user: User = {
     id: `client-${hubId}`,
-    email: result.contact_email || "",
-    displayName: result.contact_name || "",
+    email: "",
+    displayName: "",
     role: "client",
     permissions: { isAdmin: false, canConvertHubs: false, canViewAllHubs: false },
     tenantId: "hub-access",
-    domain: result.client_domain || "",
+    domain: "",
   };
 
   localStorage.setItem("userRole", "client");
