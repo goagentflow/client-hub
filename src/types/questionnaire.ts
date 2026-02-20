@@ -26,6 +26,8 @@ export interface Questionnaire {
   createdBy: EntityId;
   createdByName: string;
   responseCount: number;
+  totalQuestions?: number;
+  estimatedMinutes?: number;
   completions: QuestionnaireCompletion[];
 }
 

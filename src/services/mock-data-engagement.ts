@@ -355,6 +355,8 @@ export const mockQuestionnaires: Questionnaire[] = [
     createdBy: "user-staff-1",
     createdByName: "Hamish Nicklin",
     responseCount: 1,
+    totalQuestions: 8,
+    estimatedMinutes: 5,
     completions: [
       { userId: "user-client-1", userName: "Sarah Mitchell", userEmail: "sarah@whitmorelaw.co.uk", completedAt: daysAgo(5) },
     ],
