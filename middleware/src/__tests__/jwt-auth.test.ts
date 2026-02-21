@@ -195,6 +195,72 @@ describe('Azure AD JWT authentication', () => {
   });
 });
 
+// v1.0 issuer constant — Azure AD v1.0 tokens use sts.windows.net
+const V1_ISSUER = `https://sts.windows.net/${TEST_TENANT_ID}/`;
+
+describe('Azure AD v1.0 token support', () => {
+  it('v1.0 issuer (sts.windows.net) → 200 with staff access', async () => {
+    const token = await new SignJWT({
+      oid: 'v1-user-1', tid: TEST_TENANT_ID,
+      upn: 'hamish@goagentflow.com', name: 'Hamish Nicklin',
+      roles: ['Staff'],
+    })
+      .setProtectedHeader({ alg: 'RS256', kid: 'test-key-id' })
+      .setIssuer(V1_ISSUER)
+      .setAudience(`api://${TEST_CLIENT_ID}`)
+      .setIssuedAt()
+      .setExpirationTime('1h')
+      .sign(privateKey);
+
+    const res = await request(app)
+      .get('/api/v1/auth/me')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.user.id).toBe('v1-user-1');
+    expect(res.body.user.role).toBe('staff');
+    expect(res.body.user.email).toBe('hamish@goagentflow.com');
+  });
+
+  it('v1.0 token with upn claim (no preferred_username) → email extracted from upn', async () => {
+    const token = await new SignJWT({
+      oid: 'v1-user-2', tid: TEST_TENANT_ID,
+      upn: 'sarah@whitmorelaw.co.uk', name: 'Sarah Mitchell',
+      roles: [],
+    })
+      .setProtectedHeader({ alg: 'RS256', kid: 'test-key-id' })
+      .setIssuer(V1_ISSUER)
+      .setAudience(TEST_CLIENT_ID)
+      .setIssuedAt()
+      .setExpirationTime('1h')
+      .sign(privateKey);
+
+    const res = await request(app)
+      .get('/api/v1/auth/me')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.user.email).toBe('sarah@whitmorelaw.co.uk');
+    expect(res.body.user.role).toBe('client');
+  });
+
+  it('wrong v1.0 tenant → 401', async () => {
+    const token = await new SignJWT({ oid: 'user-1', tid: 'wrong-tenant' })
+      .setProtectedHeader({ alg: 'RS256', kid: 'test-key-id' })
+      .setIssuer('https://sts.windows.net/wrong-tenant/')
+      .setAudience(TEST_CLIENT_ID)
+      .setIssuedAt()
+      .setExpirationTime('1h')
+      .sign(privateKey);
+
+    const res = await request(app)
+      .get('/api/v1/auth/me')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(401);
+  });
+});
+
 describe('GET /auth/me response shape', () => {
   it('returns user profile with expected fields including permissions and domain', async () => {
     const res = await request(app)
