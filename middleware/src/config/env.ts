@@ -10,7 +10,7 @@ const envSchema = z.object({
     .transform((val) => Number(val)),
 
   // Demo mode — Supabase adapter instead of SharePoint
-  DEMO_MODE: z.coerce.boolean().default(true),
+  DEMO_MODE: z.string().default('true').transform((val) => val.toLowerCase() === 'true'),
 
   // Supabase (required when DEMO_MODE=true)
   SUPABASE_URL: z.string().url().optional(),
@@ -66,10 +66,10 @@ function loadEnv(): z.infer<typeof envSchema> {
     if (!data.SUPABASE_URL || !data.SUPABASE_SERVICE_ROLE_KEY) {
       throw new Error('SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required when DEMO_MODE=true');
     }
-  } else {
-    // Production: SharePoint is required, AZURE_CLIENT_SECRET deferred to OBO phase
+  } else if (data.NODE_ENV === 'production') {
+    // Production: SharePoint is required
     if (!data.SHAREPOINT_SITE_URL) {
-      throw new Error('SHAREPOINT_SITE_URL is required when DEMO_MODE=false');
+      throw new Error('SHAREPOINT_SITE_URL is required when DEMO_MODE=false in production');
     }
   }
 

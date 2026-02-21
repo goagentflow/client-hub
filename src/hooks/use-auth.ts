@@ -9,7 +9,6 @@ import { useNavigate } from "react-router-dom";
 import type { User, AuthMeResponse, HubAccessCheckResponse } from "@/types";
 import {
   loginWithCredentials,
-  loginWithMsal,
   getCurrentUser,
   checkHubAccess,
   logout,
@@ -69,27 +68,6 @@ export function useLogin() {
   });
 }
 
-/**
- * Hook for MSAL (Azure AD) login mutation
- */
-export function useMsalLogin() {
-  const queryClient = useQueryClient();
-  const navigate = useNavigate();
-
-  return useMutation<User, Error>({
-    mutationFn: loginWithMsal,
-    onSuccess: (user) => {
-      storeDemoSession(user);
-      queryClient.invalidateQueries({ queryKey: authKeys.all });
-
-      if (user.role === "staff") {
-        navigate("/hubs");
-      } else {
-        navigate("/");
-      }
-    },
-  });
-}
 
 /**
  * Hook for logout mutation

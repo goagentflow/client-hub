@@ -13,7 +13,7 @@ import LeadershipPortfolio from "./pages/LeadershipPortfolio";
 import NotFound from "./pages/NotFound";
 import { RequireStaff, RequireAdmin, RequireClient } from "./routes/guards";
 import { setUnauthorizedHandler, setTokenGetter, isMockApiEnabled } from "./services/api";
-import { getAccessToken } from "./services/auth.service";
+import { getAccessToken, completeMsalRedirect } from "./services/auth.service";
 
 const queryClient = new QueryClient();
 
@@ -40,6 +40,29 @@ function UnauthorizedHandler() {
   return null;
 }
 
+/**
+ * Checks if MSAL redirect login completed during bootstrap.
+ * If so, fetches user profile and navigates to the appropriate page.
+ * Runs once on mount — no race condition because initializeMsal()
+ * already resolved handleRedirectPromise() before React rendered.
+ */
+function MsalRedirectHandler() {
+  const navigate = useNavigate();
+  const qc = useQueryClient();
+
+  useEffect(() => {
+    completeMsalRedirect().then((user) => {
+      if (user) {
+        qc.invalidateQueries({ queryKey: ["auth"] });
+        navigate(user.role === "staff" ? "/hubs" : "/", { replace: true });
+      }
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return null;
+}
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
@@ -47,6 +70,7 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <UnauthorizedHandler />
+        <MsalRedirectHandler />
         <Routes>
           <Route path="/" element={<Index />} />
           <Route path="/login" element={<Login />} />

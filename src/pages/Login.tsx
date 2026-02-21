@@ -2,18 +2,47 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useState } from "react";
-import { useLogin, useMsalLogin } from "@/hooks";
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { useLogin, useCurrentUser } from "@/hooks";
 import { isMsalConfigured } from "@/config/msal";
 import { isMockApiEnabled } from "@/services/api";
+import { loginWithMsal } from "@/services/auth.service";
 
 const Login = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const { mutate: login, isPending, isError } = useLogin();
-  const { mutate: msalLogin, isPending: isMsalPending, isError: isMsalError } = useMsalLogin();
+  const [isMsalPending, setMsalPending] = useState(false);
+  const [isMsalError, setMsalError] = useState(false);
   const msalAvailable = isMsalConfigured();
   const isDemoMode = isMockApiEnabled();
+  const { data: authData } = useCurrentUser();
+  const navigate = useNavigate();
+
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (authData?.user) {
+      navigate(authData.user.role === "staff" ? "/hubs" : "/", { replace: true });
+    }
+  }, [authData, navigate]);
+
+  const handleMsalLogin = async () => {
+    setMsalPending(true);
+    setMsalError(false);
+    try {
+      await loginWithMsal();
+    } catch (err: unknown) {
+      // loginRedirect navigates away — if we reach here, it's a real failure
+      const e = err as Record<string, unknown>;
+      if (String(e.message).includes("Redirecting")) return; // expected redirect throw
+      console.error('[Login] MSAL login failed:', {
+        errorCode: e.errorCode, message: e.message,
+      });
+      setMsalPending(false);
+      setMsalError(true);
+    }
+  };
 
   const handleSignIn = (e: React.FormEvent) => {
     e.preventDefault();
@@ -59,7 +88,7 @@ const Login = () => {
               <div className="space-y-4">
                 <Button
                   disabled={!msalAvailable || isMsalPending}
-                  onClick={() => msalLogin()}
+                  onClick={handleMsalLogin}
                   className={`w-full h-14 text-lg font-semibold bg-gradient-to-r from-gradient-blue to-gradient-blue/90 text-white shadow-lg ${
                     !msalAvailable ? "opacity-60 cursor-not-allowed" : "hover:shadow-xl transition-all duration-300"
                   }`}

@@ -135,12 +135,15 @@ async function handleAzureJwt(
 ): Promise<boolean> {
   try {
     const { payload } = await jwtVerify(token, getJwks(), {
-      issuer: `https://login.microsoftonline.com/${env.AZURE_TENANT_ID}/v2.0`,
+      issuer: [
+        `https://login.microsoftonline.com/${env.AZURE_TENANT_ID}/v2.0`,
+        `https://sts.windows.net/${env.AZURE_TENANT_ID}/`,
+      ],
       audience: [env.AZURE_CLIENT_ID, `api://${env.AZURE_CLIENT_ID}`],
     });
 
     const userId = payload.oid as string;
-    const email = (payload.preferred_username || payload.email || '') as string;
+    const email = (payload.preferred_username || payload.upn || payload.email || '') as string;
     const name = (payload.name || email) as string;
     const tenantId = payload.tid as string;
 
@@ -159,8 +162,9 @@ async function handleAzureJwt(
     req.user = { userId, email, name, tenantId, isStaff };
     next();
     return true;
-  } catch {
-    // Invalid Azure AD token — fall through
+  } catch (err: unknown) {
+    const e = err as Record<string, unknown>;
+    logger.debug({ errorCode: e.code, message: e.message }, 'Azure AD JWT validation failed');
     return false;
   }
 }

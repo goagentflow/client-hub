@@ -3,7 +3,11 @@
  *
  * Two auth modes:
  *   Mock/Demo: hardcoded credentials for wireframe testing
- *   MSAL: Azure AD login via popup, token acquisition for backend API
+ *   MSAL: Azure AD login via redirect, token acquisition for backend API
+ *
+ * MSAL lifecycle: initializeMsal() is called once in main.tsx before React
+ * renders. All functions here use getMsalInstance() which returns the
+ * already-initialized singleton. Never call initialize() here.
  *
  * Portal auth (hub password) works in both modes.
  */
@@ -11,7 +15,6 @@
 import type { User, AuthMeResponse, HubAccessCheckResponse } from "@/types";
 import { isMockApiEnabled, simulateDelay } from "./api";
 import { mockStaffUser, mockClientUser, mockClientHubUser, mockHubs } from "./mock-data";
-import { simpleHash } from "@/lib/hash";
 
 // Demo credentials for wireframe testing
 const DEMO_CREDENTIALS = {
@@ -47,29 +50,53 @@ export async function loginWithCredentials(
 }
 
 /**
- * Login with MSAL (Azure AD popup)
- * Acquires a token for the backend API scope, then fetches user profile.
+ * Login with MSAL (Azure AD redirect).
+ * Redirects the entire page to Microsoft login — no popup needed.
+ * The instance is already initialized by initializeMsal() in main.tsx.
  */
-export async function loginWithMsal(): Promise<User> {
+export async function loginWithMsal(): Promise<never> {
   const { getMsalInstance, API_SCOPES } = await import("@/config/msal");
   const msalInstance = getMsalInstance();
 
-  await msalInstance.initialize();
-  const response = await msalInstance.loginPopup({ scopes: API_SCOPES });
-  const account = response.account;
-  if (!account) throw new Error("Microsoft sign-in did not return an account");
+  // No initialize() call — already done in main.tsx
+  await msalInstance.loginRedirect({ scopes: API_SCOPES });
 
-  msalInstance.setActiveAccount(account);
-
-  const user = await fetchCurrentUser();
-  if (!user) throw new Error("Failed to fetch user profile after sign-in");
-  storeDemoSession(user);
-  return user;
+  // loginRedirect navigates away — this line is never reached
+  throw new Error("Redirecting to Microsoft login...");
 }
 
 /**
- * Get access token for backend API calls (MSAL silent acquisition)
+ * Complete MSAL redirect login after bootstrap.
+ * Called once by MsalRedirectHandler in App.tsx.
+ * Uses the redirect result already captured by initializeMsal().
+ */
+export async function completeMsalRedirect(): Promise<User | null> {
+  if (isMockApiEnabled()) return null;
+
+  try {
+    const { getRedirectResult, isMsalConfigured } = await import("@/config/msal");
+    if (!isMsalConfigured()) return null;
+
+    const result = getRedirectResult();
+    if (!result?.account) return null;
+
+    const user = await fetchCurrentUser();
+    if (!user) return null;
+    storeDemoSession(user);
+    return user;
+  } catch (err: unknown) {
+    const e = err as Record<string, unknown>;
+    console.error('[MSAL] completeMsalRedirect failed:', {
+      errorCode: e.errorCode, message: e.message,
+    });
+    return null;
+  }
+}
+
+/**
+ * Get access token for backend API calls (MSAL silent acquisition).
  * Returns null if no active session or token can't be acquired silently.
+ * The instance is already initialized by initializeMsal() in main.tsx.
  */
 export async function getAccessToken(): Promise<string | null> {
   if (isMockApiEnabled()) return null;
@@ -79,7 +106,6 @@ export async function getAccessToken(): Promise<string | null> {
     if (!isMsalConfigured()) return null;
 
     const msalInstance = getMsalInstance();
-    await msalInstance.initialize();
 
     // Try active account first, then fall back to first cached account (session recovery after reload)
     let account = msalInstance.getActiveAccount();
@@ -97,7 +123,11 @@ export async function getAccessToken(): Promise<string | null> {
       account,
     });
     return response.accessToken;
-  } catch {
+  } catch (err: unknown) {
+    const e = err as Record<string, unknown>;
+    console.error('[MSAL] getAccessToken failed:', {
+      errorCode: e.errorCode, message: e.message,
+    });
     return null;
   }
 }
@@ -110,7 +140,11 @@ async function fetchCurrentUser(): Promise<User | null> {
     const { api } = await import("./api");
     const result = await api.get<{ user: User; hubAccess: unknown[] }>("/auth/me");
     return result.user;
-  } catch {
+  } catch (err: unknown) {
+    const e = err as Record<string, unknown>;
+    console.error('[Auth] fetchCurrentUser failed:', {
+      message: e.message, status: e.status,
+    });
     return null;
   }
 }
@@ -131,7 +165,11 @@ export async function getCurrentUser(): Promise<AuthMeResponse | null> {
       const { api } = await import("./api");
       const result = await api.get<AuthMeResponse>("/auth/me");
       return result;
-    } catch {
+    } catch (err: unknown) {
+      const e = err as Record<string, unknown>;
+      console.error('[Auth] getCurrentUser failed:', {
+        message: e.message, status: e.status,
+      });
       return null;
     }
   }
@@ -224,8 +262,11 @@ export async function logout(): Promise<void> {
           await msalInstance.logoutPopup({ account });
         }
       }
-    } catch {
-      // Silent failure — localStorage already cleared
+    } catch (err: unknown) {
+      const e = err as Record<string, unknown>;
+      console.error('[MSAL] logout failed:', {
+        errorCode: e.errorCode, message: e.message,
+      });
     }
   }
 }
@@ -238,38 +279,3 @@ export function storeDemoSession(user: User): void {
   localStorage.setItem("userEmail", user.email);
 }
 
-/**
- * Login with hub password (client portal access)
- */
-export async function loginWithHubPassword(
-  hubId: string,
-  password: string
-): Promise<User | null> {
-  if (isMockApiEnabled()) return null;
-
-  const { api } = await import("./api");
-  const result = await api.post<{ data: { valid: boolean; token?: string } }>(
-    `/public/hubs/${hubId}/verify-password`,
-    { passwordHash: simpleHash(password) }
-  );
-  if (!result.data.valid || !result.data.token) return null;
-
-  sessionStorage.setItem(`portal_token_${hubId}`, result.data.token);
-  sessionStorage.setItem(`hub_access_${hubId}`, "true");
-
-  const user: User = {
-    id: `client-${hubId}`,
-    email: "",
-    displayName: "",
-    role: "client",
-    permissions: { isAdmin: false, canConvertHubs: false, canViewAllHubs: false },
-    tenantId: "hub-access",
-    domain: "",
-  };
-
-  localStorage.setItem("userRole", "client");
-  localStorage.setItem("userEmail", user.email);
-  localStorage.setItem("hubAccessId", hubId);
-
-  return user;
-}

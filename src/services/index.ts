@@ -16,7 +16,11 @@ export {
   checkHubAccess,
   logout,
   storeDemoSession,
+  completeMsalRedirect,
 } from "./auth.service";
+
+// Hub portal auth
+export { loginWithHubPassword } from "./hub-auth.service";
 
 // Hub service
 export {

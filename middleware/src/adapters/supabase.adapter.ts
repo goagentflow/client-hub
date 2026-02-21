@@ -17,8 +17,8 @@ let _client: SupabaseClient | null = null;
 
 function getClient(): SupabaseClient {
   if (!_client) {
-    if (!env.DEMO_MODE) {
-      throw new Error('Supabase adapter is not available when DEMO_MODE=false. Use SharePoint adapter.');
+    if (!env.DEMO_MODE && env.NODE_ENV === 'production') {
+      throw new Error('Supabase adapter is not available when DEMO_MODE=false in production. Use SharePoint adapter.');
     }
     _client = createClient(
       env.SUPABASE_URL!,
