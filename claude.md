@@ -1,4 +1,4 @@
-# AgentFlow Pitch Hub v0.1 (Phase 0b)
+# AgentFlow Client Hub v0.1 (Phase 0b)
 
 Read these files for full project context:
 - .cursorrules — Project context, scope, brand guidelines, code patterns

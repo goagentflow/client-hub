@@ -1,4 +1,4 @@
-# AgentFlow Pitch Hub — Production Roadmap v4.6
+# AgentFlow Client Hub — Production Roadmap v4.6
 
 **Date:** 22 Feb 2026
 **Author:** Hamish Nicklin / Claude Code
@@ -88,10 +88,10 @@ Both services have multi-stage Dockerfiles optimised for Cloud Run:
 Build commands:
 ```bash
 # Middleware
-docker build -t pitchhub-middleware ./middleware
+docker build -t clienthub-middleware ./middleware
 
 # Frontend (pass VITE_* args at build time)
-docker build -t pitchhub-frontend \
+docker build -t clienthub-frontend \
   --build-arg VITE_API_BASE_URL=https://api.goagentflow.com \
   --build-arg VITE_AZURE_CLIENT_ID=<client-id> \
   --build-arg VITE_AZURE_TENANT_ID=<tenant-id> \
@@ -180,7 +180,7 @@ The MVP cannot go live until ALL of these pass:
 
 ## Objective
 
-Ship the AgentFlow Pitch Hub as a production application for use with real clients. This means:
+Ship the AgentFlow Client Hub as a production application for use with real clients. This means:
 
 1. Deploy to a public URL with HTTPS (MVP: Google Cloud Run; Production: Azure App Service)
 2. Connect to PostgreSQL (MVP: Supabase; Production: Azure Database for PostgreSQL)

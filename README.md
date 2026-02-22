@@ -1,6 +1,6 @@
-# AgentFlow Pitch Hub v0.1
+# AgentFlow Client Hub v0.1
 
-A client pitch and relationship portal built on Microsoft 365. AgentFlow is building this to use with our own clients before selling the full platform to professional services firms.
+A client relationship portal built on Microsoft 365. AgentFlow is building this to use with our own clients before selling the full platform to professional services firms.
 
 ## What This Is
 

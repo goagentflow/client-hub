@@ -1,4 +1,4 @@
-# AgentFlow Pitch Hub v0.1
+# AgentFlow Client Hub v0.1
 
 ## Coding Standards
 
@@ -12,7 +12,7 @@ Follow GOLDEN_RULES.md for all development. Key principles:
 
 ## What This Project Is
 
-AgentFlow Pitch Hub is a client relationship portal built on Microsoft 365. Two hub types: Pitch Hubs (new business) and Client Hubs (active clients). The frontend wireframe is complete for both. The middleware API layer (113 endpoints, 46 real, 67 stubbed) is in active development with Azure AD authentication code-complete.
+AgentFlow Client Hub is a client relationship portal built on Microsoft 365. Two hub types: Pitch Hubs (new business) and Client Hubs (active clients). The frontend wireframe is complete for both. The middleware API layer (113 endpoints, 46 real, 67 stubbed) is in active development with Azure AD authentication code-complete.
 
 **Current work:** Phase 0b — codebase refactor (Prisma migration, AUTH_MODE/DATA_BACKEND config model, TenantRepository pattern, route migration).
 

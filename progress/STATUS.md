@@ -1,12 +1,12 @@
-# AgentFlow Pitch Hub — Project Status
+# AgentFlow Client Hub — Project Status
 
 **Last Updated:** 22 February 2026
 
 ---
 
-## What is AgentFlow Pitch Hub?
+## What is AgentFlow Client Hub?
 
-AgentFlow Pitch Hub is a client relationship portal built on Microsoft 365. It enables professional services firms to manage pitches (new business) and client relationships (active accounts) through a single web application. AgentFlow is building this as its own tool first — eating our own dog food — before selling it to other firms.
+AgentFlow Client Hub is a client relationship portal built on Microsoft 365. It enables professional services firms to manage pitches (new business) and client relationships (active accounts) through a single web application. AgentFlow is building this as its own tool first — eating our own dog food — before selling it to other firms.
 
 ---
 
@@ -175,7 +175,7 @@ Migrated all route handlers from Supabase adapter to injected Prisma repository 
 ### Frontend
 ```sh
 git clone <REPO_URL>
-cd agentflow-pitch-hub-wireframe
+cd client-hub
 npm install
 npm run dev          # Starts on http://localhost:5173
 ```
