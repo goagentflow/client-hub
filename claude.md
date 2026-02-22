@@ -9,7 +9,7 @@ Read these files for full project context:
 - docs/API_SPECIFICATION.md — Complete API contract (113 endpoints)
 
 For middleware development:
-- docs/PRODUCTION_ROADMAP.md — **Current architecture and implementation plan** (v4.4, includes MVP deployment section)
+- docs/PRODUCTION_ROADMAP.md — **Current architecture and implementation plan** (v4.5, route migration complete)
 - docs/middleware/MSAL_AUTH_IMPLEMENTATION_PLAN.md — Auth design (approved by senior dev)
 - ~~docs/middleware/ARCHITECTURE_V3_FINAL.md~~ — Moved to `docs/archive/`
 - ~~docs/middleware/ARCHITECTURE_DECISIONS.md~~ — Moved to `docs/archive/`
@@ -24,11 +24,11 @@ Follow AGENTS.md canon: **Simple, Clean, DRY, Secure**.
 
 **MVP Deployment:** Google Cloud Run + Supabase PostgreSQL + Azure AD auth (first client). See "MVP Deployment" section in `docs/PRODUCTION_ROADMAP.md`. Production target remains full Azure (Phase 0a).
 
-**Middleware:** Phase 0b in progress — codebase refactor:
-- Prisma 6 ORM replacing Supabase JS client
-- `AUTH_MODE` + `DATA_BACKEND` replacing `DEMO_MODE`
+**Middleware:** Phase 0b complete — codebase refactor:
+- Prisma 6 ORM (replaced Supabase JS client)
+- `AUTH_MODE` + `DATA_BACKEND` config (replaced `DEMO_MODE`)
 - TenantRepository + AdminRepository pattern for tenant isolation
-- Route migration to use injected Prisma repository (in progress)
+- All routes migrated to injected Prisma repository
 
 **Hub Types:**
 - Pitch Hubs: Prospecting/new business (proposal, videos, questionnaire)

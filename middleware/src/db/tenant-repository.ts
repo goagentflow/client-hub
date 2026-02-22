@@ -15,7 +15,9 @@ type AnyDelegate = {
   count(args?: any): any;
   create(args: any): any;
   update(args: any): any;
+  updateMany(args: any): any;
   delete(args: any): any;
+  deleteMany(args: any): any;
 };
 
 /** Scoped accessor that auto-injects tenantId */
@@ -25,7 +27,9 @@ export interface ScopedModel {
   count(args?: Record<string, any>): Promise<number>;
   create(args: Record<string, any>): Promise<any>;
   update(args: Record<string, any>): Promise<any>;
+  updateMany(args: Record<string, any>): Promise<{ count: number }>;
   delete(args: Record<string, any>): Promise<any>;
+  deleteMany(args: Record<string, any>): Promise<{ count: number }>;
 }
 
 function scopeModel(delegate: AnyDelegate, tenantId: string): ScopedModel {
@@ -50,8 +54,14 @@ function scopeModel(delegate: AnyDelegate, tenantId: string): ScopedModel {
     update(args: Record<string, any>) {
       return delegate.update({ ...args, where: addTenant(args.where) });
     },
+    updateMany(args: Record<string, any>) {
+      return delegate.updateMany({ ...args, where: addTenant(args.where) });
+    },
     delete(args: Record<string, any>) {
       return delegate.delete({ ...args, where: addTenant(args.where) });
+    },
+    deleteMany(args: Record<string, any>) {
+      return delegate.deleteMany({ ...args, where: addTenant(args.where) });
     },
   };
 }

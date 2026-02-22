@@ -1,8 +1,8 @@
-# AgentFlow Pitch Hub — Production Roadmap v4.4
+# AgentFlow Pitch Hub — Production Roadmap v4.5
 
 **Date:** 22 Feb 2026
 **Author:** Hamish Nicklin / Claude Code
-**Status:** v4.4 — senior dev review round 2 (route migration gate, dependency normalisation)
+**Status:** v4.5 — route migration complete, mock backend removed
 **Audience:** Senior developer reviewing for feasibility and sequencing
 
 ---
@@ -216,25 +216,25 @@ Audited by reading every handler registration in `middleware/src/routes/*.ts` �
 
 ## Configuration Model
 
-The current `DEMO_MODE` boolean conflates auth mode and data backend. Replace with orthogonal controls:
+Two orthogonal controls replace the original `DEMO_MODE` boolean:
 
 | Variable | Values | Purpose |
 |----------|--------|---------|
 | `AUTH_MODE` | `azure_ad` / `demo` | Controls whether real JWT validation or X-Dev-User-Email headers are used |
-| `DATA_BACKEND` | `azure_pg` / `mock` | Controls which data adapter is used (Azure PostgreSQL or in-memory mock) |
+| `DATA_BACKEND` | `azure_pg` | All data access via Prisma ORM against PostgreSQL |
 
-**Production guardrail truth table:**
+`DATABASE_URL` is always required. For local dev, point it at a local PostgreSQL instance or Supabase hosted PG. Tests mock at the repository layer and do not require a running database.
 
-| NODE_ENV | AUTH_MODE | DATA_BACKEND | Allowed? |
-|----------|-----------|-------------|----------|
-| production | azure_ad | azure_pg | **Yes** (production config) |
-| production | demo | * | **BLOCKED** — demo auth not allowed in production |
-| production | * | mock | **BLOCKED** — mock data not allowed in production |
-| development | demo | mock | Yes (default dev config) |
-| development | azure_ad | azure_pg | Yes (real auth + real DB testing) |
-| test | demo | mock | Yes |
+**Production guardrail:**
 
-**Phase 0b task:** Rewrite `env.ts` validation and `supabase.adapter.ts` production guard to match this truth table. Identify and update every guard/error-message that references `DEMO_MODE`.
+| NODE_ENV | AUTH_MODE | Allowed? |
+|----------|-----------|----------|
+| production | azure_ad | **Yes** (production config) |
+| production | demo | **BLOCKED** — demo auth not allowed in production |
+| development | demo | Yes (default dev config) |
+| development | azure_ad | Yes (real auth testing) |
+
+**Phase 0b status:** Configuration model implemented. All routes use Prisma via TenantRepository. The previous `DATA_BACKEND=mock` mode (backed by Supabase JS adapter) was removed when route migration completed — the Supabase adapter is retained only for reference but is no longer called by any route handler.
 
 ---
 
@@ -812,3 +812,4 @@ Phase 0b — Codebase refactor:
 | v4.2 | 22 Feb 2026 | Added "MVP Deployment (Pre-Phase 0a)" section — Google Cloud Run + Supabase PostgreSQL for first client. Updated Phase 0a status. Long-term Azure plan unchanged. |
 | v4.3 | 22 Feb 2026 | Senior dev review round 1: (1) MVP uses Azure AD auth (not demo mode); (2) compliance narrative split MVP vs target-state; (3) Supabase→Azure migration runbook; (4) MVP readiness gate (11 checks); (5) phase dependency table fixed (MVP track vs Azure cutover); (6) verify-endpoints timing clarified; (7) test counts updated; (8) clean build requirement. |
 | v4.4 | 22 Feb 2026 | Senior dev review round 2: (1) route migration completion added as go-live blocker in MVP readiness gate — unmigrated routes crash in production PG mode; (2) normalised "Phase 0" → "Phase 0a" in timeline table and STATUS.md; (3) key decisions table marked hosting/database rows as "(target)" with MVP cross-reference. |
+| v4.5 | 22 Feb 2026 | Phase 0b sub-phase 4 (route migration) complete: all 9 route files migrated from Supabase adapter to Prisma TenantRepository. `DATA_BACKEND=mock` removed — `azure_pg` is now the only backend, `DATABASE_URL` always required. New Prisma-native mappers in `db/`. Public routes use direct Prisma queries. 3 rounds of external senior dev review, all findings addressed. |

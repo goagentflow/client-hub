@@ -44,11 +44,13 @@ function makeMockScopedModel(defaults?: { findFirst?: unknown; findMany?: unknow
       const data = args.data as Record<string, unknown>;
       return { ...STUB_HUB, ...data };
     }),
+    updateMany: vi.fn().mockResolvedValue({ count: 0 }),
     delete: vi.fn().mockResolvedValue({ id: 'del-1' }),
+    deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
   };
 }
 
-export function makeMockRepo(tenantId = 'tenant-agentflow') {
+export function makeMockRepo(tenantId = 'tenant-agentflow'): Record<string, unknown> {
   return {
     tenantId,
     hub: makeMockScopedModel({ findFirst: STUB_HUB }),
@@ -60,7 +62,11 @@ export function makeMockRepo(tenantId = 'tenant-agentflow') {
   };
 }
 
-export const mockRepo = makeMockRepo();
+export const mockRepo: Record<string, unknown> = makeMockRepo();
+export const mockAdminRepo: Record<string, unknown> = {
+  query: vi.fn().mockImplementation(async (_a: string, _r: string, fn: (p: unknown) => unknown) => fn({})),
+  ...makeMockRepo('admin'),
+};
 
 // Mock inject-repository to attach our mock repo
 vi.mock('../middleware/inject-repository.js', () => ({
@@ -69,6 +75,7 @@ vi.mock('../middleware/inject-repository.js', () => ({
     // Dynamically import to get latest mockRepo
     const setup = require('./test-setup.ts');
     req.repo = setup.mockRepo;
+    req.adminRepo = setup.mockAdminRepo;
     next();
   },
 }));
@@ -149,7 +156,8 @@ vi.mock('../config/env.js', () => ({
     NODE_ENV: 'test',
     PORT: 3001,
     AUTH_MODE: 'demo',
-    DATA_BACKEND: 'mock',
+    DATA_BACKEND: 'azure_pg',
+    DATABASE_URL: 'postgresql://test:test@localhost:5432/test',
     CORS_ORIGIN: 'http://localhost:5173',
     LOG_LEVEL: 'silent',
     AZURE_TENANT_ID: 'test',

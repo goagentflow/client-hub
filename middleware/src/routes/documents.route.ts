@@ -3,7 +3,7 @@
  */
 
 import { Router } from 'express';
-import { supabase, mapDocumentRow } from '../adapters/supabase.adapter.js';
+import { mapDocument } from '../db/document.mapper.js';
 import { hubAccessMiddleware } from '../middleware/hub-access.js';
 import { requireStaffAccess } from '../middleware/require-staff.js';
 import { sendItem, sendList, send204, send501 } from '../utils/response.js';
@@ -21,37 +21,38 @@ documentsRouter.get('/', async (req: Request, res: Response, next: NextFunction)
   try {
     const hubId = req.params.hubId;
     const { page, pageSize } = parsePagination(req.query);
-    const offset = (page - 1) * pageSize;
 
-    let query = supabase
-      .from('hub_document')
-      .select('*', { count: 'exact' })
-      .eq('hub_id', hubId)
-      .eq('is_proposal', false);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const where: Record<string, any> = { hubId, isProposal: false };
 
-    if (req.query.visibility) query = query.eq('visibility', req.query.visibility);
-    if (req.query.category) query = query.eq('category', req.query.category);
+    if (req.query.visibility) where.visibility = String(req.query.visibility);
+    if (req.query.category) where.category = String(req.query.category);
     if (req.query.projectId === 'unassigned') {
-      query = query.is('project_id', null);
+      where.projectId = null;
     } else if (req.query.projectId) {
-      query = query.eq('project_id', req.query.projectId);
+      where.projectId = String(req.query.projectId);
     }
     if (req.query.search) {
-      // Whitelist: allow only alphanumeric, spaces, hyphens, and apostrophes
-      const sanitised = String(req.query.search).replace(/[^a-zA-Z0-9 '\-]/g, '').trim();
+      const sanitised = String(req.query.search).replace(/[^a-zA-Z0-9 '-]/g, '').trim();
       if (sanitised.length > 0) {
-        query = query.or(`name.ilike.%${sanitised}%,description.ilike.%${sanitised}%`);
+        where.OR = [
+          { name: { contains: sanitised, mode: 'insensitive' } },
+          { description: { contains: sanitised, mode: 'insensitive' } },
+        ];
       }
     }
 
-    const { data, count, error } = await query
-      .order('uploaded_at', { ascending: false })
-      .range(offset, offset + pageSize - 1);
+    const [docs, totalItems] = await Promise.all([
+      req.repo!.hubDocument.findMany({
+        where,
+        orderBy: { uploadedAt: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      req.repo!.hubDocument.count({ where }),
+    ]);
 
-    if (error) throw error;
-
-    const totalItems = count || 0;
-    sendList(res, (data || []).map(mapDocumentRow), {
+    sendList(res, docs.map(mapDocument), {
       page, pageSize, totalItems,
       totalPages: Math.ceil(totalItems / pageSize),
     });
@@ -63,16 +64,11 @@ documentsRouter.get('/', async (req: Request, res: Response, next: NextFunction)
 // GET /hubs/:hubId/documents/:docId
 documentsRouter.get('/:docId', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { data, error } = await supabase
-      .from('hub_document')
-      .select('*')
-      .eq('id', req.params.docId)
-      .eq('hub_id', req.params.hubId)
-      .eq('is_proposal', false)
-      .single();
-
-    if (error || !data) throw Errors.notFound('Document', req.params.docId);
-    sendItem(res, mapDocumentRow(data));
+    const doc = await req.repo!.hubDocument.findFirst({
+      where: { id: req.params.docId, hubId: req.params.hubId, isProposal: false },
+    });
+    if (!doc) throw Errors.notFound('Document', req.params.docId);
+    sendItem(res, mapDocument(doc));
   } catch (err) {
     next(err);
   }
@@ -81,24 +77,27 @@ documentsRouter.get('/:docId', async (req: Request, res: Response, next: NextFun
 // PATCH /hubs/:hubId/documents/:docId
 documentsRouter.patch('/:docId', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const updates: Record<string, unknown> = {};
-    if (req.body.name !== undefined) updates.name = req.body.name;
-    if (req.body.description !== undefined) updates.description = req.body.description;
-    if (req.body.category !== undefined) updates.category = req.body.category;
-    if (req.body.visibility !== undefined) updates.visibility = req.body.visibility;
-    if (req.body.projectId !== undefined) updates.project_id = req.body.projectId;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const data: Record<string, any> = {};
+    if (req.body.name !== undefined) data.name = req.body.name;
+    if (req.body.description !== undefined) data.description = req.body.description;
+    if (req.body.category !== undefined) data.category = req.body.category;
+    if (req.body.visibility !== undefined) data.visibility = req.body.visibility;
+    if (req.body.projectId !== undefined) data.projectId = req.body.projectId;
 
-    const { data, error } = await supabase
-      .from('hub_document')
-      .update(updates)
-      .eq('id', req.params.docId)
-      .eq('hub_id', req.params.hubId)
-      .eq('is_proposal', false)
-      .select('*')
-      .single();
+    // Verify doc exists and belongs to this hub before updating
+    const existing = await req.repo!.hubDocument.findFirst({
+      where: { id: req.params.docId, hubId: req.params.hubId, isProposal: false },
+      select: { id: true },
+    });
+    if (!existing) throw Errors.notFound('Document', req.params.docId);
 
-    if (error || !data) throw Errors.notFound('Document', req.params.docId);
-    sendItem(res, mapDocumentRow(data));
+    const doc = await req.repo!.hubDocument.update({
+      where: { id: req.params.docId },
+      data,
+    });
+
+    sendItem(res, mapDocument(doc));
   } catch (err) {
     next(err);
   }
@@ -107,14 +106,17 @@ documentsRouter.patch('/:docId', async (req: Request, res: Response, next: NextF
 // DELETE /hubs/:hubId/documents/:docId
 documentsRouter.delete('/:docId', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { error } = await supabase
-      .from('hub_document')
-      .delete()
-      .eq('id', req.params.docId)
-      .eq('hub_id', req.params.hubId)
-      .eq('is_proposal', false);
+    // Verify doc exists and belongs to this hub before deleting
+    const existing = await req.repo!.hubDocument.findFirst({
+      where: { id: req.params.docId, hubId: req.params.hubId, isProposal: false },
+      select: { id: true },
+    });
+    if (!existing) throw Errors.notFound('Document', req.params.docId);
 
-    if (error) throw error;
+    await req.repo!.hubDocument.delete({
+      where: { id: req.params.docId },
+    });
+
     send204(res);
   } catch (err) {
     next(err);
@@ -132,31 +134,18 @@ documentsRouter.post('/bulk', async (req: Request, res: Response, next: NextFunc
     const { documentIds, action, visibility, category } = req.body;
     if (!documentIds?.length || !action) throw Errors.badRequest('documentIds and action are required');
 
+    const baseWhere = { id: { in: documentIds }, hubId: req.params.hubId, isProposal: false };
     let updated = 0;
+
     if (action === 'delete') {
-      const { count } = await supabase
-        .from('hub_document')
-        .delete()
-        .in('id', documentIds)
-        .eq('hub_id', req.params.hubId)
-        .eq('is_proposal', false);
-      updated = count || 0;
+      const result = await req.repo!.hubDocument.deleteMany({ where: baseWhere });
+      updated = result.count;
     } else if (action === 'set_visibility' && visibility) {
-      const { count } = await supabase
-        .from('hub_document')
-        .update({ visibility })
-        .in('id', documentIds)
-        .eq('hub_id', req.params.hubId)
-        .eq('is_proposal', false);
-      updated = count || 0;
+      const result = await req.repo!.hubDocument.updateMany({ where: baseWhere, data: { visibility } });
+      updated = result.count;
     } else if (action === 'set_category' && category) {
-      const { count } = await supabase
-        .from('hub_document')
-        .update({ category })
-        .in('id', documentIds)
-        .eq('hub_id', req.params.hubId)
-        .eq('is_proposal', false);
-      updated = count || 0;
+      const result = await req.repo!.hubDocument.updateMany({ where: baseWhere, data: { category } });
+      updated = result.count;
     }
 
     sendItem(res, { updated });

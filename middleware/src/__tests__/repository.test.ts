@@ -19,21 +19,36 @@ vi.mock('../utils/logger.js', () => ({
 vi.mock('../config/env.js', () => ({
   env: {
     DATA_BACKEND: 'azure_pg',
+    DATABASE_URL: 'postgresql://test:test@localhost:5432/test',
     AUTH_MODE: 'demo',
     LOG_LEVEL: 'silent',
   },
 }));
 
-// Mock prisma
-vi.mock('../db/prisma.js', () => ({
-  getPrisma: vi.fn(),
-}));
+// Mock prisma — return a mock PrismaClient with model delegates
+vi.mock('../db/prisma.js', () => {
+  const makeDel = () => ({
+    findMany: vi.fn().mockResolvedValue([]),
+    findFirst: vi.fn().mockResolvedValue(null),
+    count: vi.fn().mockResolvedValue(0),
+    create: vi.fn().mockResolvedValue({ id: 'new-1' }),
+    update: vi.fn().mockResolvedValue({ id: 'upd-1' }),
+    updateMany: vi.fn().mockResolvedValue({ count: 0 }),
+    delete: vi.fn().mockResolvedValue({ id: 'del-1' }),
+    deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
+  });
+  return {
+    getPrisma: vi.fn().mockReturnValue({
+      hub: makeDel(), hubVideo: makeDel(), hubDocument: makeDel(),
+      hubProject: makeDel(), hubMilestone: makeDel(), hubEvent: makeDel(),
+    }),
+  };
+});
 
 import { createTenantRepository } from '../db/tenant-repository.js';
 import { createAdminRepository } from '../db/admin-repository.js';
 import { injectRepository } from '../middleware/inject-repository.js';
 import { logger } from '../utils/logger.js';
-import { env } from '../config/env.js';
 
 function makeMockDelegate() {
   return {
@@ -42,7 +57,9 @@ function makeMockDelegate() {
     count: vi.fn().mockResolvedValue(0),
     create: vi.fn().mockResolvedValue({ id: 'new-1' }),
     update: vi.fn().mockResolvedValue({ id: 'upd-1' }),
+    updateMany: vi.fn().mockResolvedValue({ count: 0 }),
     delete: vi.fn().mockResolvedValue({ id: 'del-1' }),
+    deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
   };
 }
 
@@ -231,21 +248,16 @@ describe('injectRepository middleware', () => {
     return { req, res, next };
   }
 
-  it('skips when DATA_BACKEND is not azure_pg', () => {
-    const mutableEnv = env as Record<string, unknown>;
-    const original = mutableEnv.DATA_BACKEND;
-    mutableEnv.DATA_BACKEND = 'mock';
-
+  it('attaches repo and adminRepo when user has tenantId', () => {
     const { req, res, next } = makeMockReqRes();
     injectRepository(req, res, next);
 
     expect(next).toHaveBeenCalled();
-    expect((req as Record<string, unknown>).repo).toBeUndefined();
-
-    mutableEnv.DATA_BACKEND = original;
+    expect((req as Record<string, unknown>).repo).toBeDefined();
+    expect((req as Record<string, unknown>).adminRepo).toBeDefined();
   });
 
-  it('returns 500 when tenantId is missing in azure_pg mode', () => {
+  it('returns 500 when tenantId is missing', () => {
     const { req, res, next } = makeMockReqRes({ user: { userId: 'user-1' } });
     injectRepository(req, res, next);
 

@@ -2,7 +2,7 @@ import { z } from 'zod';
 import 'dotenv/config';
 
 const authModes = ['azure_ad', 'demo'] as const;
-const dataBackends = ['azure_pg', 'mock'] as const;
+const dataBackends = ['azure_pg'] as const;
 
 const envSchema = z.object({
   // Server
@@ -15,11 +15,11 @@ const envSchema = z.object({
   // Auth mode: azure_ad = real JWT auth, demo = X-Dev-User-Email header
   AUTH_MODE: z.enum(authModes).default('demo'),
 
-  // Data backend: azure_pg = PostgreSQL via Prisma, mock = in-memory/Supabase mock
-  DATA_BACKEND: z.enum(dataBackends).default('mock'),
+  // Data backend: azure_pg = PostgreSQL via Prisma
+  DATA_BACKEND: z.enum(dataBackends).default('azure_pg'),
 
-  // PostgreSQL (required when DATA_BACKEND=azure_pg)
-  DATABASE_URL: z.string().min(1).optional(),
+  // PostgreSQL connection string
+  DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
 
   // Azure AD - App Registration
   AZURE_TENANT_ID: z.string().min(1, 'AZURE_TENANT_ID is required'),
@@ -58,19 +58,11 @@ function loadEnv(): z.infer<typeof envSchema> {
 
   const data = result.data;
 
-  // Production guard: block demo auth AND mock data in production
+  // Production guard: block demo auth in production
   if (data.NODE_ENV === 'production') {
     if (data.AUTH_MODE === 'demo') {
       throw new Error('AUTH_MODE=demo is not allowed in production. Set AUTH_MODE=azure_ad.');
     }
-    if (data.DATA_BACKEND === 'mock') {
-      throw new Error('DATA_BACKEND=mock is not allowed in production. Set DATA_BACKEND=azure_pg.');
-    }
-  }
-
-  // Validate mode-specific config
-  if (data.DATA_BACKEND === 'azure_pg' && !data.DATABASE_URL) {
-    throw new Error('DATABASE_URL is required when DATA_BACKEND=azure_pg');
   }
 
   // Validate portal token secret in production

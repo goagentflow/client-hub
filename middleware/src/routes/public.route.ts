@@ -7,7 +7,7 @@ import { Router } from 'express';
 import { SignJWT } from 'jose';
 import { timingSafeEqual } from 'node:crypto';
 import rateLimit from 'express-rate-limit';
-import { supabase } from '../adapters/supabase.adapter.js';
+import { findPublishedHub, findHubForPasswordVerify } from '../db/public-queries.js';
 import { env } from '../config/env.js';
 import { send501 } from '../utils/response.js';
 import type { Request, Response, NextFunction } from 'express';
@@ -32,7 +32,6 @@ const passwordLimit = rateLimit({
   max: 5,
   standardHeaders: true,
   legacyHeaders: false,
-  // Disable the IPv6 key generator validation — we handle our own composite key
   validate: { keyGeneratorIpFallback: false },
   keyGenerator: (req: Request) => `${req.ip || 'unknown'}:${req.params.hubId}`,
   message: { code: 'RATE_LIMITED', message: 'Too many attempts, please try again later' },
@@ -41,25 +40,20 @@ const passwordLimit = rateLimit({
 // GET /public/hubs/:hubId/portal-meta — basic hub info (published only)
 publicRouter.get('/hubs/:hubId/portal-meta', generalLimit, async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { data, error } = await supabase
-      .from('hub')
-      .select('id, company_name, hub_type, is_published')
-      .eq('id', req.params.hubId)
-      .eq('is_published', true)
-      .single();
+    const hubId = req.params.hubId as string;
+    const hub = await findPublishedHub(hubId);
 
-    if (error || !data) {
-      // Generic 404 for non-existent OR unpublished (prevents enumeration)
+    if (!hub) {
       res.status(404).json({ code: 'NOT_FOUND', message: 'Hub not found' });
       return;
     }
 
     res.json({
       data: {
-        id: data.id,
-        companyName: data.company_name,
-        hubType: data.hub_type,
-        isPublished: data.is_published,
+        id: hub.id,
+        companyName: hub.companyName,
+        hubType: hub.hubType,
+        isPublished: hub.isPublished,
       },
     });
   } catch (err) {
@@ -70,20 +64,17 @@ publicRouter.get('/hubs/:hubId/portal-meta', generalLimit, async (req: Request, 
 // GET /public/hubs/:hubId/password-status — does hub have a password? (published only)
 publicRouter.get('/hubs/:hubId/password-status', generalLimit, async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { data, error } = await supabase
-      .from('hub')
-      .select('password_hash')
-      .eq('id', req.params.hubId)
-      .eq('is_published', true)
-      .single();
+    const hubId = req.params.hubId as string;
+    const hub = await findPublishedHub(hubId);
 
-    if (error || !data) {
-      // Non-existent/unpublished — return false (no enumeration)
+    if (!hub) {
       res.json({ data: { hasPassword: false } });
       return;
     }
 
-    res.json({ data: { hasPassword: !!data.password_hash } });
+    // findPublishedHub doesn't include passwordHash — use dedicated query
+    const hubWithPw = await findHubForPasswordVerify(hubId);
+    res.json({ data: { hasPassword: !!(hubWithPw?.passwordHash) } });
   } catch (err) {
     next(err);
   }
@@ -98,25 +89,21 @@ publicRouter.post('/hubs/:hubId/verify-password', passwordLimit, async (req: Req
     // Small constant delay to prevent timing attacks
     await new Promise(resolve => setTimeout(resolve, 100));
 
-    const { data: hub, error } = await supabase
-      .from('hub')
-      .select('id, password_hash, is_published')
-      .eq('id', hubId)
-      .single();
+    const hub = await findHubForPasswordVerify(hubId);
 
     // Uniform failure: hub doesn't exist, is unpublished, or wrong password
-    if (error || !hub || !hub.is_published) {
+    if (!hub || !hub.isPublished) {
       res.json({ data: { valid: false } });
       return;
     }
 
     // No-password hub: empty hash or no hash means auto-issue token
-    const hubHasNoPassword = !hub.password_hash;
+    const hubHasNoPassword = !hub.passwordHash;
 
     // Constant-time comparison to prevent timing attacks
     let passwordCorrect = false;
     if (!hubHasNoPassword && typeof passwordHash === 'string') {
-      const stored = Buffer.from(hub.password_hash as string);
+      const stored = Buffer.from(hub.passwordHash as string);
       const supplied = Buffer.from(passwordHash);
       passwordCorrect = stored.length === supplied.length && timingSafeEqual(stored, supplied);
     }

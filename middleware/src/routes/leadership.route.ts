@@ -1,11 +1,9 @@
 /**
  * Leadership routes — 5 endpoints (2 real, 3 x 501)
- * All admin-guarded.
+ * All admin-guarded. Uses adminRepo for cross-tenant queries.
  */
 
 import { Router } from 'express';
-import { supabase } from '../adapters/supabase.adapter.js';
-import { HUB_SELECT } from '../adapters/hub-columns.js';
 import { requireAdmin } from '../middleware/require-admin.js';
 import { sendItem, send501 } from '../utils/response.js';
 import type { Request, Response, NextFunction } from 'express';
@@ -15,17 +13,13 @@ export const leadershipRouter = Router();
 leadershipRouter.use(requireAdmin);
 
 // GET /leadership/portfolio
-leadershipRouter.get('/portfolio', async (_req: Request, res: Response, next: NextFunction) => {
+leadershipRouter.get('/portfolio', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    // Aggregate hub stats
-    const { data: allHubs, error } = await supabase
-      .from('hub')
-      .select('id, hub_type, status, last_activity')
-      .eq('hub_type', 'client');
+    const clients = await req.adminRepo!.hub.findMany({
+      where: { hubType: 'client' },
+      select: { id: true, hubType: true, status: true, lastActivity: true },
+    });
 
-    if (error) throw error;
-
-    const clients = allHubs || [];
     const now = new Date().toISOString();
 
     sendItem(res, {
@@ -43,24 +37,23 @@ leadershipRouter.get('/portfolio', async (_req: Request, res: Response, next: Ne
 });
 
 // GET /leadership/clients
-leadershipRouter.get('/clients', async (_req: Request, res: Response, next: NextFunction) => {
+leadershipRouter.get('/clients', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { data, error } = await supabase
-      .from('hub')
-      .select(HUB_SELECT)
-      .eq('hub_type', 'client')
-      .order('last_activity', { ascending: false });
-
-    if (error) throw error;
+    const hubs = await req.adminRepo!.hub.findMany({
+      where: { hubType: 'client' },
+      select: { id: true, companyName: true, lastActivity: true },
+      orderBy: { lastActivity: 'desc' },
+    });
 
     const now = new Date().toISOString();
-    const clients = (data || []).map((hub: Record<string, unknown>) => ({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const clients = hubs.map((hub: any) => ({
       hubId: hub.id,
-      name: hub.company_name,
+      name: hub.companyName,
       healthScore: 0,
       healthStatus: 'stable' as const,
       expansionPotential: null,
-      lastActivity: hub.last_activity || now,
+      lastActivity: hub.lastActivity?.toISOString() || now,
     }));
 
     sendItem(res, {

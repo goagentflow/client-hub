@@ -1,10 +1,9 @@
 /**
- * Event routes — 3 endpoints, all backed by Supabase hub_event table
+ * Event routes — 3 endpoints, backed by TenantRepository (Prisma)
  */
 
 import { Router } from 'express';
-import { supabase, mapEventRow } from '../adapters/supabase.adapter.js';
-import { mapLeadershipEventRow } from '../adapters/event.mapper.js';
+import { mapEvent, mapLeadershipEvent } from '../db/event.mapper.js';
 import { hubAccessMiddleware } from '../middleware/hub-access.js';
 import { requireAdmin } from '../middleware/require-admin.js';
 import { requireStaffAccess } from '../middleware/require-staff.js';
@@ -41,21 +40,18 @@ eventsRouter.post('/', async (req: Request, res: Response, next: NextFunction) =
       return;
     }
 
-    const { data, error } = await supabase
-      .from('hub_event')
-      .insert({
-        hub_id: req.params.hubId,
-        event_type: eventType,
-        user_id: req.user.userId,
-        user_email: req.user.email,
-        user_name: req.user.name,
+    const event = await req.repo!.hubEvent.create({
+      data: {
+        hubId: req.params.hubId,
+        eventType,
+        userId: req.user.userId,
+        userEmail: req.user.email,
+        userName: req.user.name,
         metadata: metadata || {},
-      })
-      .select('*')
-      .single();
+      },
+    });
 
-    if (error) throw error;
-    sendItem(res, mapEventRow(data), 201);
+    sendItem(res, mapEvent(event), 201);
   } catch (err) {
     next(err);
   }
@@ -66,19 +62,18 @@ eventsRouter.get('/', requireStaffAccess, async (req: Request, res: Response, ne
   try {
     const hubId = req.params.hubId;
     const { page, pageSize } = parsePagination(req.query);
-    const offset = (page - 1) * pageSize;
 
-    const { data, count, error } = await supabase
-      .from('hub_event')
-      .select('*', { count: 'exact' })
-      .eq('hub_id', hubId)
-      .order('created_at', { ascending: false })
-      .range(offset, offset + pageSize - 1);
+    const [events, totalItems] = await Promise.all([
+      req.repo!.hubEvent.findMany({
+        where: { hubId },
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      req.repo!.hubEvent.count({ where: { hubId } }),
+    ]);
 
-    if (error) throw error;
-
-    const totalItems = count || 0;
-    sendList(res, (data || []).map(mapEventRow), {
+    sendList(res, events.map(mapEvent), {
       page, pageSize, totalItems,
       totalPages: Math.ceil(totalItems / pageSize),
     });
@@ -96,21 +91,18 @@ leadershipEventsRouter.post('/', requireAdmin, requireStaffAccess, async (req: R
     const { eventType, hubId, metadata } = req.body;
     if (!eventType) throw Errors.badRequest('eventType is required');
 
-    const { data, error } = await supabase
-      .from('hub_event')
-      .insert({
-        hub_id: hubId || null,
-        event_type: eventType,
-        user_id: req.user.userId,
-        user_email: req.user.email,
-        user_name: req.user.name,
+    const event = await req.repo!.hubEvent.create({
+      data: {
+        hubId: hubId || null,
+        eventType,
+        userId: req.user.userId,
+        userEmail: req.user.email,
+        userName: req.user.name,
         metadata: metadata || {},
-      })
-      .select('*')
-      .single();
+      },
+    });
 
-    if (error) throw error;
-    sendItem(res, mapLeadershipEventRow(data), 201);
+    sendItem(res, mapLeadershipEvent(event), 201);
   } catch (err) {
     next(err);
   }

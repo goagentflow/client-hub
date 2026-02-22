@@ -4,7 +4,8 @@
  */
 
 import { Router } from 'express';
-import { supabase, mapVideoRow, mapDocumentRow, mapProposalRow } from '../adapters/supabase.adapter.js';
+import { mapVideo } from '../db/video.mapper.js';
+import { mapDocument, mapProposal } from '../db/document.mapper.js';
 import { hubAccessMiddleware } from '../middleware/hub-access.js';
 import { sendItem, sendList, send501 } from '../utils/response.js';
 import { parsePagination } from '../utils/pagination.js';
@@ -19,20 +20,18 @@ portalRouter.get('/videos', async (req: Request, res: Response, next: NextFuncti
   try {
     const hubId = req.params.hubId;
     const { page, pageSize } = parsePagination(req.query);
-    const offset = (page - 1) * pageSize;
 
-    const { data, count, error } = await supabase
-      .from('hub_video')
-      .select('*', { count: 'exact' })
-      .eq('hub_id', hubId)
-      .eq('visibility', 'client')
-      .order('uploaded_at', { ascending: false })
-      .range(offset, offset + pageSize - 1);
+    const [videos, totalItems] = await Promise.all([
+      req.repo!.hubVideo.findMany({
+        where: { hubId, visibility: 'client' },
+        orderBy: { uploadedAt: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      req.repo!.hubVideo.count({ where: { hubId, visibility: 'client' } }),
+    ]);
 
-    if (error) throw error;
-
-    const totalItems = count || 0;
-    sendList(res, (data || []).map(mapVideoRow), {
+    sendList(res, videos.map(mapVideo), {
       page, pageSize, totalItems,
       totalPages: Math.ceil(totalItems / pageSize),
     });
@@ -46,21 +45,20 @@ portalRouter.get('/documents', async (req: Request, res: Response, next: NextFun
   try {
     const hubId = req.params.hubId;
     const { page, pageSize } = parsePagination(req.query);
-    const offset = (page - 1) * pageSize;
 
-    const { data, count, error } = await supabase
-      .from('hub_document')
-      .select('*', { count: 'exact' })
-      .eq('hub_id', hubId)
-      .eq('visibility', 'client')
-      .eq('is_proposal', false)
-      .order('uploaded_at', { ascending: false })
-      .range(offset, offset + pageSize - 1);
+    const where = { hubId, visibility: 'client', isProposal: false };
 
-    if (error) throw error;
+    const [docs, totalItems] = await Promise.all([
+      req.repo!.hubDocument.findMany({
+        where,
+        orderBy: { uploadedAt: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      req.repo!.hubDocument.count({ where }),
+    ]);
 
-    const totalItems = count || 0;
-    sendList(res, (data || []).map(mapDocumentRow), {
+    sendList(res, docs.map(mapDocument), {
       page, pageSize, totalItems,
       totalPages: Math.ceil(totalItems / pageSize),
     });
@@ -72,18 +70,12 @@ portalRouter.get('/documents', async (req: Request, res: Response, next: NextFun
 // GET /hubs/:hubId/portal/proposal
 portalRouter.get('/proposal', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { data, error } = await supabase
-      .from('hub_document')
-      .select('*')
-      .eq('hub_id', req.params.hubId)
-      .eq('is_proposal', true)
-      .eq('visibility', 'client')
-      .order('uploaded_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    const doc = await req.repo!.hubDocument.findFirst({
+      where: { hubId: req.params.hubId, isProposal: true, visibility: 'client' },
+      orderBy: { uploadedAt: 'desc' },
+    });
 
-    if (error) throw error;
-    sendItem(res, data ? mapProposalRow(data) : null);
+    sendItem(res, doc ? mapProposal(doc) : null);
   } catch (err) {
     next(err);
   }

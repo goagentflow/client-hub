@@ -2,14 +2,14 @@
  * Inject repository middleware.
  *
  * Creates a TenantRepository from req.user.tenantId and attaches it
- * to req.repo. Runs after auth middleware, before route handlers.
- * Only active when DATA_BACKEND=azure_pg.
+ * to req.repo. Also creates an AdminRepository on req.adminRepo.
+ * Runs after auth middleware, before route handlers.
  */
 
 import { Request, Response, NextFunction } from 'express';
-import { env } from '../config/env.js';
 import { getPrisma } from '../db/prisma.js';
 import { createTenantRepository, type TenantRepository } from '../db/tenant-repository.js';
+import { createAdminRepository, type AdminRepository } from '../db/admin-repository.js';
 
 // Extend Express Request
 declare global {
@@ -17,16 +17,12 @@ declare global {
   namespace Express {
     interface Request {
       repo?: TenantRepository;
+      adminRepo?: AdminRepository;
     }
   }
 }
 
 export function injectRepository(req: Request, res: Response, next: NextFunction): void {
-  if (env.DATA_BACKEND !== 'azure_pg') {
-    next();
-    return;
-  }
-
   if (!req.user?.tenantId) {
     res.status(500).json({
       code: 'INTERNAL_ERROR',
@@ -36,6 +32,8 @@ export function injectRepository(req: Request, res: Response, next: NextFunction
     return;
   }
 
-  req.repo = createTenantRepository(getPrisma(), req.user.tenantId);
+  const prisma = getPrisma();
+  req.repo = createTenantRepository(prisma, req.user.tenantId);
+  req.adminRepo = createAdminRepository(prisma, req.user.userId);
   next();
 }

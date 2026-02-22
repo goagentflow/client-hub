@@ -20,8 +20,8 @@ Frontend (React/Vite/TypeScript)
 
 Middleware (Express/TypeScript) — 113 endpoints (46 real, 67 stubbed)
   ├── Auth: Azure AD JWT (RS256 via jose) + portal JWT (HS256) + demo headers
-  ├── Config: AUTH_MODE (azure_ad | demo) + DATA_BACKEND (azure_pg | mock)
-  ├── Database: Prisma 6 ORM (PostgreSQL in production, mock in dev)
+  ├── Config: AUTH_MODE (azure_ad | demo) + DATA_BACKEND (azure_pg)
+  ├── Database: Prisma 6 ORM (PostgreSQL via DATABASE_URL)
   ├── Tenant isolation: TenantRepository + AdminRepository pattern
   └── 84 tests passing across 5 test files
 
@@ -93,15 +93,35 @@ Created middleware to inject the correct data repository based on `DATA_BACKEND`
 
 **Review:** Senior dev approved after 1 round.
 
-### Sub-phase 4: Route Migration (IN PROGRESS)
+### Sub-phase 4: Route Migration (COMPLETE)
 
-Migrating route handlers to use injected Prisma repository instead of Supabase adapter.
+Migrated all route handlers from Supabase adapter to injected Prisma repository (`req.repo` / `req.adminRepo`). Removed `DATA_BACKEND=mock` option — all routes now require PostgreSQL via Prisma.
 
-**Files being changed:**
-- `middleware/src/routes/hubs.route.ts` — Hub CRUD using repository
-- `middleware/src/routes/portal-config.route.ts` — Portal config using repository
+**Files created:**
+- `middleware/src/db/video.mapper.ts` — Prisma HubVideo → VideoDTO
+- `middleware/src/db/document.mapper.ts` — Prisma HubDocument → DocumentDTO/ProposalDTO
+- `middleware/src/db/project.mapper.ts` — Prisma HubProject/HubMilestone → ProjectDTO/MilestoneDTO
+- `middleware/src/db/event.mapper.ts` — Prisma HubEvent → EventDTO/LeadershipEventDTO
+- `middleware/src/db/public-queries.ts` — Direct Prisma queries for unauthenticated routes
+- `middleware/src/db/hub-select.ts` — Shared HUB_SELECT constant (excludes passwordHash)
 
-**Status:** Work paused for documentation cleanup.
+**Files changed:**
+- `middleware/src/routes/events.route.ts` — Migrated to req.repo
+- `middleware/src/routes/proposals.route.ts` — Migrated to req.repo
+- `middleware/src/routes/leadership.route.ts` — Migrated to req.adminRepo
+- `middleware/src/routes/projects.route.ts` — Migrated to req.repo
+- `middleware/src/routes/conversion.route.ts` — Migrated to req.repo
+- `middleware/src/routes/documents.route.ts` — Migrated to req.repo
+- `middleware/src/routes/videos.route.ts` — Migrated to req.repo
+- `middleware/src/routes/portal.route.ts` — Migrated to req.repo
+- `middleware/src/routes/public.route.ts` — Migrated to public-queries.ts
+- `middleware/src/db/tenant-repository.ts` — Added deleteMany/updateMany
+- `middleware/src/db/admin-repository.ts` — Added deleteMany/updateMany
+- `middleware/src/db/prisma.ts` — Removed DATA_BACKEND guard
+- `middleware/src/middleware/inject-repository.ts` — Removed DATA_BACKEND guard, always injects repo
+- `middleware/src/config/env.ts` — Removed mock from DATA_BACKEND, DATABASE_URL required
+
+**Review:** 2 rounds of external senior dev review. All findings addressed.
 
 ---
 
@@ -111,7 +131,7 @@ Migrating route handlers to use injected Prisma repository instead of Supabase a
 |-------|------|--------|---------|
 | MVP | Cloud Run + Supabase | **Deploying** | First client deployment on Google Cloud Run + Supabase PostgreSQL. Near-zero cost. Forward-compatible with full Azure plan. |
 | 0a | Azure Infrastructure | **Deferred** | Resource group created (UK South). MVP deployed on Cloud Run + Supabase in the interim. Full Azure services created when scaling beyond MVP. |
-| 0b | Codebase Refactor | **In Progress** | Prisma migration, AUTH_MODE/DATA_BACKEND config, TenantRepository, route migration. Sub-phases 1-3 approved, sub-phase 4 in progress. |
+| 0b | Codebase Refactor | **Complete** | Prisma migration, AUTH_MODE/DATA_BACKEND config, TenantRepository, route migration. All 4 sub-phases approved. |
 | 1 | File Storage | Not started | Document, proposal, and video upload to Azure Blob Storage with AV scanning. 3 stubs. |
 | 2 | Members & Access | Not started | Magic link auth for client contacts, invite system, dual-run with password portal. 11 stubs. |
 | 3 | Questionnaires | Not started | Staff-created forms, client submission, response aggregation. 7 stubs. |
@@ -135,7 +155,7 @@ Migrating route handlers to use injected Prisma repository instead of Supabase a
 |----------|--------|-----|
 | Hosting model | Azure-hosted (AgentFlow's own subscription) | Ships faster than per-customer deployment. DPA compliance under single Microsoft agreement. Migration to customer-hosted possible later via adapter pattern. |
 | Database | Prisma 6 on Azure PostgreSQL | Prisma 7 has breaking driver adapter changes. Prisma 6 is stable and well-supported. |
-| Config model | `AUTH_MODE` + `DATA_BACKEND` (orthogonal) | Replaces `DEMO_MODE` boolean which conflated auth and data concerns. Production guards block unsafe combinations. |
+| Config model | `AUTH_MODE` + `DATA_BACKEND` | `AUTH_MODE` controls authentication (azure_ad or demo). `DATA_BACKEND=azure_pg` — all routes use Prisma on PostgreSQL. |
 | JWT validation | `jose` library for both portal (HS256) and Azure AD (RS256) | Single dependency, no `@azure/msal-node` needed for validation. |
 | Staff detection | `roles` claim in Azure AD JWT | Mandatory deployment prerequisite — not optional. `requireStaffAccess` middleware enforces at router level. |
 | MVP on Cloud Run + Supabase | Deploy to existing infrastructure for first client | Real client starting now. Near-zero cost using services already paid for. Prisma works with any PostgreSQL — migration to Azure PG is a config change. |
@@ -160,11 +180,14 @@ npm install
 npm run dev          # Starts on http://localhost:5173
 ```
 
-### Middleware (mock mode — no database needed)
+### Middleware
 ```sh
 cd middleware
 pnpm install
-cp .env.example .env    # Defaults: AUTH_MODE=demo, DATA_BACKEND=mock
+cp .env.example .env    # Defaults: AUTH_MODE=demo, DATA_BACKEND=azure_pg
+# Edit .env — set DATABASE_URL to your PostgreSQL connection string
+npx prisma generate      # Generate Prisma client
+npx prisma db push       # Push schema to database
 pnpm run dev             # Starts on http://localhost:3001
 ```
 
@@ -174,24 +197,14 @@ cd middleware
 pnpm test               # 84 tests across 5 files
 ```
 
-### With Real Database (optional)
-Set `DATA_BACKEND=azure_pg` and provide `DATABASE_URL` in `.env`, then:
-```sh
-cd middleware
-npx prisma generate      # Generate Prisma client
-npx prisma db push       # Push schema to database
-pnpm run dev
-```
-
 ---
 
 ## Next Actions
 
-1. **Complete Phase 0b sub-phase 4** — Finish migrating route handlers (hubs, portal-config) to use Prisma repository
-2. **Deploy MVP to Cloud Run** — Frontend added to existing goagentflow.com deployment, middleware as separate Cloud Run service
-3. **Connect Supabase PostgreSQL** — Set `DATABASE_URL` to Supabase PG, run `prisma db push` to create schema
-4. **Build `npm run verify-endpoints` CI check** — Automated stub count verification
-5. **Phase 0a infrastructure (when scaling)** — Create full Azure services when ready to move beyond MVP
+1. **Deploy MVP to Cloud Run** — Frontend added to existing goagentflow.com deployment, middleware as separate Cloud Run service
+2. **Connect Supabase PostgreSQL** — Set `DATABASE_URL` to Supabase PG, run `prisma db push` to create schema
+3. **Build `npm run verify-endpoints` CI check** — Automated stub count verification
+4. **Phase 0a infrastructure (when scaling)** — Create full Azure services when ready to move beyond MVP
 
 ---
 

@@ -4,16 +4,23 @@
  * Verifies portal-meta, password-status, verify-password, and invite accept stub.
  * These endpoints require no auth and are rate-limited.
  *
- * Uses per-test mock overrides on supabase.from() to test both published
- * and unpublished hub scenarios — the global mock always returns data,
- * so we override single() to control what each route handler sees.
+ * Mocks public-queries.ts functions since public routes now use
+ * direct Prisma access (no Supabase adapter, no tenant context).
  */
 
 import { describe, it, expect, beforeAll, vi } from 'vitest';
 import request from 'supertest';
 import type { Express } from 'express';
 import { loadApp } from './test-setup.js';
-import { supabase } from '../adapters/supabase.adapter.js';
+
+// Mock public queries module
+const mockFindPublishedHub = vi.fn();
+const mockFindHubForPasswordVerify = vi.fn();
+
+vi.mock('../db/public-queries.js', () => ({
+  findPublishedHub: (...args: unknown[]) => mockFindPublishedHub(...args),
+  findHubForPasswordVerify: (...args: unknown[]) => mockFindHubForPasswordVerify(...args),
+}));
 
 let app: Express;
 
@@ -21,23 +28,10 @@ beforeAll(async () => {
   app = await loadApp();
 });
 
-/** Override the mock chain so .single() returns the given data */
-function mockSupabaseSingle(data: Record<string, unknown> | null, error: unknown = null): void {
-  const mockChain = {
-    select: vi.fn().mockReturnThis(),
-    eq: vi.fn().mockReturnThis(),
-    single: vi.fn().mockResolvedValue({ data, error }),
-  };
-  // Make all chainable methods return the chain
-  mockChain.select.mockReturnValue(mockChain);
-  mockChain.eq.mockReturnValue(mockChain);
-  vi.mocked(supabase.from).mockReturnValue(mockChain as never);
-}
-
 describe('Public routes — response shape', () => {
   it('GET /public/hubs/:hubId/portal-meta returns portal-meta shape for published hub', async () => {
-    mockSupabaseSingle({
-      id: 'hub-pub', company_name: 'Published Co', hub_type: 'pitch', is_published: true,
+    mockFindPublishedHub.mockResolvedValueOnce({
+      id: 'hub-pub', companyName: 'Published Co', hubType: 'pitch', isPublished: true,
     });
 
     const res = await request(app).get('/api/v1/public/hubs/hub-pub/portal-meta');
@@ -50,11 +44,16 @@ describe('Public routes — response shape', () => {
     });
     // Verify no sensitive fields leak
     expect(res.body.data).not.toHaveProperty('contactEmail');
-    expect(res.body.data).not.toHaveProperty('password_hash');
+    expect(res.body.data).not.toHaveProperty('passwordHash');
   });
 
   it('GET /public/hubs/:hubId/password-status returns hasPassword shape', async () => {
-    mockSupabaseSingle({ password_hash: 'abc123' });
+    mockFindPublishedHub.mockResolvedValueOnce({
+      id: 'hub-1', companyName: 'Test', hubType: 'pitch', isPublished: true,
+    });
+    mockFindHubForPasswordVerify.mockResolvedValueOnce({
+      id: 'hub-1', passwordHash: 'abc123', isPublished: true,
+    });
 
     const res = await request(app).get('/api/v1/public/hubs/hub-1/password-status');
     expect(res.status).toBe(200);
@@ -73,8 +72,7 @@ describe('Public routes — response shape', () => {
 
 describe('Public routes — unpublished hub contract (portal-meta)', () => {
   it('portal-meta returns 404 for unpublished hub', async () => {
-    // Simulate what Supabase returns when .eq('is_published', true) finds nothing
-    mockSupabaseSingle(null, { code: 'PGRST116', message: 'not found' });
+    mockFindPublishedHub.mockResolvedValueOnce(null);
 
     const res = await request(app).get('/api/v1/public/hubs/hub-unpublished/portal-meta');
     expect(res.status).toBe(404);
@@ -83,7 +81,7 @@ describe('Public routes — unpublished hub contract (portal-meta)', () => {
   });
 
   it('portal-meta returns 404 for non-existent hub', async () => {
-    mockSupabaseSingle(null, { code: 'PGRST116', message: 'not found' });
+    mockFindPublishedHub.mockResolvedValueOnce(null);
 
     const res = await request(app).get('/api/v1/public/hubs/does-not-exist/portal-meta');
     expect(res.status).toBe(404);
@@ -93,9 +91,8 @@ describe('Public routes — unpublished hub contract (portal-meta)', () => {
 
 describe('Public routes — verify-password contract', () => {
   it('returns { valid: false } for unpublished hub (uniform non-enumerating)', async () => {
-    // Hub exists but is_published: false — route checks this in JS
-    mockSupabaseSingle({
-      id: 'hub-draft', password_hash: 'abc123', is_published: false,
+    mockFindHubForPasswordVerify.mockResolvedValueOnce({
+      id: 'hub-draft', passwordHash: 'abc123', isPublished: false,
     });
 
     const res = await request(app)
@@ -109,8 +106,8 @@ describe('Public routes — verify-password contract', () => {
   });
 
   it('returns { valid: false } for wrong password on published hub', async () => {
-    mockSupabaseSingle({
-      id: 'hub-pw', password_hash: 'correct-hash', is_published: true,
+    mockFindHubForPasswordVerify.mockResolvedValueOnce({
+      id: 'hub-pw', passwordHash: 'correct-hash', isPublished: true,
     });
 
     const res = await request(app)
@@ -122,8 +119,8 @@ describe('Public routes — verify-password contract', () => {
   });
 
   it('no-password hub auto-issues token (published, empty password_hash)', async () => {
-    mockSupabaseSingle({
-      id: 'hub-open', password_hash: null, is_published: true,
+    mockFindHubForPasswordVerify.mockResolvedValueOnce({
+      id: 'hub-open', passwordHash: null, isPublished: true,
     });
 
     const res = await request(app)
@@ -137,8 +134,8 @@ describe('Public routes — verify-password contract', () => {
   });
 
   it('correct password on published hub issues token', async () => {
-    mockSupabaseSingle({
-      id: 'hub-pw', password_hash: 'correct-hash', is_published: true,
+    mockFindHubForPasswordVerify.mockResolvedValueOnce({
+      id: 'hub-pw', passwordHash: 'correct-hash', isPublished: true,
     });
 
     const res = await request(app)
@@ -151,7 +148,7 @@ describe('Public routes — verify-password contract', () => {
   });
 
   it('non-existent hub returns { valid: false }', async () => {
-    mockSupabaseSingle(null, { code: 'PGRST116', message: 'not found' });
+    mockFindHubForPasswordVerify.mockResolvedValueOnce(null);
 
     const res = await request(app)
       .post('/api/v1/public/hubs/no-such-hub/verify-password')

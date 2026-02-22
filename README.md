@@ -56,7 +56,9 @@ npm run dev              # http://localhost:5173
 ```sh
 cd middleware
 pnpm install
-cp .env.example .env     # Defaults: AUTH_MODE=demo, DATA_BACKEND=mock
+cp .env.example .env     # Defaults: AUTH_MODE=demo, DATA_BACKEND=azure_pg
+# Edit .env — set DATABASE_URL to your PostgreSQL connection string
+npx prisma generate      # Generate Prisma client
 pnpm run dev             # http://localhost:3001
 ```
 
@@ -108,7 +110,7 @@ pnpm test                # 84 tests across 5 files
 
 ## Current Status
 
-Phase 0b (codebase refactor) is in progress — migrating from Supabase to Prisma, replacing DEMO_MODE with orthogonal AUTH_MODE + DATA_BACKEND config. See `progress/STATUS.md` for full details.
+Phase 0b (codebase refactor) is complete — migrated to Prisma 6 ORM, replaced DEMO_MODE with AUTH_MODE + DATA_BACKEND config, completed route migration from Supabase adapter. See `progress/STATUS.md` for full details.
 
 ## Key Documents
 

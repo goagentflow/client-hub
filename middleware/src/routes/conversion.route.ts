@@ -4,9 +4,9 @@
  */
 
 import { Router } from 'express';
-import { supabase, mapHubRow, mapProjectRow } from '../adapters/supabase.adapter.js';
-import type { ProjectRow } from '../adapters/project.mapper.js';
-import { HUB_SELECT } from '../adapters/hub-columns.js';
+import { mapHub } from '../db/hub.mapper.js';
+import { mapProject } from '../db/project.mapper.js';
+import { HUB_SELECT } from '../db/hub-select.js';
 import { hubAccessMiddleware } from '../middleware/hub-access.js';
 import { requireAdmin } from '../middleware/require-admin.js';
 import { sendItem, send501 } from '../utils/response.js';
@@ -22,21 +22,19 @@ conversionRouter.use(requireAdmin);
 conversionRouter.post('/', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const hubId = req.params.hubId;
-    const now = new Date().toISOString();
+    const now = new Date();
 
     // Get current hub
-    const { data: hub, error: hubErr } = await supabase
-      .from('hub')
-      .select(HUB_SELECT)
-      .eq('id', hubId)
-      .single();
-
-    if (hubErr || !hub) throw Errors.notFound('Hub', hubId);
+    const hub = await req.repo!.hub.findFirst({
+      where: { id: hubId },
+      select: HUB_SELECT,
+    });
+    if (!hub) throw Errors.notFound('Hub', hubId);
 
     // Idempotent: if already converted, return existing state
-    if (hub.hub_type === 'client') {
+    if (hub.hubType === 'client') {
       sendItem(res, {
-        hub: mapHubRow(hub),
+        hub: mapHub(hub),
         archiveSummary: {
           proposalArchived: true,
           proposalDocumentId: undefined,
@@ -45,60 +43,47 @@ conversionRouter.post('/', async (req: Request, res: Response, next: NextFunctio
         },
         alreadyConverted: true,
         audit: {
-          convertedBy: hub.converted_by || req.user.userId,
-          convertedAt: hub.converted_at || now,
+          convertedBy: hub.convertedBy || req.user.userId,
+          convertedAt: hub.convertedAt?.toISOString() || now.toISOString(),
         },
       });
       return;
     }
 
     // Convert: update hub type
-    const { data: updated, error: updateErr } = await supabase
-      .from('hub')
-      .update({
-        hub_type: 'client',
-        converted_at: now,
-        converted_by: req.user.userId,
-        updated_at: now,
-      })
-      .eq('id', hubId)
-      .select(HUB_SELECT)
-      .single();
-
-    if (updateErr) throw updateErr;
+    const updated = await req.repo!.hub.update({
+      where: { id: hubId },
+      data: {
+        hubType: 'client',
+        convertedAt: now,
+        convertedBy: req.user.userId,
+      },
+      select: HUB_SELECT,
+    });
 
     // Check for proposal to archive
-    const { data: proposal } = await supabase
-      .from('hub_document')
-      .select('id')
-      .eq('hub_id', hubId)
-      .eq('is_proposal', true)
-      .maybeSingle();
+    const proposal = await req.repo!.hubDocument.findFirst({
+      where: { hubId, isProposal: true },
+      select: { id: true },
+    });
 
     // Create initial project if requested
     let project = undefined;
     if (req.body?.initialProjectName) {
-      const { data: newProject } = await supabase
-        .from('hub_project')
-        .insert({
-          hub_id: hubId,
+      const newProject = await req.repo!.hubProject.create({
+        data: {
+          hubId,
           name: req.body.initialProjectName,
           status: 'active',
-          start_date: now,
-          created_by: req.user.userId,
-          created_at: now,
-          updated_at: now,
-        })
-        .select('*')
-        .single();
-
-      if (newProject) {
-        project = mapProjectRow(newProject as ProjectRow);
-      }
+          startDate: now,
+          createdBy: req.user.userId,
+        },
+      });
+      project = mapProject(newProject);
     }
 
     sendItem(res, {
-      hub: mapHubRow(updated),
+      hub: mapHub(updated),
       archiveSummary: {
         proposalArchived: !!proposal,
         proposalDocumentId: proposal?.id,
@@ -109,7 +94,7 @@ conversionRouter.post('/', async (req: Request, res: Response, next: NextFunctio
       alreadyConverted: false,
       audit: {
         convertedBy: req.user.userId,
-        convertedAt: now,
+        convertedAt: now.toISOString(),
       },
     });
   } catch (err) {

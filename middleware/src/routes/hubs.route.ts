@@ -4,6 +4,7 @@
 
 import { Router } from 'express';
 import { mapHub, mapPortalConfig } from '../db/hub.mapper.js';
+import { HUB_SELECT } from '../db/hub-select.js';
 import { hubAccessMiddleware } from '../middleware/hub-access.js';
 import { requireStaffAccess } from '../middleware/require-staff.js';
 import { sendItem, sendList } from '../utils/response.js';
@@ -12,18 +13,6 @@ import { Errors } from '../middleware/error-handler.js';
 import type { Request, Response, NextFunction } from 'express';
 
 export const hubsRouter = Router();
-
-/** Hub select fields — excludes passwordHash */
-const HUB_SELECT = {
-  id: true, tenantId: true, companyName: true, contactName: true,
-  contactEmail: true, status: true, hubType: true, createdAt: true,
-  updatedAt: true, lastActivity: true, clientsInvited: true, lastVisit: true,
-  clientDomain: true, internalNotes: true, convertedAt: true, convertedBy: true,
-  isPublished: true, welcomeHeadline: true, welcomeMessage: true,
-  heroContentType: true, heroContentId: true, showProposal: true,
-  showVideos: true, showDocuments: true, showMessages: true,
-  showMeetings: true, showQuestionnaire: true,
-};
 
 // GET /hubs — paginated list with search/filter/sort (staff-only)
 hubsRouter.get('/', requireStaffAccess, async (req: Request, res: Response, next: NextFunction) => {

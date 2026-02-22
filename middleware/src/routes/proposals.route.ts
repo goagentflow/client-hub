@@ -1,10 +1,10 @@
 /**
  * Proposal routes — 7 endpoints (3 real, 4 x 501)
- * Proposals are stored as hub_document rows with is_proposal=true
+ * Proposals are stored as hub_document rows with isProposal=true
  */
 
 import { Router } from 'express';
-import { supabase, mapProposalRow } from '../adapters/supabase.adapter.js';
+import { mapProposal } from '../db/document.mapper.js';
 import { hubAccessMiddleware } from '../middleware/hub-access.js';
 import { requireStaffAccess } from '../middleware/require-staff.js';
 import { sendItem, send204, send501 } from '../utils/response.js';
@@ -18,17 +18,12 @@ proposalsRouter.use(requireStaffAccess);
 // GET /hubs/:hubId/proposal
 proposalsRouter.get('/', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { data, error } = await supabase
-      .from('hub_document')
-      .select('*')
-      .eq('hub_id', req.params.hubId)
-      .eq('is_proposal', true)
-      .order('uploaded_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    const doc = await req.repo!.hubDocument.findFirst({
+      where: { hubId: req.params.hubId, isProposal: true },
+      orderBy: { uploadedAt: 'desc' },
+    });
 
-    if (error) throw error;
-    sendItem(res, data ? mapProposalRow(data) : null);
+    sendItem(res, doc ? mapProposal(doc) : null);
   } catch (err) {
     next(err);
   }
@@ -37,13 +32,10 @@ proposalsRouter.get('/', async (req: Request, res: Response, next: NextFunction)
 // DELETE /hubs/:hubId/proposal
 proposalsRouter.delete('/', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { error } = await supabase
-      .from('hub_document')
-      .delete()
-      .eq('hub_id', req.params.hubId)
-      .eq('is_proposal', true);
+    await req.repo!.hubDocument.deleteMany({
+      where: { hubId: req.params.hubId, isProposal: true },
+    });
 
-    if (error) throw error;
     send204(res);
   } catch (err) {
     next(err);
@@ -53,31 +45,26 @@ proposalsRouter.delete('/', async (req: Request, res: Response, next: NextFuncti
 // PATCH /hubs/:hubId/proposal/settings
 proposalsRouter.patch('/settings', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const updates: Record<string, unknown> = {};
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const updates: Record<string, any> = {};
     if (req.body.isClientVisible !== undefined) {
       updates.visibility = req.body.isClientVisible ? 'client' : 'internal';
     }
 
     if (Object.keys(updates).length > 0) {
-      await supabase
-        .from('hub_document')
-        .update(updates)
-        .eq('hub_id', req.params.hubId)
-        .eq('is_proposal', true);
+      await req.repo!.hubDocument.updateMany({
+        where: { hubId: req.params.hubId, isProposal: true },
+        data: updates,
+      });
     }
 
     // Return updated proposal
-    const { data, error } = await supabase
-      .from('hub_document')
-      .select('*')
-      .eq('hub_id', req.params.hubId)
-      .eq('is_proposal', true)
-      .order('uploaded_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    const doc = await req.repo!.hubDocument.findFirst({
+      where: { hubId: req.params.hubId, isProposal: true },
+      orderBy: { uploadedAt: 'desc' },
+    });
 
-    if (error) throw error;
-    sendItem(res, data ? mapProposalRow(data) : null);
+    sendItem(res, doc ? mapProposal(doc) : null);
   } catch (err) {
     next(err);
   }

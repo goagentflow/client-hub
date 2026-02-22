@@ -30,7 +30,9 @@ type PrismaDelegate = {
   count: CallableFunction;
   create: CallableFunction;
   update: CallableFunction;
+  updateMany: CallableFunction;
   delete: CallableFunction;
+  deleteMany: CallableFunction;
 };
 
 function loggedModel(
@@ -62,9 +64,17 @@ function loggedModel(
       log('update');
       return delegate.update(args);
     },
+    updateMany(args: Record<string, any>) {
+      log('updateMany');
+      return delegate.updateMany(args);
+    },
     delete(args: Record<string, any>) {
       log('delete');
       return delegate.delete(args);
+    },
+    deleteMany(args: Record<string, any>) {
+      log('deleteMany');
+      return delegate.deleteMany(args);
     },
   };
 }

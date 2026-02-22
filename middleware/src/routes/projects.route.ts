@@ -1,10 +1,9 @@
 /**
- * Project routes — 8 endpoints, all backed by Supabase
+ * Project routes — 8 endpoints, backed by TenantRepository (Prisma)
  */
 
 import { Router } from 'express';
-import { supabase, mapProjectRow, mapMilestoneRow } from '../adapters/supabase.adapter.js';
-import type { ProjectRow, MilestoneRow } from '../adapters/project.mapper.js';
+import { mapProject, mapMilestone } from '../db/project.mapper.js';
 import { hubAccessMiddleware } from '../middleware/hub-access.js';
 import { requireStaffAccess } from '../middleware/require-staff.js';
 import { sendItem, sendList, send204 } from '../utils/response.js';
@@ -19,11 +18,11 @@ projectsRouter.use(requireStaffAccess);
 
 // Verify project belongs to the hub (prevents cross-hub milestone access)
 async function verifyProjectOwnership(req: Request): Promise<void> {
-  const projectId = req.params.projectId as string;
-  const hubId = req.params.hubId as string;
-  const { data } = await supabase.from('hub_project').select('id')
-    .eq('id', projectId).eq('hub_id', hubId).single();
-  if (!data) throw Errors.notFound('Project', projectId);
+  const project = await req.repo!.hubProject.findFirst({
+    where: { id: req.params.projectId, hubId: req.params.hubId },
+    select: { id: true },
+  });
+  if (!project) throw Errors.notFound('Project', req.params.projectId);
 }
 
 // GET /hubs/:hubId/projects
@@ -31,39 +30,37 @@ projectsRouter.get('/', async (req: Request, res: Response, next: NextFunction) 
   try {
     const hubId = req.params.hubId;
     const { page, pageSize } = parsePagination(req.query);
-    const offset = (page - 1) * pageSize;
 
-    let query = supabase
-      .from('hub_project')
-      .select('*', { count: 'exact' })
-      .eq('hub_id', hubId);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const where: Record<string, any> = { hubId };
+    if (req.query.status) where.status = String(req.query.status);
 
-    if (req.query.status) query = query.eq('status', req.query.status);
-
-    const { data, count, error } = await query
-      .order('created_at', { ascending: false })
-      .range(offset, offset + pageSize - 1);
-
-    if (error) throw error;
+    const [projects, totalItems] = await Promise.all([
+      req.repo!.hubProject.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      req.repo!.hubProject.count({ where }),
+    ]);
 
     // Fetch milestones for these projects
-    const projectIds = (data || []).map((p: Record<string, unknown>) => p.id);
-    let milestones: Record<string, unknown>[] = [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const projectIds = projects.map((p: any) => p.id);
+    let milestones: unknown[] = [];
     if (projectIds.length > 0) {
-      const { data: ms } = await supabase
-        .from('hub_milestone')
-        .select('*')
-        .in('project_id', projectIds)
-        .order('sort_order', { ascending: true });
-      milestones = ms || [];
+      milestones = await req.repo!.hubMilestone.findMany({
+        where: { projectId: { in: projectIds } },
+        orderBy: { sortOrder: 'asc' },
+      });
     }
 
-    const totalItems = count || 0;
-    sendList(
-      res,
-      (data || []).map((p: Record<string, unknown>) => mapProjectRow(p as unknown as ProjectRow, milestones as unknown as MilestoneRow[])),
-      { page, pageSize, totalItems, totalPages: Math.ceil(totalItems / pageSize) }
-    );
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    sendList(res, projects.map((p: any) => mapProject(p, milestones as any[])), {
+      page, pageSize, totalItems,
+      totalPages: Math.ceil(totalItems / pageSize),
+    });
   } catch (err) {
     next(err);
   }
@@ -72,22 +69,17 @@ projectsRouter.get('/', async (req: Request, res: Response, next: NextFunction) 
 // GET /hubs/:hubId/projects/:projectId
 projectsRouter.get('/:projectId', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { data: project, error } = await supabase
-      .from('hub_project')
-      .select('*')
-      .eq('id', req.params.projectId)
-      .eq('hub_id', req.params.hubId)
-      .single();
+    const project = await req.repo!.hubProject.findFirst({
+      where: { id: req.params.projectId, hubId: req.params.hubId },
+    });
+    if (!project) throw Errors.notFound('Project', req.params.projectId);
 
-    if (error || !project) throw Errors.notFound('Project', req.params.projectId);
+    const milestones = await req.repo!.hubMilestone.findMany({
+      where: { projectId: req.params.projectId },
+      orderBy: { sortOrder: 'asc' },
+    });
 
-    const { data: milestones } = await supabase
-      .from('hub_milestone')
-      .select('*')
-      .eq('project_id', req.params.projectId)
-      .order('sort_order', { ascending: true });
-
-    sendItem(res, mapProjectRow(project as ProjectRow, (milestones || []) as MilestoneRow[]));
+    sendItem(res, mapProject(project, milestones));
   } catch (err) {
     next(err);
   }
@@ -99,27 +91,21 @@ projectsRouter.post('/', async (req: Request, res: Response, next: NextFunction)
     const { name, description, status, startDate, targetEndDate, lead } = req.body;
     if (!name) throw Errors.badRequest('name is required');
 
-    const now = new Date().toISOString();
-    const { data, error } = await supabase
-      .from('hub_project')
-      .insert({
-        hub_id: req.params.hubId,
+    const project = await req.repo!.hubProject.create({
+      data: {
+        hubId: req.params.hubId,
         name,
         description: description || null,
         status: status || 'active',
-        start_date: startDate || now,
-        target_end_date: targetEndDate || null,
+        startDate: startDate ? new Date(startDate) : new Date(),
+        targetEndDate: targetEndDate ? new Date(targetEndDate) : null,
         lead: lead || null,
-        lead_name: lead ? req.user.name : null,
-        created_by: req.user.userId,
-        created_at: now,
-        updated_at: now,
-      })
-      .select('*')
-      .single();
+        leadName: lead ? req.user.name : null,
+        createdBy: req.user.userId,
+      },
+    });
 
-    if (error) throw error;
-    sendItem(res, mapProjectRow(data as ProjectRow), 201);
+    sendItem(res, mapProject(project), 201);
   } catch (err) {
     next(err);
   }
@@ -128,31 +114,33 @@ projectsRouter.post('/', async (req: Request, res: Response, next: NextFunction)
 // PATCH /hubs/:hubId/projects/:projectId
 projectsRouter.patch('/:projectId', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
-    if (req.body.name !== undefined) updates.name = req.body.name;
-    if (req.body.description !== undefined) updates.description = req.body.description;
-    if (req.body.status !== undefined) updates.status = req.body.status;
-    if (req.body.startDate !== undefined) updates.start_date = req.body.startDate;
-    if (req.body.targetEndDate !== undefined) updates.target_end_date = req.body.targetEndDate;
-    if (req.body.lead !== undefined) updates.lead = req.body.lead;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const data: Record<string, any> = {};
+    if (req.body.name !== undefined) data.name = req.body.name;
+    if (req.body.description !== undefined) data.description = req.body.description;
+    if (req.body.status !== undefined) data.status = req.body.status;
+    if (req.body.startDate !== undefined) data.startDate = req.body.startDate ? new Date(req.body.startDate) : null;
+    if (req.body.targetEndDate !== undefined) data.targetEndDate = req.body.targetEndDate ? new Date(req.body.targetEndDate) : null;
+    if (req.body.lead !== undefined) data.lead = req.body.lead;
 
-    const { data, error } = await supabase
-      .from('hub_project')
-      .update(updates)
-      .eq('id', req.params.projectId)
-      .eq('hub_id', req.params.hubId)
-      .select('*')
-      .single();
+    // Verify project belongs to this hub before updating
+    const existing = await req.repo!.hubProject.findFirst({
+      where: { id: req.params.projectId, hubId: req.params.hubId },
+      select: { id: true },
+    });
+    if (!existing) throw Errors.notFound('Project', req.params.projectId);
 
-    if (error || !data) throw Errors.notFound('Project', req.params.projectId);
+    const project = await req.repo!.hubProject.update({
+      where: { id: req.params.projectId },
+      data,
+    });
 
-    const { data: milestones } = await supabase
-      .from('hub_milestone')
-      .select('*')
-      .eq('project_id', req.params.projectId)
-      .order('sort_order', { ascending: true });
+    const milestones = await req.repo!.hubMilestone.findMany({
+      where: { projectId: req.params.projectId },
+      orderBy: { sortOrder: 'asc' },
+    });
 
-    sendItem(res, mapProjectRow(data as ProjectRow, (milestones || []) as MilestoneRow[]));
+    sendItem(res, mapProject(project, milestones));
   } catch (err) {
     next(err);
   }
@@ -161,13 +149,17 @@ projectsRouter.patch('/:projectId', async (req: Request, res: Response, next: Ne
 // DELETE /hubs/:hubId/projects/:projectId (soft delete → cancelled)
 projectsRouter.delete('/:projectId', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { error } = await supabase
-      .from('hub_project')
-      .update({ status: 'cancelled', updated_at: new Date().toISOString() })
-      .eq('id', req.params.projectId)
-      .eq('hub_id', req.params.hubId);
+    const existing = await req.repo!.hubProject.findFirst({
+      where: { id: req.params.projectId, hubId: req.params.hubId },
+      select: { id: true },
+    });
+    if (!existing) throw Errors.notFound('Project', req.params.projectId);
 
-    if (error) throw error;
+    await req.repo!.hubProject.update({
+      where: { id: req.params.projectId },
+      data: { status: 'cancelled' },
+    });
+
     send204(res);
   } catch (err) {
     next(err);
@@ -182,26 +174,22 @@ projectsRouter.post('/:projectId/milestones', async (req: Request, res: Response
     if (!name) throw Errors.badRequest('name is required');
 
     // Get next sort order
-    const { count } = await supabase
-      .from('hub_milestone')
-      .select('id', { count: 'exact', head: true })
-      .eq('project_id', req.params.projectId);
+    const count = await req.repo!.hubMilestone.count({
+      where: { projectId: req.params.projectId },
+    });
 
-    const { data, error } = await supabase
-      .from('hub_milestone')
-      .insert({
-        project_id: req.params.projectId,
+    const milestone = await req.repo!.hubMilestone.create({
+      data: {
+        projectId: req.params.projectId,
         name,
         description: description || null,
-        target_date: targetDate || null,
+        targetDate: targetDate ? new Date(targetDate) : null,
         status: 'not_started',
-        sort_order: (count || 0),
-      })
-      .select('*')
-      .single();
+        sortOrder: count,
+      },
+    });
 
-    if (error) throw error;
-    sendItem(res, mapMilestoneRow(data as MilestoneRow), 201);
+    sendItem(res, mapMilestone(milestone), 201);
   } catch (err) {
     next(err);
   }
@@ -211,25 +199,28 @@ projectsRouter.post('/:projectId/milestones', async (req: Request, res: Response
 projectsRouter.patch('/:projectId/milestones/:milestoneId', async (req: Request, res: Response, next: NextFunction) => {
   try {
     await verifyProjectOwnership(req);
-    const updates: Record<string, unknown> = {};
-    if (req.body.name !== undefined) updates.name = req.body.name;
-    if (req.body.description !== undefined) updates.description = req.body.description;
-    if (req.body.targetDate !== undefined) updates.target_date = req.body.targetDate;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const data: Record<string, any> = {};
+    if (req.body.name !== undefined) data.name = req.body.name;
+    if (req.body.description !== undefined) data.description = req.body.description;
+    if (req.body.targetDate !== undefined) data.targetDate = req.body.targetDate ? new Date(req.body.targetDate) : null;
     if (req.body.status !== undefined) {
-      updates.status = req.body.status;
-      if (req.body.status === 'completed') updates.completed_at = new Date().toISOString();
+      data.status = req.body.status;
+      if (req.body.status === 'completed') data.completedAt = new Date();
     }
 
-    const { data, error } = await supabase
-      .from('hub_milestone')
-      .update(updates)
-      .eq('id', req.params.milestoneId)
-      .eq('project_id', req.params.projectId)
-      .select('*')
-      .single();
+    // Verify milestone belongs to this project
+    const existingMs = await req.repo!.hubMilestone.findFirst({
+      where: { id: req.params.milestoneId, projectId: req.params.projectId },
+      select: { id: true },
+    });
+    if (!existingMs) throw Errors.notFound('Milestone', req.params.milestoneId);
 
-    if (error || !data) throw Errors.notFound('Milestone', req.params.milestoneId);
-    sendItem(res, mapMilestoneRow(data as MilestoneRow));
+    const milestone = await req.repo!.hubMilestone.update({
+      where: { id: req.params.milestoneId },
+      data,
+    });
+    sendItem(res, mapMilestone(milestone));
   } catch (err) {
     next(err);
   }
@@ -239,13 +230,17 @@ projectsRouter.patch('/:projectId/milestones/:milestoneId', async (req: Request,
 projectsRouter.delete('/:projectId/milestones/:milestoneId', async (req: Request, res: Response, next: NextFunction) => {
   try {
     await verifyProjectOwnership(req);
-    const { error } = await supabase
-      .from('hub_milestone')
-      .delete()
-      .eq('id', req.params.milestoneId)
-      .eq('project_id', req.params.projectId);
+    // Verify milestone belongs to this project
+    const existingMs = await req.repo!.hubMilestone.findFirst({
+      where: { id: req.params.milestoneId, projectId: req.params.projectId },
+      select: { id: true },
+    });
+    if (!existingMs) throw Errors.notFound('Milestone', req.params.milestoneId);
 
-    if (error) throw error;
+    await req.repo!.hubMilestone.delete({
+      where: { id: req.params.milestoneId },
+    });
+
     send204(res);
   } catch (err) {
     next(err);
