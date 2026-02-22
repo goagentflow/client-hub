@@ -7,7 +7,6 @@
  */
 
 import { Request, Response, NextFunction } from 'express';
-import { supabase } from '../adapters/supabase.adapter.js';
 import { logger } from '../utils/logger.js';
 import type { HubAccess } from '../types/api.js';
 
@@ -36,15 +35,15 @@ export async function hubAccessMiddleware(req: Request, res: Response, next: Nex
       res.status(403).json({ code: 'FORBIDDEN', message: 'Portal access denied', correlationId: req.correlationId });
       return;
     }
-    // Check hub is still published (immediate lockout on unpublish)
-    const { data: hub, error: hubError } = await supabase.from('hub').select('is_published')
-      .eq('id', hubId).single();
-    if (hubError) {
-      logger.error({ err: hubError, hubId }, 'Failed to check hub published status');
+    const hub = await req.repo!.hub.findFirst({
+      where: { id: hubId },
+      select: { isPublished: true },
+    });
+    if (!hub) {
       res.status(500).json({ code: 'INTERNAL_ERROR', message: 'Unable to verify hub access', correlationId: req.correlationId });
       return;
     }
-    if (!hub?.is_published) {
+    if (!hub.isPublished) {
       res.status(403).json({ code: 'FORBIDDEN', message: 'This hub is no longer available', correlationId: req.correlationId });
       return;
     }
@@ -59,12 +58,8 @@ export async function hubAccessMiddleware(req: Request, res: Response, next: Nex
   // Staff can access all hubs
   if (user.isStaff) {
     req.hubAccess = {
-      hubId,
-      canView: true,
-      canEdit: true,
-      canInvite: true,
-      canViewInternal: true,
-      accessLevel: 'full_access',
+      hubId, canView: true, canEdit: true,
+      canInvite: true, canViewInternal: true, accessLevel: 'full_access',
     };
     next();
     return;
@@ -72,13 +67,12 @@ export async function hubAccessMiddleware(req: Request, res: Response, next: Nex
 
   // Client users: check hub's clientDomain matches user email domain
   try {
-    const { data: hub, error } = await supabase
-      .from('hub')
-      .select('id, client_domain')
-      .eq('id', hubId)
-      .single();
+    const hub = await req.repo!.hub.findFirst({
+      where: { id: hubId },
+      select: { id: true, clientDomain: true },
+    });
 
-    if (error || !hub) {
+    if (!hub) {
       res.status(404).json({
         code: 'NOT_FOUND',
         message: `Hub '${hubId}' not found`,
@@ -88,8 +82,8 @@ export async function hubAccessMiddleware(req: Request, res: Response, next: Nex
     }
 
     const userDomain = user.email.split('@')[1];
-    if (hub.client_domain !== userDomain) {
-      logger.warn({ hubId, userDomain, hubDomain: hub.client_domain }, 'Hub access denied');
+    if (hub.clientDomain !== userDomain) {
+      logger.warn({ hubId, userDomain, hubDomain: hub.clientDomain }, 'Hub access denied');
       res.status(403).json({
         code: 'FORBIDDEN',
         message: 'You do not have access to this hub',
@@ -99,12 +93,8 @@ export async function hubAccessMiddleware(req: Request, res: Response, next: Nex
     }
 
     req.hubAccess = {
-      hubId,
-      canView: true,
-      canEdit: false,
-      canInvite: false,
-      canViewInternal: false,
-      accessLevel: 'view_only',
+      hubId, canView: true, canEdit: false,
+      canInvite: false, canViewInternal: false, accessLevel: 'view_only',
     };
     next();
   } catch (err) {

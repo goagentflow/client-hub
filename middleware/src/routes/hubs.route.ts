@@ -1,10 +1,9 @@
 /**
- * Hub routes — 10 endpoints, all backed by Supabase
+ * Hub routes — 10 endpoints, backed by TenantRepository (Prisma)
  */
 
 import { Router } from 'express';
-import { supabase, mapHubRow, mapPortalConfig } from '../adapters/supabase.adapter.js';
-import { HUB_SELECT } from '../adapters/hub-columns.js';
+import { mapHub, mapPortalConfig } from '../db/hub.mapper.js';
 import { hubAccessMiddleware } from '../middleware/hub-access.js';
 import { requireStaffAccess } from '../middleware/require-staff.js';
 import { sendItem, sendList } from '../utils/response.js';
@@ -14,21 +13,32 @@ import type { Request, Response, NextFunction } from 'express';
 
 export const hubsRouter = Router();
 
+/** Hub select fields — excludes passwordHash */
+const HUB_SELECT = {
+  id: true, tenantId: true, companyName: true, contactName: true,
+  contactEmail: true, status: true, hubType: true, createdAt: true,
+  updatedAt: true, lastActivity: true, clientsInvited: true, lastVisit: true,
+  clientDomain: true, internalNotes: true, convertedAt: true, convertedBy: true,
+  isPublished: true, welcomeHeadline: true, welcomeMessage: true,
+  heroContentType: true, heroContentId: true, showProposal: true,
+  showVideos: true, showDocuments: true, showMessages: true,
+  showMeetings: true, showQuestionnaire: true,
+};
+
 // GET /hubs — paginated list with search/filter/sort (staff-only)
 hubsRouter.get('/', requireStaffAccess, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { page, pageSize } = parsePagination(req.query);
-    const offset = (page - 1) * pageSize;
-
-    let query = supabase.from('hub').select(HUB_SELECT, { count: 'exact' });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const where: Record<string, any> = {};
 
     // Search by company name
     if (req.query.search) {
       const sanitised = String(req.query.search).replace(/[^a-zA-Z0-9 '\-]/g, '').trim();
-      if (sanitised.length > 0) query = query.ilike('company_name', `%${sanitised}%`);
+      if (sanitised.length > 0) where.companyName = { contains: sanitised, mode: 'insensitive' };
     }
 
-    // Parse filter param (current frontend sends "hubType:pitch" or "hubType:client")
+    // Filter by hub type
     let hubTypeFilter: string | undefined;
     let statusFilter: string | undefined;
     if (req.query.filter) {
@@ -38,32 +48,33 @@ hubsRouter.get('/', requireStaffAccess, async (req: Request, res: Response, next
       if (key === 'status') statusFilter = val;
     }
 
-    // Discrete params override filter string (new style)
     const VALID_HUB_TYPES = ['pitch', 'client'];
     const hubType = String(req.query.hubType || hubTypeFilter || '');
-    if (VALID_HUB_TYPES.includes(hubType)) {
-      query = query.eq('hub_type', hubType);
-    }
+    if (VALID_HUB_TYPES.includes(hubType)) where.hubType = hubType;
 
     const VALID_STATUSES = ['draft', 'active', 'won', 'lost'];
     const status = String(req.query.status || statusFilter || '');
-    if (VALID_STATUSES.includes(status)) {
-      query = query.eq('status', status);
-    }
+    if (VALID_STATUSES.includes(status)) where.status = status;
 
-    // Whitelist sort fields
-    const VALID_SORTS = ['updated_at', 'created_at', 'company_name', 'status'];
-    const sortField = VALID_SORTS.includes(String(req.query.sortBy || ''))
-      ? String(req.query.sortBy) : 'updated_at';
-    query = query.order(sortField, { ascending: req.query.sortOrder === 'asc' });
+    // Sort
+    const SORT_MAP: Record<string, string> = {
+      updated_at: 'updatedAt', created_at: 'createdAt',
+      company_name: 'companyName', status: 'status',
+    };
+    const rawSort = String(req.query.sortBy || 'updated_at');
+    const sortField = SORT_MAP[rawSort] || 'updatedAt';
+    const sortDir = req.query.sortOrder === 'asc' ? 'asc' : 'desc';
 
-    const { data, count, error } = await query.range(offset, offset + pageSize - 1);
+    const [items, totalItems] = await Promise.all([
+      req.repo!.hub.findMany({
+        where, select: HUB_SELECT,
+        orderBy: { [sortField]: sortDir },
+        skip: (page - 1) * pageSize, take: pageSize,
+      }),
+      req.repo!.hub.count({ where }),
+    ]);
 
-    if (error) throw error;
-
-    const totalItems = count || 0;
-    const items = (data || []).map(mapHubRow);
-    sendList(res, items, { page, pageSize, totalItems, totalPages: Math.ceil(totalItems / pageSize) });
+    sendList(res, items.map(mapHub), { page, pageSize, totalItems, totalPages: Math.ceil(totalItems / pageSize) });
   } catch (err) {
     next(err);
   }
@@ -75,15 +86,9 @@ hubsRouter.use('/:hubId', hubAccessMiddleware);
 // GET /hubs/:hubId — single hub (staff-only)
 hubsRouter.get('/:hubId', requireStaffAccess, async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { data, error } = await supabase
-      .from('hub')
-      .select(HUB_SELECT)
-      .eq('id', req.params.hubId)
-      .single();
-
-    if (error || !data) throw Errors.notFound('Hub', req.params.hubId);
-
-    sendItem(res, mapHubRow(data));
+    const hub = await req.repo!.hub.findFirst({ where: { id: req.params.hubId }, select: HUB_SELECT });
+    if (!hub) throw Errors.notFound('Hub', req.params.hubId);
+    sendItem(res, mapHub(hub));
   } catch (err) {
     next(err);
   }
@@ -93,34 +98,20 @@ hubsRouter.get('/:hubId', requireStaffAccess, async (req: Request, res: Response
 hubsRouter.post('/', requireStaffAccess, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { companyName, contactName, contactEmail, clientDomain } = req.body;
-
     if (!companyName || !contactName || !contactEmail) {
       throw Errors.badRequest('companyName, contactName, and contactEmail are required');
     }
 
-    const now = new Date().toISOString();
     const domain = clientDomain || contactEmail.split('@')[1];
+    const hub = await req.repo!.hub.create({
+      data: {
+        companyName, contactName, contactEmail,
+        status: 'draft', hubType: 'pitch', clientDomain: domain,
+      },
+      select: HUB_SELECT,
+    });
 
-    const { data, error } = await supabase
-      .from('hub')
-      .insert({
-        company_name: companyName,
-        contact_name: contactName,
-        contact_email: contactEmail,
-        status: 'draft',
-        hub_type: 'pitch',
-        client_domain: domain,
-        created_at: now,
-        updated_at: now,
-        last_activity: now,
-        clients_invited: 0,
-      })
-      .select(HUB_SELECT)
-      .single();
-
-    if (error) throw error;
-
-    sendItem(res, mapHubRow(data), 201);
+    sendItem(res, mapHub(hub), 201);
   } catch (err) {
     next(err);
   }
@@ -129,23 +120,18 @@ hubsRouter.post('/', requireStaffAccess, async (req: Request, res: Response, nex
 // PATCH /hubs/:hubId — update hub (staff-only)
 hubsRouter.patch('/:hubId', requireStaffAccess, async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const data: Record<string, any> = {};
+    if (req.body.companyName !== undefined) data.companyName = req.body.companyName;
+    if (req.body.contactName !== undefined) data.contactName = req.body.contactName;
+    if (req.body.contactEmail !== undefined) data.contactEmail = req.body.contactEmail;
+    if (req.body.status !== undefined) data.status = req.body.status;
 
-    if (req.body.companyName !== undefined) updates.company_name = req.body.companyName;
-    if (req.body.contactName !== undefined) updates.contact_name = req.body.contactName;
-    if (req.body.contactEmail !== undefined) updates.contact_email = req.body.contactEmail;
-    if (req.body.status !== undefined) updates.status = req.body.status;
-
-    const { data, error } = await supabase
-      .from('hub')
-      .update(updates)
-      .eq('id', req.params.hubId)
-      .select(HUB_SELECT)
-      .single();
-
-    if (error || !data) throw Errors.notFound('Hub', req.params.hubId);
-
-    sendItem(res, mapHubRow(data));
+    const hub = await req.repo!.hub.update({
+      where: { id: req.params.hubId }, data, select: HUB_SELECT,
+    });
+    if (!hub) throw Errors.notFound('Hub', req.params.hubId);
+    sendItem(res, mapHub(hub));
   } catch (err) {
     next(err);
   }
@@ -155,33 +141,22 @@ hubsRouter.patch('/:hubId', requireStaffAccess, async (req: Request, res: Respon
 hubsRouter.get('/:hubId/overview', requireStaffAccess, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const hubId = req.params.hubId;
+    const hub = await req.repo!.hub.findFirst({ where: { id: hubId }, select: HUB_SELECT });
+    if (!hub) throw Errors.notFound('Hub', hubId);
 
-    const { data: hub, error: hubErr } = await supabase
-      .from('hub')
-      .select(HUB_SELECT)
-      .eq('id', hubId)
-      .single();
-
-    if (hubErr || !hub) throw Errors.notFound('Hub', hubId);
-
-    // Count videos and documents
     const [videoCount, docCount] = await Promise.all([
-      supabase.from('hub_video').select('id', { count: 'exact', head: true }).eq('hub_id', hubId),
-      supabase.from('hub_document').select('id', { count: 'exact', head: true }).eq('hub_id', hubId),
+      req.repo!.hubVideo.count({ where: { hubId } }),
+      req.repo!.hubDocument.count({ where: { hubId } }),
     ]);
 
     sendItem(res, {
-      hub: mapHubRow(hub),
+      hub: mapHub(hub),
       alerts: [],
-      internalNotes: hub.internal_notes || '',
+      internalNotes: hub.internalNotes || '',
       engagementStats: {
-        totalViews: 0,
-        uniqueVisitors: 0,
-        avgTimeSpent: 0,
-        lastVisit: hub.last_visit,
-        proposalViews: 0,
-        documentDownloads: docCount.count || 0,
-        videoWatchTime: videoCount.count || 0,
+        totalViews: 0, uniqueVisitors: 0, avgTimeSpent: 0,
+        lastVisit: hub.lastVisit, proposalViews: 0,
+        documentDownloads: docCount, videoWatchTime: videoCount,
       },
     });
   } catch (err) {
@@ -192,16 +167,11 @@ hubsRouter.get('/:hubId/overview', requireStaffAccess, async (req: Request, res:
 // PATCH /hubs/:hubId/notes — update internal notes (staff-only)
 hubsRouter.patch('/:hubId/notes', requireStaffAccess, async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { notes } = req.body;
-
-    const { error } = await supabase
-      .from('hub')
-      .update({ internal_notes: notes, updated_at: new Date().toISOString() })
-      .eq('id', req.params.hubId);
-
-    if (error) throw error;
-
-    sendItem(res, { notes });
+    await req.repo!.hub.update({
+      where: { id: req.params.hubId },
+      data: { internalNotes: req.body.notes },
+    });
+    sendItem(res, { notes: req.body.notes });
   } catch (err) {
     next(err);
   }
@@ -212,85 +182,53 @@ hubsRouter.get('/:hubId/activity', requireStaffAccess, async (req: Request, res:
   try {
     const hubId = req.params.hubId;
     const { page, pageSize } = parsePagination(req.query);
-    const offset = (page - 1) * pageSize;
 
-    const { count } = await supabase
-      .from('hub_event')
-      .select('id', { count: 'exact', head: true })
-      .eq('hub_id', hubId);
+    const [events, totalItems] = await Promise.all([
+      req.repo!.hubEvent.findMany({
+        where: { hubId },
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * pageSize, take: pageSize,
+      }),
+      req.repo!.hubEvent.count({ where: { hubId } }),
+    ]);
 
-    const totalItems = count || 0;
-
-    const { data, error } = await supabase
-      .from('hub_event')
-      .select('*')
-      .eq('hub_id', hubId)
-      .order('created_at', { ascending: false })
-      .range(offset, offset + pageSize - 1);
-
-    if (error) throw error;
-
-    // Map to ActivityFeedItem shape
-    const items = (data || []).map((row: Record<string, unknown>) => ({
-      id: row.id,
-      type: 'view',
-      title: String(row.event_type || ''),
-      description: '',
-      timestamp: row.created_at,
-      actor: row.user_name
-        ? { name: row.user_name, email: row.user_email || '', avatarUrl: null }
-        : null,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const items = events.map((e: any) => ({
+      id: e.id, type: 'view', title: String(e.eventType || ''),
+      description: '', timestamp: e.createdAt,
+      actor: e.userName ? { name: e.userName, email: e.userEmail || '', avatarUrl: null } : null,
       resourceLink: null,
     }));
 
-    sendList(res, items, {
-      page,
-      pageSize,
-      totalItems,
-      totalPages: Math.ceil(totalItems / pageSize),
-    });
+    sendList(res, items, { page, pageSize, totalItems, totalPages: Math.ceil(totalItems / pageSize) });
   } catch (err) {
     next(err);
   }
 });
-
-// Portal config (GET, PATCH) are in portal-config.route.ts
 
 // POST /hubs/:hubId/publish — publish portal (staff-only)
 hubsRouter.post('/:hubId/publish', requireStaffAccess, async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { data, error } = await supabase
-      .from('hub')
-      .update({ is_published: true, updated_at: new Date().toISOString() })
-      .eq('id', req.params.hubId)
-      .select(HUB_SELECT)
-      .single();
-
-    if (error || !data) throw Errors.notFound('Hub', req.params.hubId);
-
-    sendItem(res, mapPortalConfig(data));
+    const hub = await req.repo!.hub.update({
+      where: { id: req.params.hubId },
+      data: { isPublished: true }, select: HUB_SELECT,
+    });
+    if (!hub) throw Errors.notFound('Hub', req.params.hubId);
+    sendItem(res, mapPortalConfig(hub));
   } catch (err) {
     next(err);
   }
 });
 
-// GET /hubs/:hubId/portal-preview — staff preview of portal-meta (no is_published filter)
+// GET /hubs/:hubId/portal-preview — staff preview of portal
 hubsRouter.get('/:hubId/portal-preview', requireStaffAccess, async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { data, error } = await supabase
-      .from('hub')
-      .select('id, company_name, hub_type, is_published')
-      .eq('id', req.params.hubId)
-      .single();
-
-    if (error || !data) throw Errors.notFound('Hub', req.params.hubId);
-
-    sendItem(res, {
-      id: data.id,
-      companyName: data.company_name,
-      hubType: data.hub_type,
-      isPublished: data.is_published,
+    const hub = await req.repo!.hub.findFirst({
+      where: { id: req.params.hubId },
+      select: { id: true, companyName: true, hubType: true, isPublished: true },
     });
+    if (!hub) throw Errors.notFound('Hub', req.params.hubId);
+    sendItem(res, { id: hub.id, companyName: hub.companyName, hubType: hub.hubType, isPublished: hub.isPublished });
   } catch (err) {
     next(err);
   }

@@ -12,8 +12,8 @@
 **Decision:** Host all infrastructure in AgentFlow's own Azure subscription.
 
 **This supersedes:**
-- `docs/middleware/ARCHITECTURE_V3_FINAL.md` (customer-hosted Azure + SharePoint lists)
-- `docs/middleware/ARCHITECTURE_DECISIONS.md` (self-hosted in customer Azure)
+- `docs/archive/ARCHITECTURE_V3_FINAL.md` (customer-hosted Azure + SharePoint lists)
+- `docs/archive/ARCHITECTURE_DECISIONS.md` (self-hosted in customer Azure)
 
 **Rationale for change:**
 - Original architecture assumed enterprise SaaS with per-customer Azure deployments — premature for current stage
@@ -233,10 +233,11 @@ At launch scale (<50 users), Hamish is the escalation point. No 24/7 on-call req
 
 **What's built:**
 
-Phase 0a — Infrastructure:
+Phase 0a — Infrastructure (DEFERRED — create when ready for first client deployment):
+- **Status:** Resource group `rg-agentflow-hub` created in UK South. All other resources deferred to avoid costs (~$15-20/month for PostgreSQL alone). Code works fully in mock mode for development and demos.
 - Azure App Service (middleware) with deployment slots (staging + production)
 - Azure Static Web Apps (frontend) with custom domain
-- Azure Database for PostgreSQL (Flexible Server) with schema migration from Supabase
+- Azure Database for PostgreSQL (Flexible Server, Burstable B1ms) with schema migration
 - Azure Blob Storage (private container for future file uploads)
 - Azure Monitor + Log Analytics for logging and alerting
 - Custom domains (e.g. `hub.goagentflow.com` + `api.goagentflow.com`)

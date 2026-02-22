@@ -1,37 +1,91 @@
 # AgentFlow Pitch Hub v0.1
 
-A client pitch portal built on Microsoft 365. This is AgentFlow eating its own dog food — we're building a minimal pitch hub to use ourselves before selling the full platform to professional services firms.
+A client pitch and relationship portal built on Microsoft 365. AgentFlow is building this to use with our own clients before selling the full platform to professional services firms.
 
 ## What This Is
 
-**Phase 2: Client Hubs.** This front-end now includes both Pitch Hubs (prospecting) and Client Hubs (active client relationships). Built in React/TypeScript with mock API layer.
+Two hub types, each with staff and client views:
 
-The application covers two hub types:
 - **Pitch Hubs** — Managing new business pitches (proposals, videos, documents, meetings)
-- **Client Hubs** — Ongoing client relationships (projects, relationship health, expansion opportunities)
+- **Client Hubs** — Ongoing client relationships (projects, health scoring, expansion opportunities)
 
-Each hub type has two user experiences:
-- **AgentFlow Staff View** — Manage content, track engagement, view AI insights
-- **Client View** — Access shared content and collaborate
+The frontend wireframe is complete for both hub types. The middleware API layer (113 endpoints) is in active development, with Azure AD authentication code-complete.
 
-## Where This Fits
+## New Developer? Start Here
 
-This is v0.1 of a larger product vision. The full AgentFlow Hubs platform will be a client relationship tool for professional services firms, with AI-powered insights and Microsoft 365 integration throughout.
-
-**Read the full vision:** See [VISION_AND_ASSUMPTIONS.md](./VISION_AND_ASSUMPTIONS.md) for:
-- The complete product vision
-- How v0.1 fits within it
-- All middleware technical assumptions
-- Graph API permissions required
-- Open questions for discovery
+1. **`README.md`** — You're here. Setup instructions and project overview.
+2. **`progress/STATUS.md`** — Where the project is now, full roadmap, key decisions.
+3. **`AGENTS.md`** — Architecture canon and coding standards.
+4. **`docs/PRODUCTION_ROADMAP.md`** — Detailed phase plan with endpoint inventory.
+5. **`docs/API_SPECIFICATION.md`** — Complete API contract (113 endpoints).
+6. **`docs/middleware/MSAL_AUTH_IMPLEMENTATION_PLAN.md`** — Auth design (if working on auth).
 
 ## Tech Stack
 
-- **Vite** — build tool
-- **TypeScript** — type safety
-- **React** — UI framework
-- **Tailwind CSS** — styling
-- **shadcn/ui** — component library
+**Frontend:**
+- Vite (build tool)
+- TypeScript
+- React
+- Tailwind CSS
+- shadcn/ui components
+- MSAL.js (@azure/msal-browser) for Azure AD login
+
+**Middleware:**
+- Express (Node.js)
+- TypeScript
+- Prisma 6 (ORM)
+- jose (JWT validation — Azure AD RS256 + portal HS256)
+- Zod (input validation)
+- Pino (structured logging)
+
+## Development
+
+### Prerequisites
+- Node.js 18+ — [install with nvm](https://github.com/nvm-sh/nvm)
+- pnpm — `npm install -g pnpm`
+
+### Frontend
+```sh
+git clone <REPO_URL>
+cd agentflow-pitch-hub-wireframe
+npm install
+npm run dev              # http://localhost:5173
+```
+
+### Middleware
+```sh
+cd middleware
+pnpm install
+cp .env.example .env     # Defaults: AUTH_MODE=demo, DATA_BACKEND=mock
+pnpm run dev             # http://localhost:3001
+```
+
+### Tests
+```sh
+cd middleware
+pnpm test                # 66 tests across 4 files
+```
+
+## Project Structure
+
+```
+/src                        # Frontend (React)
+  /components               # UI components
+  /pages                    # Page views
+  /services                 # API client, auth service
+  /lib                      # Utilities
+/middleware                  # Backend (Express)
+  /src
+    /config                 # Environment config (AUTH_MODE, DATA_BACKEND)
+    /middleware              # Auth, hub-access, inject-repository
+    /routes                 # 113 API endpoints
+    /adapters               # Data layer adapters
+    /db                     # Prisma client, TenantRepository, AdminRepository
+  /prisma
+    schema.prisma           # Database schema
+/docs                       # Architecture docs, API spec, phase plans
+/progress                   # STATUS.md — master project status
+```
 
 ## Brand Guidelines
 
@@ -52,77 +106,15 @@ This is v0.1 of a larger product vision. The full AgentFlow Hubs platform will b
 
 **Logo:** https://www.goagentflow.com/assets/images/AgentFlowLogo.svg
 
-## Development
-
-### Prerequisites
-
-- Node.js & npm — [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-### Local Setup
-```sh
-# Clone the repository
-git clone <YOUR_GIT_URL>
-
-# Navigate to project directory
-cd <YOUR_PROJECT_NAME>
-
-# Install dependencies
-npm i
-
-# Start development server
-npm run dev
-```
-
-### Editing Options
-
-**Lovable:** Visit the [Lovable Project](https://lovable.dev/projects/2d3fa705-4a22-46bc-ab6d-2969a7cce80a) and prompt changes directly. Commits automatically.
-
-**Local IDE:** Clone, edit, push. Changes sync back to Lovable.
-
-**Cursor + AI:** Use Cursor with Claude Code CLI, Gemini CLI, or Codex CLI. See `.cursorrules` for project context.
-
-## Project Structure
-```
-/src
-  /components    # UI components
-  /pages         # Page views
-  /lib           # Utilities (will include Graph API helpers)
-  /assets        # Images, icons
-/docs
-  VISION_AND_ASSUMPTIONS.md
-```
-
-## Deployment
-
-**Preview:** Open [Lovable](https://lovable.dev/projects/2d3fa705-4a22-46bc-ab6d-2969a7cce80a) → Share → Publish
-
-**Custom domain:** Project → Settings → Domains → Connect Domain. [Docs](https://docs.lovable.dev/features/custom-domain#custom-domain)
-
 ## Current Status
 
-**Phase 2 Complete.** Client Hubs functionality implemented including:
-- Hub conversion (pitch → client)
-- Projects with milestones
-- Relationship Health Dashboard
-- Expansion Radar
-- Client Intelligence (Instant Answers, Meeting Prep)
-- Decision Queue
-- History & Alerts
-- Leadership Portfolio (admin-only)
-
-## What's Next
-
-1. **Stephen:** Complete Microsoft Graph API middleware
-2. **Together:** Connect front-end to middleware, test with real M365 tenant
-3. **Production:** Security hardening, multi-tenant deployment
+Phase 0b (codebase refactor) is in progress — migrating from Supabase to Prisma, replacing DEMO_MODE with orthogonal AUTH_MODE + DATA_BACKEND config. See `progress/STATUS.md` for full details.
 
 ## Key Documents
 
-- [VISION_AND_ASSUMPTIONS.md](./VISION_AND_ASSUMPTIONS.md) — Full product vision and middleware assumptions
-- [docs/PHASE_2_CLIENT_HUBS.md](./docs/PHASE_2_CLIENT_HUBS.md) — Phase 2 Client Hubs specification
-- [docs/API_SPECIFICATION.md](./docs/API_SPECIFICATION.md) — Complete API contract for middleware
-- `.cursorrules` — Context for AI coding assistants
-
----
-
-*Phase 2 implementation complete. Mock API layer in place, ready for middleware integration.*
+- [progress/STATUS.md](./progress/STATUS.md) — Master project status and roadmap
+- [AGENTS.md](./AGENTS.md) — Architecture canon and coding standards
+- [docs/PRODUCTION_ROADMAP.md](./docs/PRODUCTION_ROADMAP.md) — Detailed phase plan
+- [docs/API_SPECIFICATION.md](./docs/API_SPECIFICATION.md) — Complete API contract
+- [docs/PHASE_2_CLIENT_HUBS.md](./docs/PHASE_2_CLIENT_HUBS.md) — Phase 2 specification
+- [docs/Vision_and_Assumptions.md](./docs/Vision_and_Assumptions.md) — Product vision

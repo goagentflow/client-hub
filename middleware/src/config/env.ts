@@ -1,6 +1,9 @@
 import { z } from 'zod';
 import 'dotenv/config';
 
+const authModes = ['azure_ad', 'demo'] as const;
+const dataBackends = ['azure_pg', 'mock'] as const;
+
 const envSchema = z.object({
   // Server
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
@@ -9,12 +12,14 @@ const envSchema = z.object({
     .default('3001')
     .transform((val) => Number(val)),
 
-  // Demo mode — Supabase adapter instead of SharePoint
-  DEMO_MODE: z.string().default('true').transform((val) => val.toLowerCase() === 'true'),
+  // Auth mode: azure_ad = real JWT auth, demo = X-Dev-User-Email header
+  AUTH_MODE: z.enum(authModes).default('demo'),
 
-  // Supabase (required when DEMO_MODE=true)
-  SUPABASE_URL: z.string().url().optional(),
-  SUPABASE_SERVICE_ROLE_KEY: z.string().min(1).optional(),
+  // Data backend: azure_pg = PostgreSQL via Prisma, mock = in-memory/Supabase mock
+  DATA_BACKEND: z.enum(dataBackends).default('mock'),
+
+  // PostgreSQL (required when DATA_BACKEND=azure_pg)
+  DATABASE_URL: z.string().min(1).optional(),
 
   // Azure AD - App Registration
   AZURE_TENANT_ID: z.string().min(1, 'AZURE_TENANT_ID is required'),
@@ -24,9 +29,6 @@ const envSchema = z.object({
   // Azure AD JWT validation
   AZURE_JWKS_URI: z.string().url().optional(),
   STAFF_ROLE_NAME: z.string().default('Staff'),
-
-  // SharePoint (optional in demo mode)
-  SHAREPOINT_SITE_URL: z.string().url().optional(),
 
   // Portal auth
   PORTAL_TOKEN_SECRET: z.string().min(32).default('dev-portal-secret-change-in-production-min-32-chars'),
@@ -56,21 +58,19 @@ function loadEnv(): z.infer<typeof envSchema> {
 
   const data = result.data;
 
-  // DEMO_MODE=true is blocked in production (must use real JWT auth)
-  if (data.DEMO_MODE && data.NODE_ENV === 'production') {
-    throw new Error('DEMO_MODE=true is not allowed in production. Set DEMO_MODE=false and configure SharePoint.');
+  // Production guard: block demo auth AND mock data in production
+  if (data.NODE_ENV === 'production') {
+    if (data.AUTH_MODE === 'demo') {
+      throw new Error('AUTH_MODE=demo is not allowed in production. Set AUTH_MODE=azure_ad.');
+    }
+    if (data.DATA_BACKEND === 'mock') {
+      throw new Error('DATA_BACKEND=mock is not allowed in production. Set DATA_BACKEND=azure_pg.');
+    }
   }
 
   // Validate mode-specific config
-  if (data.DEMO_MODE) {
-    if (!data.SUPABASE_URL || !data.SUPABASE_SERVICE_ROLE_KEY) {
-      throw new Error('SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required when DEMO_MODE=true');
-    }
-  } else if (data.NODE_ENV === 'production') {
-    // Production: SharePoint is required
-    if (!data.SHAREPOINT_SITE_URL) {
-      throw new Error('SHAREPOINT_SITE_URL is required when DEMO_MODE=false in production');
-    }
+  if (data.DATA_BACKEND === 'azure_pg' && !data.DATABASE_URL) {
+    throw new Error('DATABASE_URL is required when DATA_BACKEND=azure_pg');
   }
 
   // Validate portal token secret in production

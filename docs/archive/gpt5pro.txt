@@ -1,0 +1,475 @@
+Here’s how I’d shape this so you can start building the middleware with confidence.
+
+---
+
+## 1. High‑level architecture
+
+Think of three big layers that all “skins” and agents share:
+
+1. **Experience layer (skins & channels)**
+
+   * Web SPA(s): Pitch Hub (current React app), future “Client Hub”, other verticals.
+   * Teams app / Outlook add‑in (later).
+   * Copilot / AI agents / Power Automate connectors calling the same HTTP API.
+
+2. **AgentFlow Middleware (your new backend)**
+
+   * **Auth & Identity**
+   * **Hub & Access Management**
+   * **Content Services:** Documents, Videos, Messages (email), Meetings, Questionnaires.
+   * **Engagement & Activity Tracking**
+   * **Portal Configuration & Theming**
+   * **Integration Layer for Microsoft Graph / Forms / Stream / Storage**
+
+3. **Data & M365 layer**
+
+   * M365 tenant for the service company:
+
+     * SharePoint / OneDrive (files, video, Stream files)
+     * Outlook / Exchange (shared mailbox for each hub or a central mailbox)
+     * Teams / Calendars (meetings, recordings, transcripts)
+     * Microsoft Forms (questionnaires)
+   * Microsoft Graph as the **only** way the middleware touches M365, matching your diagram.
+   * A small **AgentFlow database** for metadata, analytics and access state.
+
+### 1.1 Tenant & identity model
+
+For the MVP I’d keep this **single‑tenant**:
+
+* One **service company tenant** (your tenant or early customer’s tenant).
+* **Internal staff** are normal Entra ID (Azure AD) users in that tenant.
+* **Clients** are:
+
+  * Either **B2B guests** in that same tenant (recommended, secure and works cleanly with Graph).
+  * Or (fallback) “lightweight” identities authenticated via a separate B2C or passwordless flow, with access to documents via SharePoint sharing links. You can still evolve to B2B later.
+
+**App registrations**
+
+* `agentflow-spa` – Single‑page app
+
+  * Platform: SPA with redirect to your front‑end URL.
+  * Uses MSAL in the browser to get an **access token only for your backend API**, not for Graph.
+* `agentflow-api` – Web API + daemon
+
+  * Exposes scope: `api://agentflow-api/access_as_user`
+  * Has application permissions to Microsoft Graph (Mail, Calendars, Files, User.Read.All, etc.) and uses the **On‑Behalf‑Of (OBO)** flow to call Graph using the user’s delegated permissions.
+
+The front‑end already assumes this pattern: MSAL tokens for your API only, Graph hidden behind the middleware.
+
+### 1.2 Logical service decomposition
+
+Within the middleware, I’d group things into modules that map almost 1:1 to your existing TS types and services so the front‑end can remain a thin client:
+
+1. **Auth & Identity Service**
+
+   * Validates JWT from `agentflow-spa`.
+   * Resolves the current **User** object (ID, email, role, permissions, tenant & domain) as per `types/auth.ts`.
+   * Returns `/auth/me` and `/hubs/{id}/access` data: `AuthMeResponse`, `HubAccessCheckResponse`.
+   * Handles invite acceptance & share‑link resolution for clients.
+
+2. **Hub Service**
+
+   * Hub CRUD, status, overview (`Hub`, `HubOverview`).
+   * Portal configuration (`PortalConfig`, `PortalSectionConfig`).
+   * Activity feed & alerts (`HubAlert`, `EngagementStats`).
+
+3. **Members & Access Service**
+
+   * Hub membership, **domain‑restricted invites**, share links, and access levels (`HubMember`, `HubInvite`, `ShareLink`, `AccessLevel`).
+   * Creates/updates B2B guest users via Graph, and grants them permissions in SharePoint / Teams / shared mailbox.
+
+4. **Documents Service**
+
+   * File upload, listing, metadata, visibility & category filters, version history, and engagement analytics (`Document`, `DocumentEngagement`).
+   * Backed by SharePoint/OneDrive libraries; embed via `embedUrl` and download via `downloadUrl`.
+
+5. **Videos Service**
+
+   * Either SharePoint/Stream hosted or external links.
+   * Mirrors `Video`, `VideoEngagement`, and bulk actions.
+
+6. **Messages Service (Email)**
+
+   * Reads and sends email threads from a **shared mailbox** or specific “pitch” mailbox.
+   * Scopes threads to hubs via **category label** `AgentFlow-Hub:{hubId}`, as assumed in `types/message.ts`.
+   * Stores team notes & archive flags in your DB, not in Graph.
+
+7. **Meetings Service**
+
+   * Schedules, lists and updates meetings using Graph calendar / onlineMeetings APIs.
+   * Enriches with recording & transcript (if Teams Premium), plus AI summary (`Meeting`, `MeetingRecording`, `MeetingTranscript`).
+
+8. **Questionnaire Service**
+
+   * Links a hub to one or more Microsoft Forms, tracks completion, and exposes “start questionnaire” links & simple analytics.
+
+9. **Activity & Engagement Service**
+
+   * Stores `ActivityEvent` and higher‑level `MemberActivity` (join, invite, viewed proposal, etc.).
+   * Supports portal‑side metrics like portal views, last visit, document/video engagement, etc. feeding into `EngagementStats`.
+
+This maps very cleanly onto the existing hooks and services in the React app (`hub.service.ts`, `document.service.ts`, `meeting.service.ts`, `member.service.ts`, `message.service.ts`, etc.), which all expect an `/api` with these modules behind it.
+
+### 1.3 Physical Azure architecture (MVP)
+
+To keep it simple but production‑grade:
+
+* **Front‑end**
+
+  * Azure Static Web Apps *or* Azure App Service hosting the React SPA.
+
+* **Middleware**
+
+  * Azure App Service (container or Node/.NET app) hosting the REST API.
+  * Optionally: Azure Functions for background jobs (webhook handlers, sync, AI summarisation).
+
+* **Data**
+
+  * One **Azure SQL** or **Cosmos DB** for:
+
+    * Hubs, members, invites, share links.
+    * Team notes, engagement events, portal config, hub alerts.
+    * Mapping tables: e.g. `HubId ↔ SharePointSiteId / LibraryId / FolderId`, message thread IDs, meeting IDs.
+
+* **Integration & secrets**
+
+  * Microsoft Graph SDK (Node or .NET).
+  * Azure Key Vault for client secrets & certificates.
+  * Application Insights for telemetry.
+
+* **Security perimeter**
+
+  * HTTPS only.
+  * CORS locked down to known front‑end origins.
+  * Optional: Azure API Management in front of the API (nice‑to‑have, not required for MVP).
+
+Because all access to files, email and meetings goes via Graph, Copilot, Logic Apps, or other agents can reuse the same Graph objects with the same labels/categories you apply from the middleware.
+
+---
+
+## 2. Minimal Viable Middleware – PRD overview
+
+Below is a high‑level PRD for an MVP that can power the current pitch/proposal portal “skin”. I’ll focus on the slices needed for a useful first release, not every type in the repo.
+
+### 2.1 Global constraints
+
+* **Single tenant**: one service company M365 tenant.
+* **Two roles**: `staff` (internal) and `client` (external), matching `UserRole` and `MemberRole` models.
+* **Auth**: Entra ID SSO for staff, B2B guests (or temporary local auth) for clients.
+* **Front‑end contract**: API must conform to the existing TypeScript types and services – no envelopes; return raw `T` / `PaginatedList<T>`, errors as `ApiError`.
+
+---
+
+### PRD‑1 – Auth & Identity
+
+**Objective**
+
+Provide secure SSO and context about who the user is and which hubs they can access.
+
+**Key users**
+
+* Internal staff in the service company.
+* External clients invited to specific hubs.
+
+**Functional requirements**
+
+1. **SSO**
+
+   * Front‑end authenticates via MSAL against `agentflow-spa`.
+   * All API calls include `Authorization: Bearer <token>`.
+
+2. **Current user**
+
+   * `GET /auth/me`
+   * Returns `AuthMeResponse`:
+
+     * `user`: id, email, displayName, role, permissions, tenantId, domain.
+     * `hubAccess[]`: list of `HubAccessSummary` (hubId, hubName, accessLevel, grantedAt).
+
+3. **Hub access check**
+
+   * `GET /hubs/{hubId}/access`
+   * Returns `HubAccessCheckResponse` with:
+
+     * `hasAccess`, `accessLevel`, `HubPermissions` enums (canViewProposal, canViewDocuments, etc.).
+   * React guards already rely on this to gate routes.
+
+4. **Logout**
+
+   * `POST /auth/logout` (server‑side token revocation / sign‑out helpers; front‑end also clears MSAL).
+
+**Non‑functional**
+
+* Tokens validated with issuer, audience, expiry.
+* All endpoints require auth except invite acceptance and health checks.
+* RBAC enforced on every hub‑scoped endpoint.
+
+---
+
+### PRD‑2 – Hubs & Portal Config
+
+**Objective**
+
+Model a “pitch hub” and control what the client sees in their portal.
+
+**Key users**
+
+* Staff: create hubs, manage pitch status, configure portal.
+* Clients: land in portal view for their hub.
+
+**Core entities**
+
+* `Hub` – status, client contact and domain, hubType “pitch”.
+* `HubOverview` – hub + alerts + internal notes + engagement stats.
+* `PortalConfig` – isPublished, headline, message, hero content & enabled sections.
+
+**Features / endpoints**
+
+1. **Hub list & detail (staff)**
+
+   * `GET /hubs?search=&status=&sort=` → `PaginatedList<Hub>`.
+   * `POST /hubs` with `CreateHubRequest`.
+   * `GET /hubs/{hubId}`
+   * `PATCH /hubs/{hubId}` with `UpdateHubRequest`.
+
+2. **Hub overview**
+
+   * `GET /hubs/{hubId}/overview` → `HubOverview` (used by overview screen).
+   * `PATCH /hubs/{hubId}/notes` for internal notes.
+   * `GET /hubs/{hubId}/activity` → `PaginatedList<ActivityFeedItem>` (optional but nice; the list UI exists).
+
+3. **Portal config**
+
+   * `GET /hubs/{hubId}/portal-config` → `PortalConfig`.
+   * `PATCH /hubs/{hubId}/portal-config` to update welcome text, hero, sections.
+   * `POST /hubs/{hubId}/publish` → sets `isPublished=true` and maybe creates a share link / client notification.
+
+4. **Portal entry (client)**
+
+   * `GET /portal/{hubId}/overview` (can be a composition endpoint returning hero content, quick stats & recent items, or front‑end can compose from other endpoints).
+   * Must respect `PortalSectionConfig` toggles (e.g. hide meetings if `showMeetings` is false).
+
+**M365 integration**
+
+* On hub creation, the middleware:
+
+  * Creates a **SharePoint folder** (or site & library) for that hub.
+  * Creates a **mail category** `AgentFlow-Hub:{hubId}` and ensures the shared mailbox uses it.
+  * Optionally: creates a Microsoft 365 Group / Team later (not required for MVP).
+
+---
+
+### PRD‑3 – Members, Invites & Access
+
+**Objective**
+
+Allow staff (and clients, with restrictions) to invite collaborators into a specific hub and manage their access.
+
+**Key entities**
+
+* `HubMember` – with role `staff` or `client`, AccessLevel, permissions and activity timestamps.
+* `HubInvite` – pending invite with token & expiry.
+* `ShareLink` – optional anonymous or semi‑anonymous access with constraints.
+
+**Features / endpoints**
+
+1. **Staff management**
+
+   * `GET /hubs/{hubId}/members` → `PaginatedList<HubMember>`.
+   * `POST /hubs/{hubId}/invites` with `CreateInviteRequest` (staff invites either internal or client emails).
+   * `PATCH /hubs/{hubId}/members/{memberId}` with `UpdateMemberAccessRequest`.
+   * `DELETE /hubs/{hubId}/members/{memberId}`.
+
+2. **Client‑side portal “Invite colleague”**
+
+   * `GET /hubs/{hubId}/portal/members` (client view of members).
+   * `POST /hubs/{hubId}/portal/invite` (client invites colleagues from same domain only, backend enforces domain restriction using `hub.clientDomain`).
+
+3. **Share links (optional for MVP but useful for quick demos)**
+
+   * `POST /hubs/{hubId}/share-links`
+   * `GET /hubs/{hubId}/share-links`
+   * Used mainly for time‑boxed or max‑uses portal access for prospects.
+
+4. **Accept invite**
+
+   * `POST /auth/accept-invite` with `AcceptInviteRequest.token` to:
+
+     * Create or link a user identity (including B2B guest via Graph).
+     * Add `HubMember` row.
+     * Return `AcceptInviteResponse` (`hubId`, `hubName`, `accessLevel`).
+
+**M365 integration**
+
+* For staff: they’re already tenant users.
+* For clients:
+
+  * Create or update **B2B guest user** using Graph invitations API when invite is accepted.
+  * Add them to a **hub security group** or directly grant permissions on the hub’s SharePoint folder and shared mailbox folder.
+
+---
+
+### PRD‑4 – Documents (core value for MVP)
+
+**Objective**
+
+Make it trivial to share, view and track key documents for a pitch from both staff and client views.
+
+**Key entities**
+
+* `Document` (with `visibility`, `category`, `embedUrl`, `downloadUrl`, versions).
+* `DocumentEngagement` + `DocumentView` for analytics.
+
+**Features / endpoints**
+
+1. **Staff document management**
+
+   * `GET /hubs/{hubId}/documents` with filters for visibility, category, search, pagination.
+   * `POST /hubs/{hubId}/documents/upload` – multi‑part upload, returns `Document`.
+   * `PATCH /hubs/{hubId}/documents/{documentId}` – update metadata (`UpdateDocumentRequest`).
+   * `DELETE /hubs/{hubId}/documents/{documentId}`.
+   * `POST /hubs/{hubId}/documents/bulk` – bulk delete / visibility / category changes.
+
+2. **Client portal documents**
+
+   * `GET /hubs/{hubId}/portal/documents` → client‑visible docs (where `visibility === "client"`).
+   * Optional: upload from clients (write path to SharePoint with proper permissions).
+
+3. **Engagement**
+
+   * `GET /hubs/{hubId}/documents/{documentId}/engagement` → `DocumentEngagement`.
+   * `POST /hubs/{hubId}/documents/{documentId}/events` – track view/download (or reuse the generic activity service for this).
+
+**M365 integration**
+
+* One **SharePoint document library** (per hub or shared) with a folder per hub.
+* `embedUrl` generated via Graph `/drive/items/{id}/preview`.
+* `downloadUrl` via pre‑signed URLs (Graph `/content` links) or Azure Blob if you proxy uploads.
+* Permissioning automatically aligned with hub members/groups.
+
+---
+
+### PRD‑5 – Messages (email) & Meetings (calendar) – “thin” MVP
+
+These can be *Phase 1.5*: make them work in a basic way, add advanced stuff (AI summary, decision queue) later.
+
+#### Messages MVP
+
+**Objective**
+
+Expose key email threads related to a pitch inside the hub.
+
+**Features**
+
+1. `GET /hubs/{hubId}/messages` → `PaginatedList<MessageThreadSummary>`, with filters `isArchived`, `isRead`.
+2. `GET /hubs/{hubId}/messages/{threadId}` → `MessageThreadDetail` (includes history and team notes).
+3. `POST /hubs/{hubId}/messages` – send or reply (`SendMessageRequest`).
+4. `PATCH /hubs/{hubId}/messages/{threadId}/notes` – update `teamNotes`.
+5. `PATCH /hubs/{hubId}/messages/{threadId}` – archive/unarchive.
+6. `GET /hubs/{hubId}/portal/messages` – portal‑safe view (no internal notes) for clients.
+7. `POST /hubs/{hubId}/portal/messages` – client sends messages (simpler compose).
+
+**Graph choices**
+
+* Use a **shared mailbox** like `pitches@company.com`.
+* Tag messages with category `AgentFlow-Hub:{hubId}` and filter by that for listing.
+* Store `teamNotes`, `isArchived`, `requiresDecision` etc. in your DB, not Graph.
+
+#### Meetings MVP
+
+**Objective**
+
+Expose upcoming & past meetings in the hub and provide join links.
+
+**Features**
+
+1. `GET /hubs/{hubId}/meetings` → `PaginatedList<Meeting>` (staff view).
+2. `POST /hubs/{hubId}/meetings` – schedule meeting (`ScheduleMeetingRequest`).
+3. `PATCH /hubs/{hubId}/meetings/{id}` – reschedule / update (`UpdateMeetingRequest`).
+4. `PATCH /hubs/{hubId}/meetings/{id}/agenda` – update agenda text.
+5. `PATCH /hubs/{hubId}/meetings/{id}/notes` – internal `teamNotes`.
+6. `POST /hubs/{hubId}/meetings/{id}/cancel` – cancel meeting.
+7. `GET /hubs/{hubId}/meetings/{id}/recording` → `MeetingRecording | null`.
+8. `GET /hubs/{hubId}/meetings/{id}/transcript` → transcript text or `null`.
+9. `GET /hubs/{hubId}/portal/meetings` – portal list for clients.
+
+**Graph choices**
+
+* Meetings owned by a service account or the staff organizer, but always:
+
+  * Include `AgentFlow-Hub:{hubId}` in subject or as an extended property for filtering.
+  * Use Teams online meetings and expose the `joinUrl`.
+
+---
+
+### PRD‑6 – Engagement & Activity
+
+**Objective**
+
+Provide a simple but extensible engagement model used across the portal (views, downloads, invites, etc.).
+
+**Entities**
+
+* `ActivityEvent` – strongly typed event with `eventType`, `hubId`, `userId`, timestamps.
+* `MemberActivity` – semantic activity for members (JOINED, INVITED, VIEWED_PROPOSAL, etc.).
+
+**Features**
+
+1. `POST /hubs/{hubId}/events` – log a `LogEventRequest` for:
+
+   * portal viewed, section viewed, proposal open, document download, video watch, etc.
+2. `GET /hubs/{hubId}/events` – staff‑side audit / analytics view.
+3. `GET /hubs/{hubId}/members/activity` – aggregated view per member (used in “People” tab).
+
+Events then roll up into:
+
+* `EngagementStats` on the hub overview (total views, unique visitors, last visit, etc.).
+* `PortalQuickStats` component in the UI already expects those fields.
+
+---
+
+## 3. How this supports re‑skinning & agents
+
+Because all the “hard stuff” (identity, hub membership, mapping to Graph IDs, engagement, configuration) lives in the middleware and is exposed as **clean JSON APIs that match your TS models**, you can:
+
+* Swap or completely redesign the web “skin” without touching integration logic.
+* Add:
+
+  * A **Teams app** that calls the same `/hubs`, `/documents`, `/messages` endpoints.
+  * A **Power Automate custom connector** pointing to the same API.
+  * A **Copilot plugin / AI agent** that uses function‑calling against these endpoints to fetch hub data, documents, meetings, etc.
+
+Everything – humans in the portal, Copilot, workflows – is then just another client of the same middleware, which in turn is the single integration point into M365 via Graph.
+
+---
+
+## 4. Suggested build order
+
+If you want a concrete sequence to get value quickly:
+
+1. **Set up identity & skeleton API**
+
+   * App registrations, MSAL wired, `/auth/me`, `/hubs/{id}/access`.
+
+2. **Implement Hubs + Members + PortalConfig (no Graph yet)**
+
+   * Pure DB‑backed, so Pitch Hub UI can run end‑to‑end with fake docs/messages.
+
+3. **Wire Documents to SharePoint**
+
+   * Build the SharePoint mapping model and file upload / list.
+   * Get `embedUrl` & `downloadUrl` flowing so proposal/doc screens become “real”.
+
+4. **Add Member→M365 permissions**
+
+   * When a HubMember is created, ensure access to the associated SharePoint folder and, if you’re ready, the shared mailbox.
+
+5. **Add Messages & Meetings via Graph**
+
+   * Start simple (read/list/send, schedule/join) then add recordings, transcripts and AI summary.
+
+6. **Add Activity & engagement**
+
+   * Wire the generic logging from the existing React hooks into your DB; feed stats into overview & portal quick stats.
+
+At that point the current pitch hub front‑end becomes a working MVP, and you have a solid, modular middleware platform that can support future “skins” and AI agents without re‑doing your M365 integration.

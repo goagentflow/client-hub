@@ -1,199 +1,199 @@
 # AgentFlow Pitch Hub — Project Status
 
-**Last Updated:** 19 February 2026
+**Last Updated:** 22 February 2026
 
 ---
 
-## Summary
+## What is AgentFlow Pitch Hub?
 
-The **frontend wireframe** is feature-complete for Phase 1 (Pitch Hubs) and Phase 2 (Client Hubs). The **middleware API layer** (104 endpoints) is built with full auth, access control, and public portal endpoints. **MSAL JWT authentication** (Azure AD) is code-complete — awaiting Azure AD app registration setup to test end-to-end.
-
----
-
-## Recently Completed
-
-### P1 Senior Review Fixes (COMPLETE — 13 priorities)
-- [x] Portal JWT auth with signed hub-bound tokens (jose, HS256)
-- [x] Staff-only guards (requireStaffAccess) on all non-portal endpoints
-- [x] Public endpoints: portal-meta, password-status, verify-password
-- [x] Rate limiting, timing-safe password comparison, non-enumerating responses
-- [x] Frontend portal token injection with positive endpoint allowlist
-- [x] Hub list search/filter/sort with backwards-compatible filter parsing
-- [x] Leadership events schema (nullable hub_id, separate LeadershipEvent DTO)
-- [x] Cross-hub milestone vulnerability fix
-- [x] FormData Content-Type fix, handleShareClick event handler fix
-- [x] 56 tests passing across 3 test files
-- [x] Senior dev approved after 3 review rounds
-
-### MSAL JWT Authentication — Phases 2+3 (CODE COMPLETE)
-- [x] Azure AD RS256 JWT validation via jose JWKS (middleware)
-- [x] Dual audience acceptance (GUID and api:// URI formats)
-- [x] Staff detection via `roles` claim (mandatory deployment prerequisite)
-- [x] `GET /auth/me` endpoint returning user profile + hub access stub
-- [x] Lazy Supabase adapter (Proxy) — prevents crash when DEMO_MODE=false
-- [x] MSAL.js frontend integration (@azure/msal-browser)
-- [x] `loginWithMsal()`, `getAccessToken()`, `fetchCurrentUser()` in auth.service
-- [x] `setTokenGetter` wired in App.tsx (production mode only)
-- [x] DEMO_MODE=false deployment gate removed
-- [x] 10 new JWT auth tests with scoped JWKS mocking (66 total tests passing)
-- [x] MSAL auth plan approved by senior dev after 4 review rounds
+AgentFlow Pitch Hub is a client relationship portal built on Microsoft 365. It enables professional services firms to manage pitches (new business) and client relationships (active accounts) through a single web application. AgentFlow is building this as its own tool first — eating our own dog food — before selling it to other firms.
 
 ---
 
-## ACTION REQUIRED: Azure AD App Registration (Hamish)
-
-Before MSAL auth can be tested end-to-end, two app registrations must be created in the Azure Portal. This is Phase 1 of the MSAL plan — a manual step that cannot be done in code.
-
-**What needs to happen:**
-1. Create **backend** app registration (`AgentFlow Middleware`)
-   - Expose API with delegated scope `access_as_user`
-   - Create mandatory `Staff` app role
-   - Assign Staff role to AgentFlow staff users
-2. Create **frontend** app registration (`AgentFlow Frontend`)
-   - SPA platform, auth code flow with PKCE
-   - API permission: `api://{backendId}/access_as_user`
-3. Set environment variables:
-   - Frontend: `VITE_AZURE_CLIENT_ID`, `VITE_AZURE_TENANT_ID`, `VITE_AZURE_BACKEND_CLIENT_ID`
-   - Middleware: `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`
-
-**Guide:** `docs/middleware/MSAL_AUTH_IMPLEMENTATION_PLAN.md` (Phase 1 section)
-
----
-
-## What's Done
-
-### Phase 1: Pitch Hubs (COMPLETE)
-
-#### Staff View
-- [x] Login (demo credentials + MSAL code ready)
-- [x] Hub List — paginated grid with filters, search, create
-- [x] Hub Overview — activity feed, notes, engagement stats
-- [x] Client Portal management — curate what clients see
-- [x] Proposal — document viewer with version history
-- [x] Videos — upload, record, manage, engagement tracking
-- [x] Documents — upload, list, download, embed
-- [x] Messages — email integration placeholder
-- [x] Meetings — scheduling, recordings, transcripts
-- [x] Questionnaire — Microsoft Forms placeholder
-
-#### Client View (Portal)
-- [x] Overview — welcome page, hero content, quick links
-- [x] Proposal — document viewer with commenting
-- [x] Videos — watch shared videos
-- [x] Documents — view, download, upload back
-- [x] Messages — conversation history
-- [x] Meetings — view, join, request
-- [x] Questionnaire — complete forms
-- [x] People — team members and access
-
-### Phase 2: Client Hubs (COMPLETE — UI/Wireframes)
-
-#### Hub Conversion
-- [x] Multi-step conversion wizard
-- [x] Hub type discriminator (`hubType: "pitch" | "client"`)
-- [x] Visual differentiation between hub types
-
-#### Staff-Facing Features
-- [x] Projects — create, manage, milestones, artifact assignment
-- [x] Relationship Health Dashboard — AI-powered scoring
-- [x] Expansion Radar — opportunity cards with evidence
-- [x] Staff Decision Queue — state machine management
-- [x] Intelligence Section — tabbed health + expansion view
-
-#### Client-Facing Features
-- [x] Client Onboarding — welcome modal for converted hubs
-- [x] Instant Answers — AI Q&A
-- [x] Decision Queue — pending items with status actions
-- [x] Performance — KPI narratives
-- [x] History — institutional memory timeline
-- [x] Risk Alerts
-
-#### Leadership Portfolio (Admin-Only)
-- [x] Portfolio overview — revenue, pipeline, health metrics
-- [x] Client grid — health vs expansion matrix
-- [x] RBAC with RequireAdmin guard
-
-### Middleware API (104 endpoints)
-- [x] Express/TypeScript foundation with correlation IDs, structured logging
-- [x] Auth middleware: portal JWT + Azure AD JWT + demo headers
-- [x] Hub CRUD with search/filter/sort (live, backed by Supabase)
-- [x] Staff guards on all non-portal endpoints
-- [x] Public endpoints with rate limiting
-- [x] Portal auth flow (password verify, token issuance)
-- [x] GET /auth/me endpoint
-- [x] ~60 stub endpoints (501) for Phase 2+ features
-- [x] 66 tests passing (contract, portal-auth, public-routes, jwt-auth)
-
-### Documentation
-- [x] P1 Plan (v13, all 13 priorities, senior dev approved)
-- [x] MSAL Auth Plan (v4, senior dev approved)
-- [x] API Specification, Architecture v3, ADRs, MVP PRD
-- [x] Implementation Roadmap
-
----
-
-## What Still Needs Doing
-
-### Next: Production Readiness
-
-| Priority | Item | Status |
-|----------|------|--------|
-| **P0** | Azure AD app registrations | ACTION: Hamish (see above) |
-| **P0** | End-to-end MSAL testing | Blocked by app registrations |
-| **P0** | SharePoint adapter | Replace Supabase with SharePoint for DEMO_MODE=false |
-| **P1** | OBO token exchange | Needed for Graph API calls (AZURE_CLIENT_SECRET) |
-| **P1** | Implement stub endpoints | Messages, meetings, members, etc. |
-| **P2** | AI endpoints | Instant answers, health scoring, expansion radar |
-| **P3** | CI pipeline with build gate | Add `vite build` to CI |
-
-### Authentication & Security
-
-| Priority | Item | Status |
-|----------|------|--------|
-| **P0** | MSAL integration | Code complete, awaiting app registration |
-| **P0** | JWT validation | Code complete, tested with mocked JWKS |
-| ~~P0~~ | ~~Portal JWT auth~~ | Done (P1 plan) |
-| ~~P0~~ | ~~Staff access guards~~ | Done (P1 plan) |
-| **P1** | Production security hardening | OWASP review |
-| **P2** | Multi-tenant deployment | Tenant isolation testing |
-
----
-
-## Architecture Snapshot
+## Architecture
 
 ```
-Frontend (React/Vite)
-  ├── MSAL.js for Azure AD login (code ready, needs app reg)
-  ├── setTokenGetter wired for production token flow
-  ├── Portal JWT tokens for client hub access
-  ├── Supabase direct (hubs, videos, documents) — CONNECTED
-  └── Middleware API (auth, hubs, portal, events) — CONNECTED
+Frontend (React/Vite/TypeScript)
+  ├── Azure AD login via MSAL.js (code-complete)
+  ├── Portal access via password-protected JWT tokens
+  └── All data fetched through middleware API
 
-Middleware (Express/Node.js) — 104 ENDPOINTS
-  ├── Auth: portal JWT + Azure AD JWT + demo headers
-  ├── Hub CRUD with search/filter/sort — LIVE
-  ├── Public endpoints with rate limiting — LIVE
-  ├── GET /auth/me — LIVE
-  ├── Staff guards on all endpoints — LIVE
-  ├── ~60 stub endpoints (501) — SCAFFOLDED
-  └── 66 tests passing
+Middleware (Express/TypeScript) — 113 endpoints (46 real, 67 stubbed)
+  ├── Auth: Azure AD JWT (RS256 via jose) + portal JWT (HS256) + demo headers
+  ├── Config: AUTH_MODE (azure_ad | demo) + DATA_BACKEND (azure_pg | mock)
+  ├── Database: Prisma 6 ORM (PostgreSQL in production, mock in dev)
+  ├── Tenant isolation: TenantRepository + AdminRepository pattern
+  └── 66 tests passing across 4 test files
 
-External Services
-  ├── Supabase (demo data layer) — CONNECTED
-  ├── Microsoft Graph API — NOT YET (needs OBO)
-  ├── SharePoint (production data layer) — NOT YET
-  └── AI model — NOT YET
+Production Target (Azure-hosted)
+  ├── Azure App Service (middleware)
+  ├── Azure Static Web Apps (frontend)
+  ├── Azure Database for PostgreSQL (Flexible Server)
+  ├── Azure Blob Storage (file uploads)
+  └── Azure Monitor + Log Analytics
 ```
 
 ---
 
-## Key Decisions Made
+## Phase 0b Implementation Log
 
-1. **Self-hosted middleware** — Express on customer infrastructure
-2. **SharePoint hidden lists** — Data store in customer M365 tenant
-3. **OBO auth flow** — On-Behalf-Of for Graph API delegation
-4. **Supabase for demo** — Direct connection for dev; middleware for production
-5. **jose for JWT validation** — Both portal (HS256) and Azure AD (RS256)
-6. **Lazy Supabase adapter** — Proxy pattern prevents crash in DEMO_MODE=false
-7. **Staff app roles mandatory** — Not optional; deployment prerequisite
-8. **Async job pattern** — All AI endpoints use POST-to-create, GET-to-poll
+Phase 0b is the codebase refactor preparing for Azure deployment. Phase 0a (infrastructure provisioning) is deferred to save costs until first client deployment.
+
+### Sub-phase 1: Prisma Migration (APPROVED)
+
+Replaced Supabase JS client with Prisma 6 ORM.
+
+**Files created:**
+- `middleware/prisma/schema.prisma` — Database schema (Hub, HubEvent, HubNote models)
+- `middleware/src/db/prisma.ts` — Prisma client singleton
+- `middleware/src/db/tenant-repository.ts` — Tenant-scoped query wrapper
+- `middleware/src/db/admin-repository.ts` — Admin queries with bypassTenant logging
+- `middleware/src/db/hub.mapper.ts` — Prisma-to-DTO mapping
+- `middleware/src/db/index.ts` — Barrel export
+
+**Files changed:**
+- `middleware/package.json` — Added prisma, @prisma/client dependencies
+- `middleware/pnpm-lock.yaml` — Lock file updated
+
+**Review:** Senior dev approved after 1 round.
+
+### Sub-phase 2: Configuration Model (APPROVED)
+
+Replaced `DEMO_MODE` boolean with orthogonal `AUTH_MODE` + `DATA_BACKEND` controls.
+
+**Files changed:**
+- `middleware/src/config/env.ts` — New config schema with production guards
+- `middleware/.env.example` — Updated example env vars
+
+**Review:** Senior dev approved after 1 round.
+
+### Sub-phase 3: Inject Repository Middleware (APPROVED)
+
+Created middleware to inject the correct data repository based on `DATA_BACKEND` config.
+
+**Files created:**
+- `middleware/src/middleware/inject-repository.ts` — Repository injection middleware
+- `middleware/src/__tests__/repository.test.ts` — Repository integration tests
+
+**Files changed:**
+- `middleware/src/middleware/index.ts` — Added inject-repository export
+- `middleware/src/adapters/supabase.adapter.ts` — Updated for new config model
+- `middleware/src/middleware/auth.ts` — Updated guards for AUTH_MODE
+- `middleware/src/middleware/hub-access.ts` — Updated for new config
+- `middleware/src/app.ts` — Wired inject-repository middleware
+- `middleware/src/server.ts` — Updated startup logging
+- `middleware/src/__tests__/test-setup.ts` — Updated test helpers
+
+**Review:** Senior dev approved after 1 round.
+
+### Sub-phase 4: Route Migration (IN PROGRESS)
+
+Migrating route handlers to use injected Prisma repository instead of Supabase adapter.
+
+**Files being changed:**
+- `middleware/src/routes/hubs.route.ts` — Hub CRUD using repository
+- `middleware/src/routes/portal-config.route.ts` — Portal config using repository
+
+**Status:** Work paused for documentation cleanup.
+
+---
+
+## Complete Roadmap
+
+| Phase | Name | Status | Summary |
+|-------|------|--------|---------|
+| 0a | Azure Infrastructure | **Deferred** | Resource group created (UK South). All services deferred to save ~£30-50/month until first client deployment. |
+| 0b | Codebase Refactor | **In Progress** | Prisma migration, AUTH_MODE/DATA_BACKEND config, TenantRepository, route migration. Sub-phases 1-3 approved, sub-phase 4 in progress. |
+| 1 | File Storage | Not started | Document, proposal, and video upload to Azure Blob Storage with AV scanning. 3 stubs. |
+| 2 | Members & Access | Not started | Magic link auth for client contacts, invite system, dual-run with password portal. 11 stubs. |
+| 3 | Questionnaires | Not started | Staff-created forms, client submission, response aggregation. 7 stubs. |
+| 4 | Engagement Analytics | Not started | Document/video view tracking, leadership at-risk/expansion views. 6 stubs. |
+| 5 | OBO Token Flow | Not started | On-Behalf-Of exchange enabling Graph API calls (email, calendar). 0 stubs (infrastructure). |
+| 6 | Messages | Not started | Hub-scoped email threads via Graph Mail with explicit linkage. 7 stubs. Depends on Phase 5. |
+| 7 | Meetings | Not started | Calendar + Teams integration via Graph with explicit linkage. 10 stubs. Depends on Phase 5. |
+| 8 | Client Intelligence (AI) | Not started | Instant answers, meeting prep, performance narratives, decisions, risk alerts. 21 stubs. |
+| 9 | Relationship Intelligence | Not started | Health dashboard, expansion radar — frontend integration of Phase 8 endpoints. 0 stubs. |
+| 10 | Polish + E2E | Not started | Zero 501 stubs, Playwright E2E tests, conversion rollback. 2 stubs. |
+
+**Total stubs remaining:** 67 of 113 endpoints (59%).
+
+**Timeline:** ~15-16 weeks sequential, ~11-12 weeks with parallelisation. Phases 1-5 can run in parallel after Phase 0.
+
+---
+
+## Key Decisions & Rationale
+
+| Decision | Choice | Why |
+|----------|--------|-----|
+| Hosting model | Azure-hosted (AgentFlow's own subscription) | Ships faster than per-customer deployment. DPA compliance under single Microsoft agreement. Migration to customer-hosted possible later via adapter pattern. |
+| Database | Prisma 6 on Azure PostgreSQL | Prisma 7 has breaking driver adapter changes. Prisma 6 is stable and well-supported. |
+| Config model | `AUTH_MODE` + `DATA_BACKEND` (orthogonal) | Replaces `DEMO_MODE` boolean which conflated auth and data concerns. Production guards block unsafe combinations. |
+| JWT validation | `jose` library for both portal (HS256) and Azure AD (RS256) | Single dependency, no `@azure/msal-node` needed for validation. |
+| Staff detection | `roles` claim in Azure AD JWT | Mandatory deployment prerequisite — not optional. `requireStaffAccess` middleware enforces at router level. |
+| Phase 0a deferred | Infrastructure provisioned only when needed | Saves ~£30-50/month. App works fully in mock mode for development and demos. |
+| Tenant isolation | TenantRepository (app layer) + DB constraints (defence in depth) | All hub-linked queries go through tenant-scoped wrapper. `tenant_id NOT NULL` + FK constraints in schema. |
+| Client auth (future) | Magic link with session JWT in httpOnly cookie | Simple UX for external clients — no Microsoft account required. |
+| Graph API scoping | Explicit linkage tables (not email/domain heuristics) | Prevents accidental data leakage between hubs sharing contacts. |
+
+---
+
+## Developer Setup
+
+### Prerequisites
+- Node.js 18+ (install with [nvm](https://github.com/nvm-sh/nvm))
+- pnpm (`npm install -g pnpm`)
+
+### Frontend
+```sh
+git clone <REPO_URL>
+cd agentflow-pitch-hub-wireframe
+npm install
+npm run dev          # Starts on http://localhost:5173
+```
+
+### Middleware (mock mode — no database needed)
+```sh
+cd middleware
+pnpm install
+cp .env.example .env    # Defaults: AUTH_MODE=demo, DATA_BACKEND=mock
+pnpm run dev             # Starts on http://localhost:3001
+```
+
+### Running Tests
+```sh
+cd middleware
+pnpm test               # 66 tests across 4 files
+```
+
+### With Real Database (optional)
+Set `DATA_BACKEND=azure_pg` and provide `DATABASE_URL` in `.env`, then:
+```sh
+cd middleware
+npx prisma generate      # Generate Prisma client
+npx prisma db push       # Push schema to database
+pnpm run dev
+```
+
+---
+
+## Next Actions
+
+1. **Complete Phase 0b sub-phase 4** — Finish migrating route handlers (hubs, portal-config) to use Prisma repository
+2. **Build `npm run verify-endpoints` CI check** — Automated stub count verification
+3. **Phase 0a infrastructure** — Create Azure services when ready for first client deployment
+4. **Azure AD app registrations** — Required before MSAL auth can be tested end-to-end (see `docs/middleware/MSAL_AUTH_IMPLEMENTATION_PLAN.md`, Phase 1)
+
+---
+
+## Key Documents
+
+| Document | Purpose |
+|----------|---------|
+| `README.md` | Project overview and setup |
+| `AGENTS.md` | Architecture canon and coding standards |
+| `GOLDEN_RULES.md` | Coding standards |
+| `docs/PRODUCTION_ROADMAP.md` | Detailed phase plan with endpoint inventory |
+| `docs/API_SPECIFICATION.md` | Complete 113-endpoint API contract |
+| `docs/middleware/MSAL_AUTH_IMPLEMENTATION_PLAN.md` | Auth design (approved by senior dev) |
+| `docs/PHASE_2_CLIENT_HUBS.md` | Phase 2 specification |
+| `docs/Vision_and_Assumptions.md` | Product vision |

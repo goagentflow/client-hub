@@ -1,11 +1,10 @@
 /**
- * Portal config routes — 3 endpoints (GET, PATCH, publish)
+ * Portal config routes — 2 endpoints (GET, PATCH)
  * Extracted from hubs.route.ts to keep files under 300 lines.
  */
 
 import { Router } from 'express';
-import { supabase, mapPortalConfig } from '../adapters/supabase.adapter.js';
-import { HUB_SELECT } from '../adapters/hub-columns.js';
+import { mapPortalConfig } from '../db/hub.mapper.js';
 import { hubAccessMiddleware } from '../middleware/hub-access.js';
 import { requireStaffAccess } from '../middleware/require-staff.js';
 import { sendItem } from '../utils/response.js';
@@ -19,15 +18,9 @@ portalConfigRouter.use(hubAccessMiddleware);
 // GET /hubs/:hubId/portal-config — portal configuration (staff-only)
 portalConfigRouter.get('/', requireStaffAccess, async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { data, error } = await supabase
-      .from('hub')
-      .select(HUB_SELECT)
-      .eq('id', req.params.hubId)
-      .single();
-
-    if (error || !data) throw Errors.notFound('Hub', req.params.hubId);
-
-    sendItem(res, mapPortalConfig(data));
+    const hub = await req.repo!.hub.findFirst({ where: { id: req.params.hubId } });
+    if (!hub) throw Errors.notFound('Hub', req.params.hubId);
+    sendItem(res, mapPortalConfig(hub));
   } catch (err) {
     next(err);
   }
@@ -36,42 +29,31 @@ portalConfigRouter.get('/', requireStaffAccess, async (req: Request, res: Respon
 // PATCH /hubs/:hubId/portal-config — update portal config (staff-only)
 portalConfigRouter.patch('/', requireStaffAccess, async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const data: Record<string, any> = {};
 
-    if (req.body.welcomeHeadline !== undefined) updates.welcome_headline = req.body.welcomeHeadline;
-    if (req.body.welcomeMessage !== undefined) updates.welcome_message = req.body.welcomeMessage;
-    if (req.body.heroContentType !== undefined) updates.hero_content_type = req.body.heroContentType;
-    if (req.body.heroContentId !== undefined) updates.hero_content_id = req.body.heroContentId;
+    if (req.body.welcomeHeadline !== undefined) data.welcomeHeadline = req.body.welcomeHeadline;
+    if (req.body.welcomeMessage !== undefined) data.welcomeMessage = req.body.welcomeMessage;
+    if (req.body.heroContentType !== undefined) data.heroContentType = req.body.heroContentType;
+    if (req.body.heroContentId !== undefined) data.heroContentId = req.body.heroContentId;
 
     if (req.body.sections) {
       const s = req.body.sections;
-      if (s.showProposal !== undefined) updates.show_proposal = s.showProposal;
-      if (s.showVideos !== undefined) updates.show_videos = s.showVideos;
-      if (s.showDocuments !== undefined) updates.show_documents = s.showDocuments;
-      if (s.showMessages !== undefined) updates.show_messages = s.showMessages;
-      if (s.showMeetings !== undefined) updates.show_meetings = s.showMeetings;
-      if (s.showQuestionnaire !== undefined) updates.show_questionnaire = s.showQuestionnaire;
+      if (s.showProposal !== undefined) data.showProposal = s.showProposal;
+      if (s.showVideos !== undefined) data.showVideos = s.showVideos;
+      if (s.showDocuments !== undefined) data.showDocuments = s.showDocuments;
+      if (s.showMessages !== undefined) data.showMessages = s.showMessages;
+      if (s.showMeetings !== undefined) data.showMeetings = s.showMeetings;
+      if (s.showQuestionnaire !== undefined) data.showQuestionnaire = s.showQuestionnaire;
     }
 
-    const { error } = await supabase
-      .from('hub')
-      .update(updates)
-      .eq('id', req.params.hubId);
+    await req.repo!.hub.update({ where: { id: req.params.hubId }, data });
 
-    if (error) throw error;
+    const hub = await req.repo!.hub.findFirst({ where: { id: req.params.hubId } });
+    if (!hub) throw Errors.notFound('Hub', req.params.hubId);
 
-    // Return updated config
-    const { data, error: fetchErr } = await supabase
-      .from('hub')
-      .select(HUB_SELECT)
-      .eq('id', req.params.hubId)
-      .single();
-
-    if (fetchErr || !data) throw Errors.notFound('Hub', req.params.hubId);
-
-    sendItem(res, mapPortalConfig(data));
+    sendItem(res, mapPortalConfig(hub));
   } catch (err) {
     next(err);
   }
 });
-

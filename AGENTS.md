@@ -328,8 +328,6 @@ If any answer is "no", reconsider the approach.
 - [Vision_and_Assumptions.md](./docs/Vision_and_Assumptions.md) — Product vision (note: section 4.2 on storage is superseded by the roadmap)
 
 **Implementation:**
-- [docs/middleware/PRD_MVP_SUMMARY.md](./docs/middleware/PRD_MVP_SUMMARY.md) — MVP requirements
-
-**Superseded (historical reference only):**
-- [docs/middleware/ARCHITECTURE_V3_FINAL.md](./docs/middleware/ARCHITECTURE_V3_FINAL.md) — Superseded by Production Roadmap v4
-- [docs/middleware/ARCHITECTURE_DECISIONS.md](./docs/middleware/ARCHITECTURE_DECISIONS.md) — Superseded by Production Roadmap v4
+- [docs/PRODUCTION_ROADMAP.md](./docs/PRODUCTION_ROADMAP.md) — Production phase plan and architecture (canon)
+- [docs/API_SPECIFICATION.md](./docs/API_SPECIFICATION.md) — Complete API contract (113 endpoints)
+- [docs/middleware/MSAL_AUTH_IMPLEMENTATION_PLAN.md](./docs/middleware/MSAL_AUTH_IMPLEMENTATION_PLAN.md) — Auth design (approved)

@@ -10,7 +10,7 @@ import { pinoHttp } from 'pino-http';
 
 import { env } from './config/env.js';
 import { logger } from './utils/logger.js';
-import { correlationIdMiddleware, errorHandler, authMiddleware } from './middleware/index.js';
+import { correlationIdMiddleware, errorHandler, authMiddleware, injectRepository } from './middleware/index.js';
 import { healthRouter } from './routes/health.js';
 import { apiRouter } from './routes/index.js';
 import { publicRouter } from './routes/public.route.js';
@@ -58,7 +58,7 @@ app.use('/health', healthRouter);
 app.use('/api/v1/public', publicRouter);
 
 // API v1 routes (auth required)
-app.use('/api/v1', authMiddleware, apiRouter);
+app.use('/api/v1', authMiddleware, injectRepository, apiRouter);
 
 // 404 handler
 app.use((_req, res) => {

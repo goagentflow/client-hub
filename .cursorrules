@@ -8,83 +8,73 @@ Follow GOLDEN_RULES.md for all development. Key principles:
 - No file over 300 lines, no function over 40 lines
 - Validate all inputs, never hardcode secrets
 
-**Pragmatic application:** This is a wireframe prototype with no backend yet. Apply GOLDEN_RULES.md sensibly — focus on clean components, consistent patterns, and brand guidelines. Full testing, comprehensive error handling, DTOs, and security hardening come later when middleware is connected. Don't over-engineer placeholder screens.
-
 ---
 
 ## What This Project Is
 
-This is a wireframe prototype for AgentFlow's Pitch Hub — a client portal for managing new business pitches. AgentFlow is using this to pitch its own services before selling the full platform to professional services firms.
+AgentFlow Pitch Hub is a client relationship portal built on Microsoft 365. Two hub types: Pitch Hubs (new business) and Client Hubs (active clients). The frontend wireframe is complete for both. The middleware API layer (113 endpoints, 46 real, 67 stubbed) is in active development with Azure AD authentication code-complete.
 
-**Current status:** Front-end wireframes only. No middleware, no API connections, no real authentication. All buttons, forms, and interactions are visual placeholders.
+**Current work:** Phase 0b — codebase refactor (Prisma migration, AUTH_MODE/DATA_BACKEND config model, TenantRepository pattern, route migration).
 
 ## Key Documentation
 
 - **GOLDEN_RULES.md** — Coding standards for all development
-- **VISION_AND_ASSUMPTIONS.md** — Read this to understand the product. Explains the full vision, what's in scope for v0.1, and all middleware technical assumptions.
-- **docs/PRD_FULL_PRODUCT.md** — The complete product requirements document for the full AgentFlow Hubs platform. Reference for future features, not current scope.
-- **README.md** — Project setup and brand guidelines.
+- **AGENTS.md** — Architecture canon: Simple, Clean, DRY, Secure
+- **docs/PRODUCTION_ROADMAP.md** — Detailed phase plan with endpoint inventory (canon architecture)
+- **docs/API_SPECIFICATION.md** — Complete 113-endpoint API contract
+- **docs/middleware/MSAL_AUTH_IMPLEMENTATION_PLAN.md** — Auth design (approved by senior dev)
+- **VISION_AND_ASSUMPTIONS.md** — Product vision and middleware assumptions
+- **progress/STATUS.md** — Master project status, roadmap, key decisions
+- **README.md** — Project setup and brand guidelines
 
 ---
 
-## What We're Building (v0.1 Scope)
+## What We've Built
 
-Two user experiences:
+### Frontend (Complete)
 
-**AgentFlow Staff View:**
-- Login (Microsoft SSO placeholder)
-- Hub List (dashboard of all pitch hubs)
-- Hub Overview (workspace for managing a pitch)
-- Client Portal (curate what clients see)
-- Videos (upload, record, manage)
-- Documents (client docs and internal docs)
-- Messages (email integration placeholder)
-- Meetings (scheduling, recordings, transcripts)
-- Questionnaire (Microsoft Forms integration)
+**Pitch Hubs — Staff View:**
+- Login (demo credentials + MSAL code ready)
+- Hub List (paginated grid with filters, search, create)
+- Hub Overview (activity feed, notes, engagement stats)
+- Client Portal management, Proposal, Videos, Documents, Messages, Meetings, Questionnaire
 
-**Client View:**
-- Overview (welcome page, hero content, quick links)
-- Proposal (document viewer with commenting)
-- Videos (watch shared videos)
-- Documents (view, download, upload back)
-- Messages (conversation history)
-- Meetings (view, join, request)
-- Questionnaire (complete forms)
-- People (access management)
+**Pitch Hubs — Client View:**
+- Overview, Proposal, Videos, Documents, Messages, Meetings, Questionnaire, People
 
-## Phase 2: Client Hubs (Now Building)
-
-Phase 2 extends pitch hubs to ongoing client relationships. See `docs/PHASE_2_CLIENT_HUBS.md` for full specification.
-
-**Now implemented:**
-- Hub Conversion (pitch → client hub transition)
-- Projects (work stream organization)
-- Relationship Health Dashboard (AI-powered health scoring)
-- Expansion Radar (AI upsell/cross-sell detection)
+**Client Hubs (Phase 2):**
+- Hub Conversion (pitch → client)
+- Projects with milestones
+- Relationship Health Dashboard, Expansion Radar
 - Client Intelligence (Instant Answers, Meeting Prep, Performance Narratives)
-- Decision Queue (client decision tracking)
-- History & Alerts (institutional memory)
-- Leadership Portfolio View (admin-only aggregate views)
+- Decision Queue, History & Alerts
+- Leadership Portfolio View (admin-only)
 
-**Hub Type Navigation:**
-- Pitch Hubs: Overview, Client Portal, Proposal, Videos, Documents, Messages, Meetings (7 items max)
-- Client Hubs: Overview, Projects, Documents, Messages, Meetings, Health, Expansion (7 items max)
+### Middleware (In Active Development)
 
-## What We're NOT Building Yet
+- Express/TypeScript with structured logging (Pino) and correlation IDs
+- Auth: Azure AD JWT (RS256 via jose) + portal JWT (HS256) + demo headers
+- Config: `AUTH_MODE` (azure_ad | demo) + `DATA_BACKEND` (azure_pg | mock)
+- Database: Prisma 6 ORM with TenantRepository and AdminRepository
+- Hub CRUD with search/filter/sort
+- Staff guards on all non-portal endpoints
+- Public endpoints with rate limiting
+- 66 tests passing across 4 test files
+- 46 real endpoints, 67 stubbed (501) for future phases
 
-- Real Microsoft Graph API integration (Stephen is building middleware separately)
-- Multi-tenant deployment
-- Full production security hardening
+## What We're Building Next
+
+See `docs/PRODUCTION_ROADMAP.md` for the full phase plan (Phases 0-10). Current priority is completing Phase 0b (codebase refactor), then deploying to Azure (Phase 0a, deferred until first client deployment).
 
 ---
 
 ## Tech Stack
 
-- Vite (build tool)
-- TypeScript
-- React
-- Tailwind CSS
-- shadcn/ui components
+**Frontend:** Vite, TypeScript, React, Tailwind CSS, shadcn/ui, MSAL.js
+
+**Middleware:** Express, TypeScript, Prisma 6, jose, Zod, Pino
+
+**Production target:** Azure App Service + Static Web Apps + PostgreSQL + Blob Storage
 
 ---
 
@@ -135,7 +125,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 
 ### Placeholder Data
 
-All data is placeholder. Use realistic-looking fake data that demonstrates the UI:
+All frontend data is placeholder. Use realistic-looking fake data that demonstrates the UI:
 
 ```tsx
 // Good: Realistic placeholder
@@ -143,22 +133,7 @@ const pitchHubs = [
   { id: 1, name: "Whitmore & Associates", status: "Active", lastActivity: "2 hours ago" },
   { id: 2, name: "Hartley Grant Partners", status: "Draft", lastActivity: "Yesterday" },
 ];
-
-// Bad: Obviously fake
-const pitchHubs = [
-  { id: 1, name: "Test Client", status: "test", lastActivity: "test" },
-];
 ```
-
-### No Real API Calls
-
-This is wireframes only. Don't add:
-- Fetch calls to real endpoints
-- Authentication logic
-- Microsoft Graph API code
-- Database connections
-
-If you need to simulate async behaviour, use setTimeout with placeholder data.
 
 ---
 
@@ -166,30 +141,37 @@ If you need to simulate async behaviour, use setTimeout with placeholder data.
 
 ```
 /
-  .cursorrules          ← You are here
-  GOLDEN_RULES.md       ← Coding standards
-  README.md
-  VISION_AND_ASSUMPTIONS.md
-  package.json
+  .cursorrules             ← You are here
+  GOLDEN_RULES.md          ← Coding standards
+  AGENTS.md                ← Architecture canon
+  README.md                ← Setup and overview
+  progress/STATUS.md       ← Master project status
   /docs
-    PRD_FULL_PRODUCT.md
-  /public
-    (static assets)
-  /src
-    /components
-      /ui               ← shadcn/ui components
-    /pages              ← Page views
-    /lib                ← Utilities
-    /assets             ← Images, icons
+    PRODUCTION_ROADMAP.md  ← Phase plan
+    API_SPECIFICATION.md   ← API contract
+    middleware/
+      MSAL_AUTH_IMPLEMENTATION_PLAN.md ← Auth design
+  /src                     ← Frontend (React)
+    /components/ui         ← shadcn/ui components
+    /pages                 ← Page views
+    /services              ← API client, auth service
+  /middleware              ← Backend (Express)
+    /src
+      /config              ← env.ts (AUTH_MODE, DATA_BACKEND)
+      /middleware           ← Auth, hub-access, inject-repository
+      /routes              ← 113 API endpoints
+      /adapters            ← Data layer adapters
+      /db                  ← Prisma client, TenantRepository
+    /prisma
+      schema.prisma        ← Database schema
 ```
 
 ---
 
 ## When In Doubt
 
-1. Read VISION_AND_ASSUMPTIONS.md — Section 2 defines v0.1 scope
-2. Check GOLDEN_RULES.md — but apply pragmatically for wireframes
-3. Keep it visual — we're building wireframes, not functionality
+1. Read `progress/STATUS.md` — current state and key decisions
+2. Read `docs/PRODUCTION_ROADMAP.md` — detailed phase plan
+3. Check GOLDEN_RULES.md — apply pragmatically
 4. Use the brand colours — consistency matters
 5. Make it look real — placeholder data should be believable
-6. Don't over-engineer — simple React components, no complex state management yet

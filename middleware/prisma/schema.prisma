@@ -1,0 +1,165 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Tenant {
+  id             String   @id @default(uuid())
+  name           String
+  azureTenantId  String   @unique @map("azure_tenant_id")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  hubs Hub[]
+
+  @@map("tenant")
+}
+
+model Hub {
+  id              String    @id @default(uuid())
+  tenantId        String    @map("tenant_id")
+  companyName     String    @map("company_name")
+  contactName     String    @map("contact_name")
+  contactEmail    String    @map("contact_email")
+  status          String    @default("draft")
+  hubType         String    @default("pitch") @map("hub_type")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  lastActivity    DateTime  @default(now()) @map("last_activity")
+  clientsInvited  Int       @default(0) @map("clients_invited")
+  lastVisit       DateTime? @map("last_visit")
+  clientDomain    String?   @map("client_domain")
+  internalNotes   String?   @map("internal_notes")
+  convertedAt     DateTime? @map("converted_at")
+  convertedBy     String?   @map("converted_by")
+  isPublished     Boolean   @default(false) @map("is_published")
+  welcomeHeadline String?   @map("welcome_headline")
+  welcomeMessage  String?   @map("welcome_message")
+  heroContentType String?   @map("hero_content_type")
+  heroContentId   String?   @map("hero_content_id")
+  showProposal    Boolean   @default(true) @map("show_proposal")
+  showVideos      Boolean   @default(true) @map("show_videos")
+  showDocuments   Boolean   @default(true) @map("show_documents")
+  showMessages    Boolean   @default(true) @map("show_messages")
+  showMeetings    Boolean   @default(true) @map("show_meetings")
+  showQuestionnaire Boolean @default(true) @map("show_questionnaire")
+  passwordHash    String?   @map("password_hash")
+
+  tenant    Tenant       @relation(fields: [tenantId], references: [id])
+  videos    HubVideo[]
+  documents HubDocument[]
+  projects  HubProject[]
+  events    HubEvent[]
+
+  @@map("hub")
+}
+
+model HubVideo {
+  id             String    @id @default(uuid())
+  hubId          String    @map("hub_id")
+  projectId      String?   @map("project_id")
+  title          String
+  description    String?
+  sourceType     String    @default("link") @map("source_type")
+  sourceUrl      String    @map("source_url")
+  thumbnailUrl   String?   @map("thumbnail_url")
+  duration       Int?
+  visibility     String    @default("client")
+  uploadedAt     DateTime  @default(now()) @map("uploaded_at")
+  uploadedBy     String    @map("uploaded_by")
+  uploadedByName String    @map("uploaded_by_name")
+  views          Int       @default(0)
+  avgWatchTime   Int?      @map("avg_watch_time")
+  tenantId       String    @map("tenant_id")
+
+  hub     Hub         @relation(fields: [hubId], references: [id])
+  project HubProject? @relation(fields: [projectId], references: [id])
+
+  @@map("hub_video")
+}
+
+model HubDocument {
+  id             String   @id @default(uuid())
+  hubId          String   @map("hub_id")
+  projectId      String?  @map("project_id")
+  name           String
+  description    String?
+  fileName       String   @map("file_name")
+  fileSize       Int      @map("file_size")
+  mimeType       String   @map("mime_type")
+  category       String
+  visibility     String   @default("client")
+  uploadedAt     DateTime @default(now()) @map("uploaded_at")
+  uploadedBy     String   @map("uploaded_by")
+  uploadedByName String   @map("uploaded_by_name")
+  downloadUrl    String   @map("download_url")
+  embedUrl       String?  @map("embed_url")
+  views          Int      @default(0)
+  downloads      Int      @default(0)
+  isProposal     Boolean  @default(false) @map("is_proposal")
+  tenantId       String   @map("tenant_id")
+
+  hub     Hub         @relation(fields: [hubId], references: [id])
+  project HubProject? @relation(fields: [projectId], references: [id])
+
+  @@map("hub_document")
+}
+
+model HubProject {
+  id            String    @id @default(uuid())
+  hubId         String    @map("hub_id")
+  name          String
+  description   String?
+  status        String    @default("active")
+  startDate     DateTime? @map("start_date")
+  targetEndDate DateTime? @map("target_end_date")
+  lead          String?
+  leadName      String?   @map("lead_name")
+  createdBy     String    @map("created_by")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+  tenantId      String    @map("tenant_id")
+
+  hub        Hub            @relation(fields: [hubId], references: [id])
+  milestones HubMilestone[]
+  videos     HubVideo[]
+  documents  HubDocument[]
+
+  @@map("hub_project")
+}
+
+model HubMilestone {
+  id          String    @id @default(uuid())
+  projectId   String    @map("project_id")
+  name        String
+  description String?
+  targetDate  DateTime? @map("target_date")
+  status      String    @default("not_started")
+  completedAt DateTime? @map("completed_at")
+  sortOrder   Int       @default(0) @map("sort_order")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  tenantId    String    @map("tenant_id")
+
+  project HubProject @relation(fields: [projectId], references: [id])
+
+  @@map("hub_milestone")
+}
+
+model HubEvent {
+  id        String   @id @default(uuid())
+  hubId     String?  @map("hub_id")
+  eventType String   @map("event_type")
+  userId    String?  @map("user_id")
+  userEmail String?  @map("user_email")
+  userName  String?  @map("user_name")
+  metadata  Json?
+  createdAt DateTime @default(now()) @map("created_at")
+  tenantId  String   @map("tenant_id")
+
+  hub Hub? @relation(fields: [hubId], references: [id])
+
+  @@map("hub_event")
+}

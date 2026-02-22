@@ -15,78 +15,114 @@ vi.mock('pino-http', () => ({
   pinoHttp: () => (_req: unknown, _res: unknown, next: () => void) => next(),
 }));
 
-// Mock Supabase before importing app
+// --- Stub hub data ---
+const STUB_HUB = {
+  id: 'hub-1', tenantId: 'tenant-agentflow',
+  companyName: 'Test Co', contactName: 'Test User',
+  contactEmail: 'test@test.com', status: 'active', hubType: 'pitch',
+  createdAt: new Date('2024-01-01'), updatedAt: new Date('2024-01-01'),
+  lastActivity: new Date('2024-01-01'), clientsInvited: 0, lastVisit: null,
+  clientDomain: 'test.com', internalNotes: null, convertedAt: null,
+  convertedBy: null, isPublished: false, welcomeHeadline: null,
+  welcomeMessage: null, heroContentType: null, heroContentId: null,
+  showProposal: true, showVideos: true, showDocuments: true,
+  showMessages: true, showMeetings: true, showQuestionnaire: true,
+  passwordHash: null,
+};
+
+// --- Mock repository factory ---
+function makeMockScopedModel(defaults?: { findFirst?: unknown; findMany?: unknown[] }) {
+  return {
+    findMany: vi.fn().mockResolvedValue(defaults?.findMany ?? []),
+    findFirst: vi.fn().mockResolvedValue(defaults?.findFirst ?? null),
+    count: vi.fn().mockResolvedValue(0),
+    create: vi.fn().mockImplementation(async (args: Record<string, unknown>) => {
+      const data = args.data as Record<string, unknown>;
+      return { ...STUB_HUB, ...data, id: 'hub-new' };
+    }),
+    update: vi.fn().mockImplementation(async (args: Record<string, unknown>) => {
+      const data = args.data as Record<string, unknown>;
+      return { ...STUB_HUB, ...data };
+    }),
+    delete: vi.fn().mockResolvedValue({ id: 'del-1' }),
+  };
+}
+
+export function makeMockRepo(tenantId = 'tenant-agentflow') {
+  return {
+    tenantId,
+    hub: makeMockScopedModel({ findFirst: STUB_HUB }),
+    hubVideo: makeMockScopedModel(),
+    hubDocument: makeMockScopedModel(),
+    hubProject: makeMockScopedModel(),
+    hubMilestone: makeMockScopedModel(),
+    hubEvent: makeMockScopedModel(),
+  };
+}
+
+export const mockRepo = makeMockRepo();
+
+// Mock inject-repository to attach our mock repo
+vi.mock('../middleware/inject-repository.js', () => ({
+  injectRepository: (_req: unknown, _res: unknown, next: () => void) => {
+    const req = _req as Record<string, unknown>;
+    // Dynamically import to get latest mockRepo
+    const setup = require('./test-setup.ts');
+    req.repo = setup.mockRepo;
+    next();
+  },
+}));
+
+// Mock Supabase (still needed for files not yet migrated)
 vi.mock('../adapters/supabase.adapter.js', () => {
   const mockFrom = () => {
-    const makeChain = (overrides?: Record<string, unknown>) => {
-      const c = {
-        select: vi.fn().mockReturnThis(),
-        insert: vi.fn().mockReturnThis(),
-        update: vi.fn().mockReturnThis(),
-        delete: vi.fn().mockReturnThis(),
-        eq: vi.fn().mockReturnThis(),
-        in: vi.fn().mockReturnThis(),
-        is: vi.fn().mockReturnThis(),
-        or: vi.fn().mockReturnThis(),
-        ilike: vi.fn().mockReturnThis(),
-        order: vi.fn().mockReturnThis(),
-        range: vi.fn().mockReturnThis(),
-        limit: vi.fn().mockReturnThis(),
-        single: vi.fn().mockResolvedValue({ data: null, error: null }),
-        maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
-        then: undefined as unknown,
-        ...overrides,
-      };
-
-      // Make all chainable methods return the chain
-      for (const key of Object.keys(c)) {
-        if (key !== 'then' && typeof c[key as keyof typeof c] === 'function') {
-          const fn = c[key as keyof typeof c] as ReturnType<typeof vi.fn>;
-          fn.mockReturnValue(c);
-        }
-      }
-
-      // Terminal methods
-      c.single = vi.fn().mockResolvedValue({
-        data: {
-          id: 'hub-1', company_name: 'Test Co', contact_name: 'Test User',
-          contact_email: 'test@test.com', status: 'active', hub_type: 'pitch',
-          created_at: '2024-01-01T00:00:00Z', updated_at: '2024-01-01T00:00:00Z',
-          last_activity: '2024-01-01T00:00:00Z', clients_invited: 0, last_visit: null,
-          client_domain: 'test.com', internal_notes: null, converted_at: null,
-          converted_by: null, is_published: false, welcome_headline: null,
-          welcome_message: null, hero_content_type: null, hero_content_id: null,
-          show_proposal: true, show_videos: true, show_documents: true,
-          show_messages: true, show_meetings: true, show_questionnaire: true,
-          password_hash: null,
-        },
-        error: null,
-      });
-      c.maybeSingle = vi.fn().mockResolvedValue({ data: null, error: null });
-
-      // For selects with count
-      c.range = vi.fn().mockResolvedValue({ data: [], count: 0, error: null });
-
-      return c;
+    const c = {
+      select: vi.fn().mockReturnThis(),
+      insert: vi.fn().mockReturnThis(),
+      update: vi.fn().mockReturnThis(),
+      delete: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      in: vi.fn().mockReturnThis(),
+      is: vi.fn().mockReturnThis(),
+      or: vi.fn().mockReturnThis(),
+      ilike: vi.fn().mockReturnThis(),
+      order: vi.fn().mockReturnThis(),
+      range: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockReturnThis(),
+      single: vi.fn().mockResolvedValue({ data: null, error: null }),
+      maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+      then: undefined as unknown,
     };
-
-    return makeChain();
+    for (const key of Object.keys(c)) {
+      if (key !== 'then' && typeof c[key as keyof typeof c] === 'function') {
+        const fn = c[key as keyof typeof c] as ReturnType<typeof vi.fn>;
+        fn.mockReturnValue(c);
+      }
+    }
+    c.single = vi.fn().mockResolvedValue({ data: STUB_HUB, error: null });
+    c.maybeSingle = vi.fn().mockResolvedValue({ data: null, error: null });
+    c.range = vi.fn().mockResolvedValue({ data: [], count: 0, error: null });
+    return c;
   };
-
   return {
-    supabase: {
-      from: vi.fn().mockImplementation(() => mockFrom()),
-    },
+    supabase: { from: vi.fn().mockImplementation(() => mockFrom()) },
     mapHubRow: vi.fn().mockImplementation((row: Record<string, unknown>) => ({
-      id: row.id, companyName: row.company_name, contactName: row.contact_name,
-      contactEmail: row.contact_email, status: row.status, hubType: row.hub_type,
-      createdAt: row.created_at, updatedAt: row.updated_at, lastActivity: row.last_activity,
-      clientsInvited: row.clients_invited, lastVisit: row.last_visit, clientDomain: row.client_domain,
+      id: row.id, companyName: row.companyName || row.company_name,
+      contactName: row.contactName || row.contact_name,
+      contactEmail: row.contactEmail || row.contact_email,
+      status: row.status, hubType: row.hubType || row.hub_type,
+      createdAt: row.createdAt || row.created_at,
+      updatedAt: row.updatedAt || row.updated_at,
+      lastActivity: row.lastActivity || row.last_activity,
+      clientsInvited: row.clientsInvited || row.clients_invited,
+      lastVisit: row.lastVisit || row.last_visit,
+      clientDomain: row.clientDomain || row.client_domain,
     })),
     mapPortalConfig: vi.fn().mockReturnValue({
       hubId: 'hub-1', isPublished: false, welcomeHeadline: '', welcomeMessage: '',
       heroContentType: 'none', heroContentId: null,
-      sections: { showProposal: true, showVideos: true, showDocuments: true, showMessages: true, showMeetings: true, showQuestionnaire: true },
+      sections: { showProposal: true, showVideos: true, showDocuments: true,
+        showMessages: true, showMeetings: true, showQuestionnaire: true },
     }),
     mapVideoRow: vi.fn().mockImplementation((row: Record<string, unknown>) => ({ id: row.id, hubId: row.hub_id })),
     mapDocumentRow: vi.fn().mockImplementation((row: Record<string, unknown>) => ({ id: row.id, hubId: row.hub_id })),
@@ -112,9 +148,8 @@ vi.mock('../config/env.js', () => ({
   env: {
     NODE_ENV: 'test',
     PORT: 3001,
-    DEMO_MODE: true,
-    SUPABASE_URL: 'https://test.supabase.co',
-    SUPABASE_SERVICE_ROLE_KEY: 'test-key',
+    AUTH_MODE: 'demo',
+    DATA_BACKEND: 'mock',
     CORS_ORIGIN: 'http://localhost:5173',
     LOG_LEVEL: 'silent',
     AZURE_TENANT_ID: 'test',

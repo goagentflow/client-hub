@@ -2,10 +2,10 @@
  * Supabase Demo Adapter
  *
  * TEMPORARY: This adapter is for demo/development only.
- * In production, all data flows through SharePoint + OBO per ARCHITECTURE_V3_FINAL.md.
+ * In production, all data flows through Prisma + Azure PostgreSQL (see docs/PRODUCTION_ROADMAP.md).
  *
  * Uses a lazy Proxy so the Supabase client is only constructed on first use.
- * This prevents startup crashes when DEMO_MODE=false (Supabase env vars missing).
+ * This prevents startup crashes when DATA_BACKEND=azure_pg (Supabase env vars missing).
  * Mappers live in separate files per entity to stay under 300 lines.
  */
 
@@ -17,12 +17,14 @@ let _client: SupabaseClient | null = null;
 
 function getClient(): SupabaseClient {
   if (!_client) {
-    if (!env.DEMO_MODE && env.NODE_ENV === 'production') {
-      throw new Error('Supabase adapter is not available when DEMO_MODE=false in production. Use SharePoint adapter.');
+    if (env.DATA_BACKEND === 'azure_pg') {
+      throw new Error('Supabase adapter is not available when DATA_BACKEND=azure_pg. Use Prisma/PostgreSQL.');
     }
+    const url = process.env.SUPABASE_URL ?? '';
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
     _client = createClient(
-      env.SUPABASE_URL!,
-      env.SUPABASE_SERVICE_ROLE_KEY!,
+      url,
+      key,
       { auth: { autoRefreshToken: false, persistSession: false } }
     );
   }

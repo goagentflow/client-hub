@@ -8,7 +8,7 @@ import { env } from './config/env.js';
 import { logger } from './utils/logger.js';
 
 const server = app.listen(env.PORT, () => {
-  logger.info({ port: env.PORT, env: env.NODE_ENV, demoMode: env.DEMO_MODE }, 'AgentFlow middleware started');
+  logger.info({ port: env.PORT, env: env.NODE_ENV, authMode: env.AUTH_MODE, dataBackend: env.DATA_BACKEND }, 'AgentFlow middleware started');
 });
 
 // Graceful shutdown

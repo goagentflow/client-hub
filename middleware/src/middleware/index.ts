@@ -4,3 +4,4 @@ export { authMiddleware } from './auth.js';
 export { hubAccessMiddleware } from './hub-access.js';
 export { requireAdmin } from './require-admin.js';
 export { requireStaffAccess } from './require-staff.js';
+export { injectRepository } from './inject-repository.js';

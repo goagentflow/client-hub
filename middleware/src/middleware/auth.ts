@@ -4,10 +4,10 @@
  * Bearer token flow:
  *   1. Try portal JWT (HS256, type=portal) → portal user context
  *   2. Try Azure AD JWT (RS256, JWKS) → staff/client user context
- *   3. Fall through to demo header (DEMO_MODE only) or 401
+ *   3. Fall through to demo header (AUTH_MODE=demo only) or 401
  *
- * DEMO_MODE=true: also accepts X-Dev-User-Email header for dev/test.
- * DEMO_MODE=false: requires real Azure AD JWT.
+ * AUTH_MODE=demo: also accepts X-Dev-User-Email header for dev/test.
+ * AUTH_MODE=azure_ad: requires real Azure AD JWT.
  */
 
 import { Request, Response, NextFunction } from 'express';
@@ -114,7 +114,7 @@ export async function authMiddleware(req: Request, res: Response, next: NextFunc
   }
 
   // 3. Demo mode fallback: X-Dev-User-Email header (only when no Bearer token provided)
-  if (env.DEMO_MODE) {
+  if (env.AUTH_MODE === 'demo') {
     return handleDemoAuth(req, res, next);
   }
 

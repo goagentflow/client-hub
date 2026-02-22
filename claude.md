@@ -1,23 +1,32 @@
-# AgentFlow Pitch Hub v0.1 (Phase 2)
+# AgentFlow Pitch Hub v0.1 (Phase 0b)
 
 Read these files for full project context:
 - .cursorrules — Project context, scope, brand guidelines, code patterns
 - GOLDEN_RULES.md — Coding standards
 - AGENTS.md — Development canon: Simple, Clean, DRY, Secure
-- VISION_AND_ASSUMPTIONS.md — Product vision and middleware assumptions
+- docs/Vision_and_Assumptions.md — Product vision and middleware assumptions
 - docs/PHASE_2_CLIENT_HUBS.md — Phase 2 Client Hubs specification
-- docs/API_SPECIFICATION.md — Complete API contract (includes Phase 2 endpoints)
+- docs/API_SPECIFICATION.md — Complete API contract (113 endpoints)
 
 For middleware development:
 - docs/PRODUCTION_ROADMAP.md — **Current architecture and implementation plan** (v4, Azure-hosted)
-- docs/middleware/PRD_MVP_SUMMARY.md — MVP functional requirements
-- ~~docs/middleware/ARCHITECTURE_V3_FINAL.md~~ — SUPERSEDED (historical reference only)
-- ~~docs/middleware/ARCHITECTURE_DECISIONS.md~~ — SUPERSEDED (historical reference only)
+- docs/middleware/MSAL_AUTH_IMPLEMENTATION_PLAN.md — Auth design (approved by senior dev)
+- ~~docs/middleware/ARCHITECTURE_V3_FINAL.md~~ — Moved to `docs/archive/`
+- ~~docs/middleware/ARCHITECTURE_DECISIONS.md~~ — Moved to `docs/archive/`
+- ~~docs/middleware/PRD_MVP_SUMMARY.md~~ — Moved to `docs/archive/`
 
 Follow .cursorrules for all development on this project.
 Follow AGENTS.md canon: **Simple, Clean, DRY, Secure**.
 
-## Current Scope (Phase 2 Complete)
+## Current Scope
+
+**Frontend:** Phase 2 complete (Pitch Hubs + Client Hubs wireframes).
+
+**Middleware:** Phase 0b in progress — codebase refactor:
+- Prisma 6 ORM replacing Supabase JS client
+- `AUTH_MODE` + `DATA_BACKEND` replacing `DEMO_MODE`
+- TenantRepository + AdminRepository pattern for tenant isolation
+- Route migration to use injected Prisma repository (in progress)
 
 **Hub Types:**
 - Pitch Hubs: Prospecting/new business (proposal, videos, questionnaire)
@@ -38,6 +47,22 @@ Follow AGENTS.md canon: **Simple, Clean, DRY, Secure**.
 - Async job pattern for AI endpoints (POST creates job → GET polls)
 - 24-hour stale data threshold with refresh capability
 - RBAC with RequireAdmin guard for leadership views
+
+## Key Files
+
+**Middleware config & data:**
+- `middleware/src/config/env.ts` — AUTH_MODE, DATA_BACKEND, production guards
+- `middleware/prisma/schema.prisma` — Database schema (Hub, HubEvent, HubNote)
+- `middleware/src/db/` — Prisma client, TenantRepository, AdminRepository, hub mapper
+
+**Middleware auth:**
+- `middleware/src/middleware/auth.ts` — Azure AD JWT + portal JWT + demo headers
+- `middleware/src/middleware/hub-access.ts` — Hub access verification
+- `middleware/src/middleware/inject-repository.ts` — Repository injection based on DATA_BACKEND
+
+**Frontend:**
+- `src/services/api.ts` — API client (has setTokenGetter pattern)
+- `src/services/auth.service.ts` — MSAL login, token acquisition
 
 ## Mandatory Review Process
 
