@@ -41,7 +41,10 @@ SIMPLE → CLEAN → DRY → SECURE
 
 ## Architecture Canon
 
-### The Middleware is a Router, Not a Database
+> **Updated Feb 2026** — Architecture evolved from customer-hosted SharePoint to AgentFlow-hosted Azure.
+> See `docs/PRODUCTION_ROADMAP.md` (v4) for the full rationale and migration plan.
+
+### Architecture Overview
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -56,19 +59,23 @@ SIMPLE → CLEAN → DRY → SECURE
 │                                                                  │
 │  • Validates identity (JWT from MSAL)                           │
 │  • Enforces access control (hub membership + tenant isolation)  │
-│  • Transforms requests to Graph API calls (OBO flow)            │
+│  • Reads/writes to Azure PostgreSQL via TenantRepository        │
+│  • Calls Graph API via OBO for email + calendar features        │
 │  • Returns normalized JSON responses                             │
 │                                                                  │
-│  STORES NOTHING. CACHES MINIMALLY. OWNS NO DATA.                │
+│  STATELESS. CACHES MINIMALLY. ALL DATA IN AZURE.                │
 └─────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼ Microsoft Graph API (OBO Token)
-┌─────────────────────────────────────────────────────────────────┐
-│                    CUSTOMER M365 TENANT                          │
-│  SharePoint │ Outlook │ Teams │ OneDrive │ Forms                │
-│                                                                  │
-│  ALL DATA LIVES HERE. CUSTOMER OWNS IT. CUSTOMER CONTROLS IT.   │
-└─────────────────────────────────────────────────────────────────┘
+                      │                         │
+                      ▼                         ▼
+┌──────────────────────────────┐  ┌──────────────────────────────┐
+│   AGENTFLOW AZURE TENANT     │  │   CUSTOMER M365 TENANT       │
+│                              │  │                              │
+│  PostgreSQL (hub data)       │  │  Outlook (email via OBO)     │
+│  Blob Storage (files)        │  │  Teams (meetings via OBO)    │
+│  Azure AD (auth)             │  │  Calendar (events via OBO)   │
+│                              │  │                              │
+│  DPA-compliant, EU region    │  │  Customer controls M365 data │
+└──────────────────────────────┘  └──────────────────────────────┘
 ```
 
 ### Core Architectural Decisions
@@ -76,39 +83,19 @@ SIMPLE → CLEAN → DRY → SECURE
 | Decision | Rationale | Trade-off |
 |----------|-----------|-----------|
 | **OBO Flow** | Frontend never sees Graph tokens; secrets server-side only | Minimal latency overhead |
-| **SharePoint as DB** | Zero customer data in AgentFlow infrastructure | No real-time query flexibility |
+| **Azure PostgreSQL** | Managed database with full SQL, automated backups, EU region | AgentFlow hosts hub data (covered by Microsoft DPA) |
+| **Azure Blob Storage** | Private container, AV scanning, auth-checked download proxy | AgentFlow hosts files (covered by Microsoft DPA) |
 | **Hub-scoped endpoints** | Multi-tenant isolation trivial to enforce | Longer URLs |
 | **Stateless middleware** | Infinite horizontal scalability | Each request validates tenant |
-| **SharePoint Lists** | Native filtering, no JSON parsing | SharePoint API learning curve |
-| **No AgentFlow database** | One less thing; customer owns all data | Query complexity in SharePoint |
+| **TenantRepository** | Centralised tenant guard on every query; no direct DB calls | Discipline required (enforced by CI lint) |
+| **Graph for email/calendar** | Customer data stays in customer M365 — we route, not store | OBO complexity, Graph API learning curve |
 
-### SharePoint Organization — The Simple Way
+### Data Ownership Principle
 
-**Use SharePoint as SharePoint was designed:**
-- **Lists** for structured metadata (Hubs, Members, Engagement)
-- **Document Libraries** for files (with metadata columns)
-- **Don't** reinvent a database with JSON files
-
-```
-Site: AgentFlowHubs (in customer's M365)
-│
-├── Lists/
-│   ├── Hubs (id, companyName, status, tenantId, ...)
-│   ├── Members (hubId, userId, role, accessLevel, ...)
-│   └── Engagement (hubId, eventType, userId, timestamp, ...)
-│
-└── Document Libraries/
-    └── HubFiles (columns: hubId, category, visibility)
-        ├── /hub-abc123/Proposal/
-        ├── /hub-abc123/Documents/
-        └── /hub-abc123/Videos/
-```
-
-**Why Lists over JSON files:**
-- Native filtering (no full-file reads)
-- No race conditions on writes
-- SharePoint search works
-- Standard Microsoft pattern
+- **Hub metadata, members, engagement, AI jobs** → AgentFlow's Azure PostgreSQL (we host, DPA-covered)
+- **Files (documents, proposals, videos)** → AgentFlow's Azure Blob Storage (we host, DPA-covered)
+- **Emails, calendar events, Teams meetings** → Customer's M365 tenant (they own, accessed via Graph OBO)
+- **We never store email bodies, file contents from M365, or Graph API responses** in our database
 
 ### URL Pattern: Always Hub-Scoped
 
@@ -130,7 +117,7 @@ Every data endpoint requires `{hubId}`. This makes tenant isolation automatic.
 ### The OBO Flow is Non-Negotiable
 
 ```
-1. Frontend acquires token for scope: api://agentflow-backend/.default
+1. Frontend acquires token for scope: api://agentflow-backend/access_as_user
 2. Frontend sends request with Authorization: Bearer <backend-token>
 3. Middleware validates JWT (issuer, audience, expiry, tenant)
 4. Middleware exchanges for Graph token via OBO (ephemeral, single-use)
@@ -168,13 +155,14 @@ function validateTenantAccess(req: Request, hub: Hub): void {
 
 | Anti-Pattern | Why |
 |--------------|-----|
-| Store customer emails/files in AgentFlow DB | Data residency violation, liability |
+| Store customer M365 content (emails, files, calendar) in our DB | Data residency violation — Graph data stays in customer's M365 |
 | Log email bodies, file contents, or PII | GDPR, compliance risk |
 | Use Graph tokens in frontend code | Token theft = full M365 access |
 | Allow cross-tenant queries | Multi-tenant isolation breach |
 | Skip hub access checks | Unauthorized data access |
 | Hardcode secrets anywhere | Secrets leak via git/logs |
 | Trust client-side visibility filters | Server must enforce all access |
+| Bypass TenantRepository for direct DB queries | Tenant isolation breach — enforced by CI lint |
 
 ---
 
@@ -320,7 +308,7 @@ When facing an architectural decision:
 
 ```
 1. Does it follow SIMPLE → CLEAN → DRY → SECURE?
-2. Does it keep data in customer M365?
+2. Does hub data go through TenantRepository? Does M365 data stay in customer M365?
 3. Does it work for all four access patterns?
 4. Can we explain it in one sentence?
 5. Would we be comfortable if a security auditor saw it?
@@ -333,8 +321,7 @@ If any answer is "no", reconsider the approach.
 ## References
 
 **Start Here:**
-- [docs/middleware/ARCHITECTURE_V3_FINAL.md](./docs/middleware/ARCHITECTURE_V3_FINAL.md) — **Final architecture** (self-hosted, hidden lists)
-- [docs/middleware/ARCHITECTURE_DECISIONS.md](./docs/middleware/ARCHITECTURE_DECISIONS.md) — **Why we made these choices**
+- [docs/PRODUCTION_ROADMAP.md](./docs/PRODUCTION_ROADMAP.md) — **Current architecture and implementation plan** (v4, Azure-hosted)
 
 **Standards:**
 - [GOLDEN_RULES.md](./GOLDEN_RULES.md) — Coding standards
@@ -342,8 +329,7 @@ If any answer is "no", reconsider the approach.
 
 **Implementation:**
 - [docs/middleware/PRD_MVP_SUMMARY.md](./docs/middleware/PRD_MVP_SUMMARY.md) — MVP requirements
-- [docs/middleware/perplexity-Implementation_Roadmap.md](./docs/middleware/perplexity-Implementation_Roadmap.md) — Week-by-week plan
 
-**Research (for reference):**
-- [docs/middleware/ARCHITECTURE_V2_CRITICAL_REVIEW.md](./docs/middleware/ARCHITECTURE_V2_CRITICAL_REVIEW.md) — Analysis of research conflicts
-- [docs/middleware/perplexity-M365_SaaS_Architecture.md](./docs/middleware/perplexity-M365_SaaS_Architecture.md) — Original research
+**Superseded (historical reference only):**
+- [docs/middleware/ARCHITECTURE_V3_FINAL.md](./docs/middleware/ARCHITECTURE_V3_FINAL.md) — Superseded by Production Roadmap v4
+- [docs/middleware/ARCHITECTURE_DECISIONS.md](./docs/middleware/ARCHITECTURE_DECISIONS.md) — Superseded by Production Roadmap v4

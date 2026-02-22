@@ -1,8 +1,13 @@
+> **SUPERSEDED — February 2026**
+> This document has been replaced by `docs/PRODUCTION_ROADMAP.md` (v4).
+> Architecture changed from customer-hosted SharePoint to AgentFlow-hosted Azure (PostgreSQL + Blob Storage).
+> Kept for historical reference only. Do not use for implementation decisions.
+
 # Architecture Decision Record (ADR)
 
 **Project:** AgentFlow Middleware
 **Canon:** Simple, Clean, DRY, Secure
-**Status:** Decisions Finalized
+**Status:** ~~Decisions Finalized~~ SUPERSEDED
 **Last Updated:** December 2025
 
 ---

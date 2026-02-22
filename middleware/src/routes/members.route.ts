@@ -1,5 +1,6 @@
 /**
- * Member and invite routes — 11 endpoints, all 501
+ * Member and invite routes — 8 endpoints, all 501
+ * (invite-accept lives in public.route.ts, not here)
  */
 
 import { Router } from 'express';
@@ -32,7 +33,3 @@ export const shareLinkRouter = Router({ mergeParams: true });
 shareLinkRouter.use(hubAccessMiddleware);
 shareLinkRouter.use(requireStaffAccess);
 shareLinkRouter.post('/', (_req: Request, res: Response) => send501(res, 'Share link'));
-
-// Accept invite (not hub-scoped)
-export const acceptInviteRouter = Router();
-acceptInviteRouter.post('/:token/accept', (_req: Request, res: Response) => send501(res, 'Accept invite'));

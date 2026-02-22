@@ -1,8 +1,8 @@
-# AgentFlow Pitch Hub — Production Roadmap v4
+# AgentFlow Pitch Hub — Production Roadmap v4.1
 
-**Date:** 21 Feb 2026
+**Date:** 22 Feb 2026
 **Author:** Hamish Nicklin / Claude Code
-**Status:** v4 — revised after senior dev review round 3 (8 findings addressed)
+**Status:** v4.1 — canon alignment + cookie security + dead code cleanup
 **Audience:** Senior developer reviewing for feasibility and sequencing
 
 ---
@@ -50,7 +50,7 @@ Ship the AgentFlow Pitch Hub as a production application for use with real clien
 
 1. Deploy to Azure on a public URL (not localhost)
 2. Connect to Azure Database for PostgreSQL + Azure Blob Storage
-3. Implement all 68 remaining 501-stubbed endpoints
+3. Implement all 67 remaining 501-stubbed endpoints
 4. Integrate Microsoft Graph API for email and calendar features
 5. Add AI-powered client intelligence features
 
@@ -87,22 +87,22 @@ Audited by reading every handler registration in `middleware/src/routes/*.ts` �
 | public.route.ts | 3 | 1 | 4 | Invite accept stubbed |
 | messages.route.ts | 0 | 5 | 5 | All 501 (Graph Mail) |
 | meetings.route.ts | 0 | 9 | 9 | All 501 (Graph Calendar + Teams) |
-| members.route.ts | 0 | 9 | 9 | All 501 (4 member + 3 invite + 1 share-link + 1 accept) |
+| members.route.ts | 0 | 8 | 8 | All 501 (4 member + 3 invite + 1 share-link). Invite-accept lives in public.route.ts. |
 | questionnaires.route.ts | 0 | 6 | 6 | All 501 |
 | client-intelligence.route.ts | 0 | 18 | 18 | All 501 (answers 3, prep 4, performance 3, decisions 5, history 1, alerts 2) |
 | intelligence.route.ts | 0 | 3 | 3 | All 501 (relationship health + expansion) |
 | leadership.route.ts | 2 | 3 | 5 | Portfolio/clients real; at-risk/expansion/refresh stubbed |
 | conversion.route.ts | 1 | 1 | 2 | POST convert real; POST rollback stubbed |
-| **TOTAL** | **46** | **68** | **114** | **40% real, 60% stubbed** |
+| **TOTAL** | **46** | **67** | **113** | **41% real, 59% stubbed** |
 
-**Corrections from v3:** projects (8 not 9), documents (5/2/7 not 5/3/8), videos (6/2/8 not 6/3/9), portal (3/7/10 not 3/5/8), meetings (0/9/9 not 0/10/10), members (0/9/9 not 0/11/11), questionnaires (0/6/6 not 0/7/7). Net: 68 stubs to implement (was 72 in v3).
+**Corrections from v3:** projects (8 not 9), documents (5/2/7 not 5/3/8), videos (6/2/8 not 6/3/9), portal (3/7/10 not 3/5/8), meetings (0/9/9 not 0/10/10), members (0/8/8 not 0/11/11 — dead `acceptInviteRouter` deleted, live version in public.route.ts), questionnaires (0/6/6 not 0/7/7). Net: 67 stubs to implement (was 72 in v3).
 
 **Stub-to-phase assignment** (every stub accounted for):
 
 | Phase | Route file stubs owned | Count |
 |-------|----------------------|-------|
 | Phase 1 (Files) | documents:upload, proposals:upload, videos:upload | 3 |
-| Phase 2 (Members) | members:all 9, portal:members+invite, public:invite-accept | 12 |
+| Phase 2 (Members) | members:all 8, portal:members+invite, public:invite-accept | 11 |
 | Phase 3 (Questionnaires) | questionnaires:all 6, portal:questionnaires | 7 |
 | Phase 4 (Engagement) | documents:engagement, proposals:engagement, videos:engagement, leadership:at-risk+expansion+refresh | 6 |
 | Phase 6 (Messages) | messages:all 5, portal:messages(GET+POST) | 7 |
@@ -110,7 +110,7 @@ Audited by reading every handler registration in `middleware/src/routes/*.ts` �
 | Phase 8 (AI) | client-intelligence:all 18, intelligence:all 3 | 21 |
 | Phase 9 (Intelligence) | (uses intelligence.route.ts endpoints — counted in Phase 8) | 0 |
 | Phase 10 (Polish) | conversion:rollback, portal:proposal/comment | 2 |
-| **TOTAL** | | **68** |
+| **TOTAL** | | **67** |
 
 ---
 
@@ -322,7 +322,12 @@ Phase 0b — Codebase refactor:
 **Client authentication — magic link:**
 - Staff invites a client by email address → system generates a time-limited magic link token
 - Client clicks the link → middleware validates token, issues a short-lived session JWT (type: `member`, 7-day expiry)
-- Session JWT is stored in httpOnly cookie (not localStorage)
+- Session JWT is stored in a cookie with full security attributes:
+  - `HttpOnly` — not accessible to JavaScript (XSS protection)
+  - `Secure` — only sent over HTTPS
+  - `SameSite=Lax` — CSRF protection for GET requests; state-changing routes (POST/PATCH/DELETE) additionally require a CSRF token in the `X-CSRF-Token` header (double-submit cookie pattern)
+  - `Path=/api/v1` — scoped to API routes only
+- Session fixation prevention: on magic link redemption, any existing session cookie is invalidated before issuing a new one
 - Token lifecycle:
   - Magic link token: single-use, expires after 15 minutes
   - Session JWT: 7 days, refresh on activity, revocable by staff
@@ -344,9 +349,9 @@ Phase 0b — Codebase refactor:
 
 **What's built:**
 - New tables: `hub_member`, `hub_invite`, `hub_session` (all with `tenant_id`)
-- 9 endpoints in members.route.ts (matching existing stubs): list, activity, update, delete members; list, create, revoke invites; share link; accept invite
+- 8 endpoints in members.route.ts: list, activity, update, delete members; list, create, revoke invites; share link
 - Plus 2 portal stubs: portal:members, portal:invite
-- Plus 1 public stub: public:invite-accept
+- Plus 1 public stub: public:invite-accept (the live invite-accept handler)
 - Domain restriction (invites only to `client_domain` or `goagentflow.com`)
 - Hub access middleware updated to check member session (alongside existing password check)
 
@@ -361,7 +366,7 @@ Phase 0b — Codebase refactor:
 - Cross-hub member access denied (negative test)
 - Replayed magic link tokens rejected (negative test)
 
-**Stub endpoints resolved:** members:all 9, portal:members+invite (2), public:invite-accept (1) = **12 stubs**
+**Stub endpoints resolved:** members:all 8, portal:members+invite (2), public:invite-accept (1) = **11 stubs**
 
 **Dependencies:** Phase 0. Soft dependency on Phase 5 (OBO) or transactional email API key.
 
@@ -693,3 +698,4 @@ Phases 1, 2, 3, 4, 5 can run in parallel after Phase 0. Phases 6 + 7 can partial
 | v2 | 21 Feb 2026 | Addressed 12 senior dev findings: production readiness gate, tenant isolation, explicit Graph scoping, orthogonal config, endpoint inventory, invite delivery, OBO cache, content security, AI governance, measurable acceptance criteria, portal migration, release strategy |
 | v3 | 21 Feb 2026 | Addressed 7 findings: corrected endpoint inventory (47/72/119), TenantRepository pattern, tenancy contradiction resolved, backend download proxy, relaxed compatibility rule, schema migration gate, AI incident debugging |
 | v4 | 21 Feb 2026 | Addressed 8 findings: (1) resolved architecture conflict — Azure-hosted, supersedes ARCHITECTURE_V3_FINAL + ARCHITECTURE_DECISIONS; (2) re-audited endpoint inventory — 46 real / 68 stub / 114 total, added stub-to-phase assignment ensuring all 68 accounted for; (3) added DB-level tenant constraints (NOT NULL, FK, verify function) alongside app-layer guards; (4) specified magic link auth for client members (token lifecycle, replay prevention, revocation, audit); (5) added AV scanning + quarantine for file uploads; (6) split CI gating into minimum (unit+integration) and full (+ Playwright E2E from Phase 10); (7) added staging environment as explicit Phase 0 deliverable; (8) tightened AI debug mode — requires signed approval token, immutable audit log, cannot enable via env var alone |
+| v4.1 | 22 Feb 2026 | Addressed 4 findings from v4 review: (1) BLOCKER resolved — updated AGENTS.md canon to match Azure-hosted architecture, superseded old docs with deprecation banners, updated CLAUDE.md references; (2) added full cookie security (Secure, SameSite=Lax, CSRF double-submit, session fixation prevention) to magic link auth; (3) deleted dead `acceptInviteRouter` from members.route.ts, corrected inventory to 46/67/113; (4) stale route file comments noted for Phase 0b cleanup |

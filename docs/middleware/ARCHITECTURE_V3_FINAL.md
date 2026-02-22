@@ -1,7 +1,12 @@
+> **SUPERSEDED — February 2026**
+> This document has been replaced by `docs/PRODUCTION_ROADMAP.md` (v4).
+> Architecture changed from customer-hosted SharePoint to AgentFlow-hosted Azure (PostgreSQL + Blob Storage).
+> Kept for historical reference only. Do not use for implementation decisions.
+
 # AgentFlow Middleware — Final Architecture v3
 
 **Canon:** Simple, Clean, DRY, Secure
-**Status:** Ready for Implementation
+**Status:** ~~Ready for Implementation~~ SUPERSEDED
 **Last Updated:** December 2025
 
 ---
