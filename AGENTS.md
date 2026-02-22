@@ -325,7 +325,7 @@ If any answer is "no", reconsider the approach.
 
 **Standards:**
 - [GOLDEN_RULES.md](./GOLDEN_RULES.md) — Coding standards
-- [VISION_AND_ASSUMPTIONS.md](./VISION_AND_ASSUMPTIONS.md) — Product vision
+- [Vision_and_Assumptions.md](./docs/Vision_and_Assumptions.md) — Product vision (note: section 4.2 on storage is superseded by the roadmap)
 
 **Implementation:**
 - [docs/middleware/PRD_MVP_SUMMARY.md](./docs/middleware/PRD_MVP_SUMMARY.md) — MVP requirements

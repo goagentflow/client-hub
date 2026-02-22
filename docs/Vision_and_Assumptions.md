@@ -146,9 +146,13 @@ The following features from the full vision are deferred:
 
 **Open question:** How do we handle the B2B guest invitation flow for clients? Is this automated when we invite them via the hub, or manual Azure AD setup?
 
-### 4.2 Data Storage in SharePoint
+> **SUPERSEDED — February 2026:** Section 4.2 below described SharePoint-based storage.
+> The architecture has moved to Azure Database for PostgreSQL + Azure Blob Storage.
+> See `docs/PRODUCTION_ROADMAP.md` (v4.1) for the current architecture.
 
-**Assumption:** All hub data is stored in SharePoint within the AgentFlow Microsoft 365 tenant. The middleware creates a standardised folder structure when a hub is created.
+### 4.2 Data Storage ~~in SharePoint~~ (SUPERSEDED)
+
+**~~Assumption:~~ Original assumption (no longer current):** All hub data is stored in SharePoint within the AgentFlow Microsoft 365 tenant. The middleware creates a standardised folder structure when a hub is created.
 
 **Proposed folder structure:**
 
