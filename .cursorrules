@@ -56,15 +56,16 @@ AgentFlow Pitch Hub is a client relationship portal built on Microsoft 365. Two 
 - Auth: Azure AD JWT (RS256 via jose) + portal JWT (HS256) + demo headers
 - Config: `AUTH_MODE` (azure_ad | demo) + `DATA_BACKEND` (azure_pg | mock)
 - Database: Prisma 6 ORM with TenantRepository and AdminRepository
+- `DATA_BACKEND=azure_pg` connects to Supabase PostgreSQL for MVP (same Prisma interface — host configured via `DATABASE_URL`)
 - Hub CRUD with search/filter/sort
 - Staff guards on all non-portal endpoints
 - Public endpoints with rate limiting
-- 66 tests passing across 4 test files
+- 84 tests passing across 5 test files
 - 46 real endpoints, 67 stubbed (501) for future phases
 
 ## What We're Building Next
 
-See `docs/PRODUCTION_ROADMAP.md` for the full phase plan (Phases 0-10). Current priority is completing Phase 0b (codebase refactor), then deploying to Azure (Phase 0a, deferred until first client deployment).
+See `docs/PRODUCTION_ROADMAP.md` for the full phase plan (Phases 0-10). Current priority is completing Phase 0b (codebase refactor) and deploying the MVP on Google Cloud Run + Supabase. Full Azure deployment (Phase 0a) deferred until scaling beyond MVP.
 
 ---
 
@@ -74,7 +75,8 @@ See `docs/PRODUCTION_ROADMAP.md` for the full phase plan (Phases 0-10). Current 
 
 **Middleware:** Express, TypeScript, Prisma 6, jose, Zod, Pino
 
-**Production target:** Azure App Service + Static Web Apps + PostgreSQL + Blob Storage
+**MVP deployment:** Google Cloud Run + Supabase PostgreSQL + Azure AD auth (live, first client)
+**Production target:** Azure App Service + Static Web Apps + Azure PostgreSQL + Blob Storage (Phase 0a)
 
 ---
 

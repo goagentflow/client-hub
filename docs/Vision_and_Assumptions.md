@@ -147,8 +147,9 @@ The following features from the full vision are deferred:
 **Open question:** How do we handle the B2B guest invitation flow for clients? Is this automated when we invite them via the hub, or manual Azure AD setup?
 
 > **SUPERSEDED — February 2026:** Section 4.2 below described SharePoint-based storage.
-> The architecture has moved to Azure Database for PostgreSQL + Azure Blob Storage.
-> See `docs/PRODUCTION_ROADMAP.md` (v4.1) for the current architecture.
+> **MVP deployment** uses Google Cloud Run + Supabase PostgreSQL + OneDrive links.
+> **Production target** is Azure Database for PostgreSQL + Azure Blob Storage (Phase 0a).
+> See `docs/PRODUCTION_ROADMAP.md` (v4.4) for the current architecture and MVP section.
 
 ### 4.2 Data Storage ~~in SharePoint~~ (SUPERSEDED)
 

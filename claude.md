@@ -9,7 +9,7 @@ Read these files for full project context:
 - docs/API_SPECIFICATION.md — Complete API contract (113 endpoints)
 
 For middleware development:
-- docs/PRODUCTION_ROADMAP.md — **Current architecture and implementation plan** (v4, Azure-hosted)
+- docs/PRODUCTION_ROADMAP.md — **Current architecture and implementation plan** (v4.4, includes MVP deployment section)
 - docs/middleware/MSAL_AUTH_IMPLEMENTATION_PLAN.md — Auth design (approved by senior dev)
 - ~~docs/middleware/ARCHITECTURE_V3_FINAL.md~~ — Moved to `docs/archive/`
 - ~~docs/middleware/ARCHITECTURE_DECISIONS.md~~ — Moved to `docs/archive/`
@@ -21,6 +21,8 @@ Follow AGENTS.md canon: **Simple, Clean, DRY, Secure**.
 ## Current Scope
 
 **Frontend:** Phase 2 complete (Pitch Hubs + Client Hubs wireframes).
+
+**MVP Deployment:** Google Cloud Run + Supabase PostgreSQL + Azure AD auth (first client). See "MVP Deployment" section in `docs/PRODUCTION_ROADMAP.md`. Production target remains full Azure (Phase 0a).
 
 **Middleware:** Phase 0b in progress — codebase refactor:
 - Prisma 6 ORM replacing Supabase JS client

@@ -42,7 +42,10 @@ SIMPLE → CLEAN → DRY → SECURE
 ## Architecture Canon
 
 > **Updated Feb 2026** — Architecture evolved from customer-hosted SharePoint to AgentFlow-hosted Azure.
-> See `docs/PRODUCTION_ROADMAP.md` (v4) for the full rationale and migration plan.
+> **MVP deployment** uses Google Cloud Run + Supabase PostgreSQL (existing infrastructure, near-zero cost).
+> **Production target** remains Azure App Service + Azure PostgreSQL (Phase 0a).
+> Both use the same Prisma schema — migration is a config change (`DATABASE_URL`).
+> See `docs/PRODUCTION_ROADMAP.md` (v4.4) for the full rationale, MVP section, and migration plan.
 
 ### Architecture Overview
 
@@ -59,22 +62,22 @@ SIMPLE → CLEAN → DRY → SECURE
 │                                                                  │
 │  • Validates identity (JWT from MSAL)                           │
 │  • Enforces access control (hub membership + tenant isolation)  │
-│  • Reads/writes to Azure PostgreSQL via TenantRepository        │
+│  • Reads/writes to PostgreSQL via TenantRepository (Prisma ORM) │
 │  • Calls Graph API via OBO for email + calendar features        │
 │  • Returns normalized JSON responses                             │
 │                                                                  │
-│  STATELESS. CACHES MINIMALLY. ALL DATA IN AZURE.                │
+│  STATELESS. CACHES MINIMALLY. ALL DATA IN POSTGRESQL.            │
 └─────────────────────────────────────────────────────────────────┘
                       │                         │
                       ▼                         ▼
 ┌──────────────────────────────┐  ┌──────────────────────────────┐
-│   AGENTFLOW AZURE TENANT     │  │   CUSTOMER M365 TENANT       │
+│   AGENTFLOW DATA LAYER       │  │   CUSTOMER M365 TENANT       │
 │                              │  │                              │
 │  PostgreSQL (hub data)       │  │  Outlook (email via OBO)     │
-│  Blob Storage (files)        │  │  Teams (meetings via OBO)    │
-│  Azure AD (auth)             │  │  Calendar (events via OBO)   │
-│                              │  │                              │
-│  DPA-compliant, EU region    │  │  Customer controls M365 data │
+│  MVP: Supabase PG            │  │  Teams (meetings via OBO)    │
+│  Prod: Azure PG (Phase 0a)   │  │  Calendar (events via OBO)   │
+│  Blob Storage (files, later) │  │                              │
+│  Azure AD (auth, later)      │  │  Customer controls M365 data │
 └──────────────────────────────┘  └──────────────────────────────┘
 ```
 
@@ -83,8 +86,8 @@ SIMPLE → CLEAN → DRY → SECURE
 | Decision | Rationale | Trade-off |
 |----------|-----------|-----------|
 | **OBO Flow** | Frontend never sees Graph tokens; secrets server-side only | Minimal latency overhead |
-| **Azure PostgreSQL** | Managed database with full SQL, automated backups, EU region | AgentFlow hosts hub data (covered by Microsoft DPA) |
-| **Azure Blob Storage** | Private container, AV scanning, auth-checked download proxy | AgentFlow hosts files (covered by Microsoft DPA) |
+| **PostgreSQL (via Prisma)** | MVP: Supabase PG (existing). Production: Azure PG (Phase 0a). Same Prisma schema, config-only migration. | AgentFlow hosts hub data |
+| **Azure Blob Storage** | Private container, AV scanning, auth-checked download proxy (Phase 1). MVP uses OneDrive links. | AgentFlow hosts files (covered by Microsoft DPA) |
 | **Hub-scoped endpoints** | Multi-tenant isolation trivial to enforce | Longer URLs |
 | **Stateless middleware** | Infinite horizontal scalability | Each request validates tenant |
 | **TenantRepository** | Centralised tenant guard on every query; no direct DB calls | Discipline required (enforced by CI lint) |
@@ -92,8 +95,8 @@ SIMPLE → CLEAN → DRY → SECURE
 
 ### Data Ownership Principle
 
-- **Hub metadata, members, engagement, AI jobs** → AgentFlow's Azure PostgreSQL (we host, DPA-covered)
-- **Files (documents, proposals, videos)** → AgentFlow's Azure Blob Storage (we host, DPA-covered)
+- **Hub metadata, members, engagement, AI jobs** → PostgreSQL (MVP: Supabase PG; Production: Azure PG)
+- **Files (documents, proposals, videos)** → MVP: OneDrive links; Production: Azure Blob Storage (Phase 1)
 - **Emails, calendar events, Teams meetings** → Customer's M365 tenant (they own, accessed via Graph OBO)
 - **We never store email bodies, file contents from M365, or Graph API responses** in our database
 
@@ -168,42 +171,9 @@ function validateTenantAccess(req: Request, hub: Hub): void {
 
 ## Four Access Patterns, One API
 
-The same middleware API serves all consumers:
+The same middleware API serves all consumers: **Humans** (Web SPA), **M365 Copilot** (plugin/agent), **Autonomous Agents** (background jobs), and **Power Automate / Logic Apps** (workflows).
 
-### 1. Humans (Web SPA)
-```
-User clicks "Download proposal"
-└─> Frontend: GET /api/v1/hubs/{hubId}/documents/{docId}/download
-└─> Middleware: Validate JWT → Check hub access → OBO to Graph
-└─> User: Receives download URL
-```
-
-### 2. M365 Copilot (Plugin/Agent)
-```
-User in Outlook: "What's the status of the Whitmore pitch?"
-└─> Copilot: GET /api/v1/hubs/whitmore/overview (via plugin)
-└─> Middleware: Validate JWT → Check hub access → Return overview
-└─> Copilot: Synthesizes natural language response
-```
-
-### 3. Autonomous Agents
-```
-Background scheduler:
-└─> Agent: GET /api/v1/hubs/{hubId}/engagement
-└─> Agent: Detects "No client activity in 7 days"
-└─> Agent: POST /api/v1/hubs/{hubId}/alerts (creates follow-up alert)
-└─> Staff: Sees alert in dashboard
-```
-
-### 4. Power Automate / Logic Apps
-```
-Trigger: "When document is downloaded"
-└─> Workflow: POST /api/v1/hubs/{hubId}/events (log event)
-└─> Workflow: Send Teams notification to owner
-└─> Workflow: Update Excel tracker
-```
-
-**The Principle:** If it works for humans, it works for AI. Same endpoints, same auth, same permissions.
+**The Principle:** If it works for humans, it works for AI. Same endpoints, same auth, same permissions. See [docs/AGENT_DEVELOPMENT_GUIDELINES.md](./docs/AGENT_DEVELOPMENT_GUIDELINES.md) for detailed examples and patterns.
 
 ---
 
@@ -273,32 +243,7 @@ logger.info('User token', { token }); // NEVER
 
 ## Agent Development Guidelines
 
-When building AI agents or Copilot integrations:
-
-### 1. Agents Use the Same API
-- No special agent endpoints
-- Same authentication (service principal or delegated)
-- Same hub-scoped access controls
-
-### 2. Agents Respect Permissions
-- Agent cannot access hubs the user cannot access
-- Agent cannot bypass visibility filters
-- Agent actions are logged with agent identifier
-
-### 3. Agents are Auditable
-```typescript
-interface AgentRequest {
-  agentId: string;        // Which agent made the request
-  agentType: 'copilot' | 'autonomous' | 'workflow';
-  delegatedUserId?: string;  // User the agent acts on behalf of
-  correlationId: string;  // Trace ID for debugging
-}
-```
-
-### 4. Agents Fail Gracefully
-- Return structured errors, not stack traces
-- Provide actionable error messages
-- Include retry guidance when appropriate
+See [docs/AGENT_DEVELOPMENT_GUIDELINES.md](./docs/AGENT_DEVELOPMENT_GUIDELINES.md) for full guidelines on building AI agents and Copilot integrations. Key principle: agents use the same API, same auth, same permissions as humans.
 
 ---
 
@@ -321,7 +266,7 @@ If any answer is "no", reconsider the approach.
 ## References
 
 **Start Here:**
-- [docs/PRODUCTION_ROADMAP.md](./docs/PRODUCTION_ROADMAP.md) — **Current architecture and implementation plan** (v4, Azure-hosted)
+- [docs/PRODUCTION_ROADMAP.md](./docs/PRODUCTION_ROADMAP.md) — **Current architecture and implementation plan** (v4.4, MVP + Azure roadmap)
 
 **Standards:**
 - [GOLDEN_RULES.md](./GOLDEN_RULES.md) — Coding standards

@@ -63,7 +63,7 @@ pnpm run dev             # http://localhost:3001
 ### Tests
 ```sh
 cd middleware
-pnpm test                # 66 tests across 4 files
+pnpm test                # 84 tests across 5 files
 ```
 
 ## Project Structure

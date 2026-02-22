@@ -23,9 +23,16 @@ Middleware (Express/TypeScript) — 113 endpoints (46 real, 67 stubbed)
   ├── Config: AUTH_MODE (azure_ad | demo) + DATA_BACKEND (azure_pg | mock)
   ├── Database: Prisma 6 ORM (PostgreSQL in production, mock in dev)
   ├── Tenant isolation: TenantRepository + AdminRepository pattern
-  └── 66 tests passing across 4 test files
+  └── 84 tests passing across 5 test files
 
-Production Target (Azure-hosted)
+MVP Deployment (Live — first client)
+  ├── Google Cloud Run (frontend, alongside goagentflow.com)
+  ├── Google Cloud Run (middleware API, separate service)
+  ├── Supabase PostgreSQL (existing instance, Prisma ORM)
+  ├── Azure AD authentication (staff login via Microsoft)
+  └── OneDrive links for document sharing
+
+Production Target (Future — Phase 0a)
   ├── Azure App Service (middleware)
   ├── Azure Static Web Apps (frontend)
   ├── Azure Database for PostgreSQL (Flexible Server)
@@ -37,7 +44,7 @@ Production Target (Azure-hosted)
 
 ## Phase 0b Implementation Log
 
-Phase 0b is the codebase refactor preparing for Azure deployment. Phase 0a (infrastructure provisioning) is deferred to save costs until first client deployment.
+Phase 0b is the codebase refactor preparing for deployment. MVP is deploying on Google Cloud Run + Supabase PostgreSQL for the first client. Phase 0a (full Azure infrastructure) is deferred until scaling beyond MVP.
 
 ### Sub-phase 1: Prisma Migration (APPROVED)
 
@@ -102,7 +109,8 @@ Migrating route handlers to use injected Prisma repository instead of Supabase a
 
 | Phase | Name | Status | Summary |
 |-------|------|--------|---------|
-| 0a | Azure Infrastructure | **Deferred** | Resource group created (UK South). All services deferred to save ~£30-50/month until first client deployment. |
+| MVP | Cloud Run + Supabase | **Deploying** | First client deployment on Google Cloud Run + Supabase PostgreSQL. Near-zero cost. Forward-compatible with full Azure plan. |
+| 0a | Azure Infrastructure | **Deferred** | Resource group created (UK South). MVP deployed on Cloud Run + Supabase in the interim. Full Azure services created when scaling beyond MVP. |
 | 0b | Codebase Refactor | **In Progress** | Prisma migration, AUTH_MODE/DATA_BACKEND config, TenantRepository, route migration. Sub-phases 1-3 approved, sub-phase 4 in progress. |
 | 1 | File Storage | Not started | Document, proposal, and video upload to Azure Blob Storage with AV scanning. 3 stubs. |
 | 2 | Members & Access | Not started | Magic link auth for client contacts, invite system, dual-run with password portal. 11 stubs. |
@@ -117,7 +125,7 @@ Migrating route handlers to use injected Prisma repository instead of Supabase a
 
 **Total stubs remaining:** 67 of 113 endpoints (59%).
 
-**Timeline:** ~15-16 weeks sequential, ~11-12 weeks with parallelisation. Phases 1-5 can run in parallel after Phase 0.
+**Timeline:** ~15-16 weeks sequential, ~11-12 weeks with parallelisation. Phases 1-5 can run in parallel after Phase 0a (Azure infrastructure).
 
 ---
 
@@ -130,7 +138,8 @@ Migrating route handlers to use injected Prisma repository instead of Supabase a
 | Config model | `AUTH_MODE` + `DATA_BACKEND` (orthogonal) | Replaces `DEMO_MODE` boolean which conflated auth and data concerns. Production guards block unsafe combinations. |
 | JWT validation | `jose` library for both portal (HS256) and Azure AD (RS256) | Single dependency, no `@azure/msal-node` needed for validation. |
 | Staff detection | `roles` claim in Azure AD JWT | Mandatory deployment prerequisite — not optional. `requireStaffAccess` middleware enforces at router level. |
-| Phase 0a deferred | Infrastructure provisioned only when needed | Saves ~£30-50/month. App works fully in mock mode for development and demos. |
+| MVP on Cloud Run + Supabase | Deploy to existing infrastructure for first client | Real client starting now. Near-zero cost using services already paid for. Prisma works with any PostgreSQL — migration to Azure PG is a config change. |
+| Phase 0a deferred | Full Azure infrastructure provisioned when scaling | Saves ~£30-50/month. MVP serves first client in the interim. |
 | Tenant isolation | TenantRepository (app layer) + DB constraints (defence in depth) | All hub-linked queries go through tenant-scoped wrapper. `tenant_id NOT NULL` + FK constraints in schema. |
 | Client auth (future) | Magic link with session JWT in httpOnly cookie | Simple UX for external clients — no Microsoft account required. |
 | Graph API scoping | Explicit linkage tables (not email/domain heuristics) | Prevents accidental data leakage between hubs sharing contacts. |
@@ -162,7 +171,7 @@ pnpm run dev             # Starts on http://localhost:3001
 ### Running Tests
 ```sh
 cd middleware
-pnpm test               # 66 tests across 4 files
+pnpm test               # 84 tests across 5 files
 ```
 
 ### With Real Database (optional)
@@ -179,9 +188,10 @@ pnpm run dev
 ## Next Actions
 
 1. **Complete Phase 0b sub-phase 4** — Finish migrating route handlers (hubs, portal-config) to use Prisma repository
-2. **Build `npm run verify-endpoints` CI check** — Automated stub count verification
-3. **Phase 0a infrastructure** — Create Azure services when ready for first client deployment
-4. **Azure AD app registrations** — Required before MSAL auth can be tested end-to-end (see `docs/middleware/MSAL_AUTH_IMPLEMENTATION_PLAN.md`, Phase 1)
+2. **Deploy MVP to Cloud Run** — Frontend added to existing goagentflow.com deployment, middleware as separate Cloud Run service
+3. **Connect Supabase PostgreSQL** — Set `DATABASE_URL` to Supabase PG, run `prisma db push` to create schema
+4. **Build `npm run verify-endpoints` CI check** — Automated stub count verification
+5. **Phase 0a infrastructure (when scaling)** — Create full Azure services when ready to move beyond MVP
 
 ---
 

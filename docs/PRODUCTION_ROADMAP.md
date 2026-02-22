@@ -1,8 +1,8 @@
-# AgentFlow Pitch Hub — Production Roadmap v4.1
+# AgentFlow Pitch Hub — Production Roadmap v4.4
 
 **Date:** 22 Feb 2026
 **Author:** Hamish Nicklin / Claude Code
-**Status:** v4.1 — canon alignment + cookie security + dead code cleanup
+**Status:** v4.4 — senior dev review round 2 (route migration gate, dependency normalisation)
 **Audience:** Senior developer reviewing for feasibility and sequencing
 
 ---
@@ -18,9 +18,21 @@
 **Rationale for change:**
 - Original architecture assumed enterprise SaaS with per-customer Azure deployments — premature for current stage
 - AgentFlow needs to ship a working product for real clients now, not build a multi-tenant deployment platform
-- Azure-hosted gives DPA compliance under a single Microsoft agreement
-- All data stays within Microsoft's infrastructure (Azure Database for PostgreSQL, Azure Blob Storage)
+- Azure-hosted (target state) gives DPA compliance under a single Microsoft agreement
 - Migration to customer-hosted Azure or SharePoint-backed storage remains possible later (adapter pattern preserved)
+
+**Data residency and compliance (MVP vs target state):**
+
+| Concern | MVP (Cloud Run + Supabase) | Target (Azure, Phase 0a) |
+|---------|---------------------------|--------------------------|
+| Database hosting | Supabase (AWS US region) | Azure Database for PostgreSQL (EU region) |
+| File storage | OneDrive links (Microsoft-hosted) | Azure Blob Storage (EU region) |
+| Auth | Azure AD (Microsoft-hosted) | Azure AD (Microsoft-hosted) |
+| Middleware hosting | Google Cloud Run | Azure App Service (EU region) |
+| DPA coverage | Supabase DPA + Google Cloud DPA | Microsoft DPA (single agreement) |
+| GDPR position | Hub metadata in Supabase; no PII beyond hub names and contact emails. Right to deletion enforced. Acceptable for MVP scale. | All data in EU Azure region under Microsoft DPA. Full GDPR posture. |
+
+**MVP compliance note:** The MVP stores hub metadata (hub names, project names, activity logs) in Supabase PostgreSQL. No sensitive client documents are stored — documents are shared as OneDrive links, which remain in Microsoft's infrastructure. For the MVP's single-client scope, this is acceptable. The migration to Azure PostgreSQL (EU region, Microsoft DPA) happens before scaling to additional clients.
 
 **Production stack:**
 
@@ -44,12 +56,99 @@
 
 ---
 
+## MVP Deployment (Pre-Phase 0a)
+
+**Status:** Deploying now (February 2026)
+
+**Business driver:** A real pharma comms client is starting a project now. Rather than waiting for the full Azure infrastructure (Phase 0a, ~£30-50/month), we're deploying an MVP using infrastructure AgentFlow already pays for — near-zero additional cost.
+
+**MVP architecture:**
+
+| Component | Service | Notes |
+|-----------|---------|-------|
+| Frontend (React) | Google Cloud Run | Added to existing goagentflow.com deployment (alongside marketing site, /assess/, /discovery/) |
+| Middleware (Node.js) | Google Cloud Run | Separate service, free tier at low usage |
+| Database | Supabase PostgreSQL | Existing paid instance — Prisma connects directly to Supabase's PostgreSQL |
+| Documents | OneDrive links | No file uploads for MVP — staff share OneDrive links within hubs |
+| Auth (staff) | Azure AD | `AUTH_MODE=azure_ad` with `NODE_ENV=production` — same MSAL auth as the full plan |
+| Auth (portal) | Portal JWT | Password-protected portal access works as-is |
+
+**Auth:** Staff authenticate via Azure AD (Microsoft login), using the MSAL auth code already built and approved. This is the same auth that the full Azure deployment uses — no throwaway work. The Azure AD app registration must be configured before MVP goes live (see "What Hamish Needs to Do" below).
+
+**Cost:** ~£0-10/month new spend (Cloud Run free tier at low usage).
+
+**What this unlocks:**
+- Hub management (create, edit, overview, notes, activity)
+- Projects with milestones
+- Document links (OneDrive URLs, not file uploads)
+- Video sharing (external links)
+- Portal access for clients (password-protected)
+- All 46 currently-implemented endpoints
+
+**What MVP does NOT include:**
+- File uploads (no Azure Blob Storage — Phase 1)
+- Email integration (no Graph API — Phase 6)
+- Meetings integration (no Graph API — Phase 7)
+- AI features (no AI provider — Phase 8)
+
+**How MVP connects to the long-term plan:**
+
+This is a stepping stone, not a detour. Everything built for MVP is forward-compatible:
+
+1. **Database:** Prisma ORM works with any PostgreSQL. Migration from Supabase PG to Azure PG is a config change (`DATABASE_URL` in environment variables). No code changes needed.
+2. **Middleware:** Same Express/TypeScript codebase deploys to Cloud Run now and Azure App Service later. No code changes needed.
+3. **Frontend:** Same React build. Swap the hosting platform, not the code.
+4. **Schema:** Same Prisma schema, same TenantRepository pattern. Works identically on both databases.
+
+**Migration path (Supabase → Azure PostgreSQL):**
+
+When ready to move beyond MVP, Phase 0a creates Azure services and we migrate the database:
+
+1. **Snapshot:** Export Supabase database using `pg_dump` (full schema + data)
+2. **Provision:** Create Azure Database for PostgreSQL (Flexible Server, B1ms, EU region)
+3. **Import:** Restore the dump to Azure PG using `pg_restore`
+4. **Verify:** Run `prisma db pull` against Azure PG to confirm schema matches. Run full test suite against new database.
+5. **Switch:** Update `DATABASE_URL` in Cloud Run (or Azure App Service) environment to point at Azure PG
+6. **Validate:** Smoke test all endpoints. Verify hub data is accessible.
+7. **Rollback criteria:** If any endpoint fails or data is missing, revert `DATABASE_URL` to Supabase. Supabase remains read-only during cutover as a safety net.
+8. **Downtime:** Brief (<5 minutes) during the `DATABASE_URL` switch. Schedule during low-usage window.
+9. **Cleanup:** Once Azure PG is confirmed stable (24-48 hours), decommission the Supabase schema (keep the Supabase instance for other AgentFlow uses).
+
+The `DATA_BACKEND` config stays as `azure_pg` throughout — it means "real PostgreSQL via Prisma", not a specific host.
+
+### MVP Readiness Gate
+
+The MVP cannot go live until ALL of these pass:
+
+| Check | Criteria | Owner |
+|-------|----------|-------|
+| **Route migration complete** | **All route handlers use injected Prisma repository — no direct Supabase adapter calls remain. The Supabase adapter throws in production PG mode, so any unmigrated route will crash at runtime. This is the Phase 0b sub-phase 4 deliverable.** | **Dev** |
+| HTTPS enforced | Cloud Run service accessible only via HTTPS | Infra |
+| Azure AD login | Staff can sign in via Microsoft and access hub management | Dev |
+| Portal access | Client can access portal via password-protected link | Dev |
+| Database connected | Prisma schema pushed to Supabase PG, hub CRUD works end-to-end | Dev |
+| Secrets management | `DATABASE_URL`, `PORTAL_TOKEN_SECRET`, Azure AD config in Cloud Run environment variables (not in code) | Dev |
+| Security headers | Helmet defaults: CSP, HSTS, X-Frame-Options, X-Content-Type-Options | Dev |
+| CORS locked | `CORS_ORIGIN` set to exact production domain (no wildcards) | Dev |
+| Health endpoint | `GET /health` returns 200 with DB connectivity check | Dev |
+| Rate limiting | Rate-limit on auth and public endpoints (already configured) | Dev |
+| All tests pass | `pnpm test` passes (84 tests across 5 files) | Dev |
+| Clean build | Fresh `pnpm build` with no stale dist artefacts | Dev |
+
+**Not required for MVP** (required for full Azure deployment in Phase 0a):
+- Deployment slots / staging environment
+- Azure Monitor + Log Analytics
+- Backup/restore testing (Supabase has automated backups)
+- Rollback runbook (Cloud Run revisions provide instant rollback)
+
+---
+
 ## Objective
 
 Ship the AgentFlow Pitch Hub as a production application for use with real clients. This means:
 
-1. Deploy to Azure on a public URL (not localhost)
-2. Connect to Azure Database for PostgreSQL + Azure Blob Storage
+1. Deploy to a public URL with HTTPS (MVP: Google Cloud Run; Production: Azure App Service)
+2. Connect to PostgreSQL (MVP: Supabase; Production: Azure Database for PostgreSQL)
 3. Implement all 67 remaining 501-stubbed endpoints
 4. Integrate Microsoft Graph API for email and calendar features
 5. Add AI-powered client intelligence features
@@ -60,8 +159,9 @@ Ship the AgentFlow Pitch Hub as a production application for use with real clien
 
 | Assumption | Value | Impact |
 |-----------|-------|--------|
-| Tenancy at launch | Single-tenant, tenant guards enforced | One Azure AD tenant, one database. `tenant_id` column + TenantRepository guard on all hub-linked tables from Phase 0. Hard launch requirement. |
-| Compliance | GDPR/DPA-compliant | All data in Azure EU region. Microsoft DPA covers infrastructure. Right to deletion enforced. No unnecessary PII sent to AI. |
+| Tenancy at launch | Single-tenant, tenant guards enforced | One Azure AD tenant, one database. `tenant_id` column + TenantRepository guard on all hub-linked tables from Phase 0b. Hard launch requirement. |
+| Compliance (MVP) | GDPR-aware, minimal PII | Hub metadata in Supabase (US region). No sensitive documents stored (OneDrive links only). Right to deletion enforced. Acceptable for single-client MVP. See compliance table above. |
+| Compliance (target) | GDPR/DPA-compliant | All data in Azure EU region. Microsoft DPA covers infrastructure. Right to deletion enforced. No unnecessary PII sent to AI. |
 | Scale | Small (<50 users, <100 hubs) | Single App Service instance. No distributed cache needed at launch. |
 | Multi-tenant expansion | Designed for, not tested at launch | Schema supports multiple tenants. Multi-tenant onboarding (provisioning, billing, tenant admin UI) is post-launch scope. |
 
@@ -71,7 +171,7 @@ Ship the AgentFlow Pitch Hub as a production application for use with real clien
 
 Audited by reading every handler registration in `middleware/src/routes/*.ts` — counting `router.get/post/patch/delete/put` calls and classifying each as real (has logic) or 501 stub (returns 501/send501).
 
-**Integrity rule:** This table MUST be re-verified before each phase ships. A CI check (`npm run verify-endpoints`) counts `send501`/`res.status(501)` in route files and fails if this table drifts from the codebase. The CI check is a Phase 0 deliverable, not deferred.
+**Integrity rule:** This table MUST be re-verified before each phase ships. A CI check (`npm run verify-endpoints`) counts `send501`/`res.status(501)` in route files and fails if this table drifts from the codebase. The CI check is a Phase 0b deliverable (required before Phase 1 execution, not required for MVP go-live).
 
 | Route File | Real | 501 Stub | Total | Notes |
 |-----------|------|----------|-------|-------|
@@ -134,7 +234,7 @@ The current `DEMO_MODE` boolean conflates auth mode and data backend. Replace wi
 | development | azure_ad | azure_pg | Yes (real auth + real DB testing) |
 | test | demo | mock | Yes |
 
-**Phase 0 task:** Rewrite `env.ts` validation and `supabase.adapter.ts` production guard to match this truth table. Identify and update every guard/error-message that references `DEMO_MODE`.
+**Phase 0b task:** Rewrite `env.ts` validation and `supabase.adapter.ts` production guard to match this truth table. Identify and update every guard/error-message that references `DEMO_MODE`.
 
 ---
 
@@ -170,7 +270,7 @@ The middleware uses a service-role connection to PostgreSQL (full access). Tenan
 
 ## Production Readiness Gate
 
-Phase 0 cannot ship until ALL of these pass:
+Phase 0a (full Azure deployment) cannot ship until ALL of these pass:
 
 ### Hard Pass/Fail Checks
 
@@ -227,14 +327,14 @@ At launch scale (<50 users), Hamish is the escalation point. No 24/7 on-call req
 
 ## Phased Roadmap
 
-### Phase 0: Deploy to Azure
+### Phase 0: Deploy to Azure (0a: infrastructure, 0b: codebase refactor)
 
 **Objective:** Get the existing working app on a public URL with HTTPS, passing all production readiness checks.
 
 **What's built:**
 
-Phase 0a — Infrastructure (DEFERRED — create when ready for first client deployment):
-- **Status:** Resource group `rg-agentflow-hub` created in UK South. All other resources deferred to avoid costs (~$15-20/month for PostgreSQL alone). Code works fully in mock mode for development and demos.
+Phase 0a — Infrastructure (DEFERRED — MVP deployed on Google Cloud Run + Supabase in the interim):
+- **Status:** Resource group `rg-agentflow-hub` created in UK South. All other Azure resources deferred. MVP is live on Google Cloud Run + Supabase PostgreSQL (see "MVP Deployment" section above). Full Azure deployment happens when scaling beyond MVP.
 - Azure App Service (middleware) with deployment slots (staging + production)
 - Azure Static Web Apps (frontend) with custom domain
 - Azure Database for PostgreSQL (Flexible Server, Burstable B1ms) with schema migration
@@ -310,7 +410,7 @@ Phase 0b — Codebase refactor:
 
 **Stub endpoints resolved:** documents:upload (1), proposals:upload (1), videos:upload (1) = **3 stubs**
 
-**Dependencies:** Phase 0, Azure Blob Storage configured
+**Dependencies:** Phase 0a, Azure Blob Storage configured
 
 **Complexity:** Medium-high (~5-6 days, increased for AV scanning pipeline)
 
@@ -369,7 +469,7 @@ Phase 0b — Codebase refactor:
 
 **Stub endpoints resolved:** members:all 8, portal:members+invite (2), public:invite-accept (1) = **11 stubs**
 
-**Dependencies:** Phase 0. Soft dependency on Phase 5 (OBO) or transactional email API key.
+**Dependencies:** Phase 0a. Soft dependency on Phase 5 (OBO) or transactional email API key.
 
 **Complexity:** Medium-high (~6-7 days, increased for magic link auth implementation)
 
@@ -420,7 +520,7 @@ Phase 0b — Codebase refactor:
 
 **Stub endpoints resolved:** documents:engagement (1), proposals:engagement (1), videos:engagement (1), leadership:at-risk+expansion+refresh (3) = **6 stubs**
 
-**Dependencies:** Phase 0. Enhanced by Phase 2 (member identity enriches engagement data, but portal-level identity works without it — not a hard blocker)
+**Dependencies:** Phase 0a. Enhanced by Phase 2 (member identity enriches engagement data, but portal-level identity works without it — not a hard blocker)
 
 **Complexity:** Low-medium (~3-4 days)
 
@@ -450,7 +550,7 @@ Phase 0b — Codebase refactor:
 - CAE claims challenge triggers re-acquisition (unit test)
 - Error handling: consent not granted returns clear error message to frontend
 
-**Dependencies:** Phase 0, Azure AD app needs Graph API permissions + admin consent + client secret
+**Dependencies:** Phase 0a, Azure AD app needs Graph API permissions + admin consent + client secret
 
 **Complexity:** Medium (~3-4 days)
 
@@ -623,24 +723,25 @@ Phase 0b — Codebase refactor:
 
 ## Summary Timeline
 
-| Phase | Name | Est. Duration | Blocked By |
-|-------|------|--------------|------------|
-| 0a | Azure Infrastructure + Staging | 3-4 days | Nothing |
-| 0b | Codebase Refactor (PG migration, config, TenantRepo) | 4-5 days | Phase 0a |
-| 1 | File Storage (Upload + AV Scanning) | 5-6 days | Phase 0 |
-| 2 | Members & Access (Magic Link + Dual-Run) | 6-7 days | Phase 0 |
-| 3 | Questionnaires | 4-5 days | Phase 0 |
-| 4 | Engagement Analytics | 3-4 days | Phase 0 |
-| 5 | OBO Token Flow | 3-4 days | Phase 0 |
-| 6 | Messages (Explicit Linkage) | 5-6 days | Phase 5 |
-| 7 | Meetings (Explicit Linkage) | 6-7 days | Phase 5 |
-| 8 | Client Intelligence (AI + Governance) | 8-10 days | Phase 4, 7 |
-| 9 | Relationship Intelligence (Frontend) | 4-5 days | Phase 8 |
-| 10 | Polish + Zero 501s + E2E | 3-4 days | All above |
+| Phase | Name | Est. Duration | Blocked By | Track |
+|-------|------|--------------|------------|-------|
+| MVP | Cloud Run + Supabase deployment | 1-2 days | Phase 0b | MVP |
+| 0b | Codebase Refactor (PG migration, config, TenantRepo) | 4-5 days | Nothing (in progress) | MVP |
+| 0a | Azure Infrastructure + Staging | 3-4 days | Nothing (deferred) | Azure cutover |
+| 1 | File Storage (Upload + AV Scanning) | 5-6 days | Phase 0a | Azure cutover |
+| 2 | Members & Access (Magic Link + Dual-Run) | 6-7 days | Phase 0a | Azure cutover |
+| 3 | Questionnaires | 4-5 days | Phase 0a | Azure cutover |
+| 4 | Engagement Analytics | 3-4 days | Phase 0a | Azure cutover |
+| 5 | OBO Token Flow | 3-4 days | Phase 0a | Azure cutover |
+| 6 | Messages (Explicit Linkage) | 5-6 days | Phase 5 | Azure cutover |
+| 7 | Meetings (Explicit Linkage) | 6-7 days | Phase 5 | Azure cutover |
+| 8 | Client Intelligence (AI + Governance) | 8-10 days | Phase 4, 7 | Azure cutover |
+| 9 | Relationship Intelligence (Frontend) | 4-5 days | Phase 8 | Azure cutover |
+| 10 | Polish + Zero 501s + E2E | 3-4 days | All above | Azure cutover |
 
 **Total: ~15-16 weeks sequential, ~11-12 weeks with parallelisation**
 
-Phases 1, 2, 3, 4, 5 can run in parallel after Phase 0. Phases 6 + 7 can partially overlap after Phase 5.
+**Two tracks:** MVP track (0b → MVP deployment) is independent of the Azure cutover track (0a → Phase 1+). Phase 0b is in progress now. MVP deploys as soon as 0b completes. Phases 1+ require Phase 0a (Azure infrastructure). Phases 1, 2, 3, 4, 5 can run in parallel after Phase 0a. Phases 6 + 7 can partially overlap after Phase 5.
 
 **Conditional dependencies in timeline:**
 - Phase 2 has a soft dependency on Phase 5 (OBO for invite emails) OR a transactional email API key. If neither is available, invites are manual copy-paste only.
@@ -652,8 +753,8 @@ Phases 1, 2, 3, 4, 5 can run in parallel after Phase 0. Phases 6 + 7 can partial
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
-| Hosting | AgentFlow's own Azure subscription | DPA compliance under single Microsoft agreement. All data in EU Azure region. |
-| Database | Azure Database for PostgreSQL | Managed PostgreSQL, automated backups, familiar SQL |
+| Hosting (target) | AgentFlow's own Azure subscription | DPA compliance under single Microsoft agreement. All data in EU Azure region. MVP uses Cloud Run + Supabase (see MVP section). |
+| Database (target) | Azure Database for PostgreSQL | Managed PostgreSQL, automated backups, EU region. MVP uses Supabase PostgreSQL (same Prisma schema). |
 | File storage | Azure Blob Storage | Same Azure subscription, private container, AV scanning via Azure Function |
 | AI provider | Server-side only (Claude/OpenAI) | API key stays in middleware; async job pattern handles latency |
 | Graph API auth | OBO (On-Behalf-Of) | Emails sent from user's mailbox; proper audit trail |
@@ -667,12 +768,20 @@ Phases 1, 2, 3, 4, 5 can run in parallel after Phase 0. Phases 6 + 7 can partial
 
 ## What Hamish Needs to Do (Non-Developer Tasks)
 
-1. **Azure subscription** — Ensure an Azure subscription is available with sufficient quota (Phase 0)
-2. **Azure AD permissions** — Grant admin consent for Graph API scopes when Phase 5 begins
-3. **Azure AD client secret** — Generate one for the backend app registration (Phase 5)
-4. **DNS** — Point chosen domain at Azure services (Phase 0)
-5. **AI provider** — Choose Claude API or OpenAI and create an API key (Phase 8)
-6. **Transactional email** — Choose Resend or Postmark and create API key, OR rely on OBO email (Phase 2)
+### For MVP (before go-live)
+1. **Azure AD app registration** — Ensure the existing app registration has the correct redirect URIs for the Cloud Run domain (e.g. `https://hub.goagentflow.com`)
+2. **Azure AD environment variables** — Provide `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, and the JWKS endpoint for the Cloud Run middleware deployment
+3. **Cloud Run service setup** — Create the middleware Cloud Run service (or delegate to developer)
+4. **Supabase connection string** — Provide `DATABASE_URL` for the existing Supabase PostgreSQL instance
+5. **DNS** — Point chosen subdomain at the Cloud Run middleware service
+
+### For full Azure deployment (Phase 0a, when scaling)
+6. **Azure subscription** — Ensure an Azure subscription is available with sufficient quota
+7. **Azure AD permissions** — Grant admin consent for Graph API scopes when Phase 5 begins
+8. **Azure AD client secret** — Generate one for the backend app registration (Phase 5)
+9. **DNS** — Point chosen domain at Azure services
+10. **AI provider** — Choose Claude API or OpenAI and create an API key (Phase 8)
+11. **Transactional email** — Choose Resend or Postmark and create API key, OR rely on OBO email (Phase 2)
 
 ---
 
@@ -700,3 +809,6 @@ Phases 1, 2, 3, 4, 5 can run in parallel after Phase 0. Phases 6 + 7 can partial
 | v3 | 21 Feb 2026 | Addressed 7 findings: corrected endpoint inventory (47/72/119), TenantRepository pattern, tenancy contradiction resolved, backend download proxy, relaxed compatibility rule, schema migration gate, AI incident debugging |
 | v4 | 21 Feb 2026 | Addressed 8 findings: (1) resolved architecture conflict — Azure-hosted, supersedes ARCHITECTURE_V3_FINAL + ARCHITECTURE_DECISIONS; (2) re-audited endpoint inventory — 46 real / 68 stub / 114 total, added stub-to-phase assignment ensuring all 68 accounted for; (3) added DB-level tenant constraints (NOT NULL, FK, verify function) alongside app-layer guards; (4) specified magic link auth for client members (token lifecycle, replay prevention, revocation, audit); (5) added AV scanning + quarantine for file uploads; (6) split CI gating into minimum (unit+integration) and full (+ Playwright E2E from Phase 10); (7) added staging environment as explicit Phase 0 deliverable; (8) tightened AI debug mode — requires signed approval token, immutable audit log, cannot enable via env var alone |
 | v4.1 | 22 Feb 2026 | Addressed 4 findings from v4 review: (1) BLOCKER resolved — updated AGENTS.md canon to match Azure-hosted architecture, superseded old docs with deprecation banners, updated CLAUDE.md references; (2) added full cookie security (Secure, SameSite=Lax, CSRF double-submit, session fixation prevention) to magic link auth; (3) deleted dead `acceptInviteRouter` from members.route.ts, corrected inventory to 46/67/113; (4) stale route file comments noted for Phase 0b cleanup |
+| v4.2 | 22 Feb 2026 | Added "MVP Deployment (Pre-Phase 0a)" section — Google Cloud Run + Supabase PostgreSQL for first client. Updated Phase 0a status. Long-term Azure plan unchanged. |
+| v4.3 | 22 Feb 2026 | Senior dev review round 1: (1) MVP uses Azure AD auth (not demo mode); (2) compliance narrative split MVP vs target-state; (3) Supabase→Azure migration runbook; (4) MVP readiness gate (11 checks); (5) phase dependency table fixed (MVP track vs Azure cutover); (6) verify-endpoints timing clarified; (7) test counts updated; (8) clean build requirement. |
+| v4.4 | 22 Feb 2026 | Senior dev review round 2: (1) route migration completion added as go-live blocker in MVP readiness gate — unmigrated routes crash in production PG mode; (2) normalised "Phase 0" → "Phase 0a" in timeline table and STATUS.md; (3) key decisions table marked hosting/database rows as "(target)" with MVP cross-reference. |
