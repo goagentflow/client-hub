@@ -23,7 +23,7 @@ Middleware (Express/TypeScript) — 113 endpoints (46 real, 67 stubbed)
   ├── Config: AUTH_MODE (azure_ad | demo) + DATA_BACKEND (azure_pg)
   ├── Database: Prisma 6 ORM (PostgreSQL via DATABASE_URL)
   ├── Tenant isolation: TenantRepository + AdminRepository pattern
-  └── 84 tests passing across 5 test files
+  └── 89 tests passing across 6 test files
 
 MVP Deployment (Live — first client)
   ├── Google Cloud Run (frontend, alongside goagentflow.com)
@@ -194,7 +194,7 @@ pnpm run dev             # Starts on http://localhost:3001
 ### Running Tests
 ```sh
 cd middleware
-pnpm test               # 84 tests across 5 files
+pnpm test               # 89 tests across 6 files
 ```
 
 ---

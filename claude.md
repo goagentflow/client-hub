@@ -9,7 +9,7 @@ Read these files for full project context:
 - docs/API_SPECIFICATION.md — Complete API contract (113 endpoints)
 
 For middleware development:
-- docs/PRODUCTION_ROADMAP.md — **Current architecture and implementation plan** (v4.5, route migration complete)
+- docs/PRODUCTION_ROADMAP.md — **Current architecture and implementation plan** (v4.6, Dockerfiles added)
 - docs/middleware/MSAL_AUTH_IMPLEMENTATION_PLAN.md — Auth design (approved by senior dev)
 - ~~docs/middleware/ARCHITECTURE_V3_FINAL.md~~ — Moved to `docs/archive/`
 - ~~docs/middleware/ARCHITECTURE_DECISIONS.md~~ — Moved to `docs/archive/`
@@ -29,6 +29,7 @@ Follow AGENTS.md canon: **Simple, Clean, DRY, Secure**.
 - `AUTH_MODE` + `DATA_BACKEND` config (replaced `DEMO_MODE`)
 - TenantRepository + AdminRepository pattern for tenant isolation
 - All routes migrated to injected Prisma repository
+- Cloud Run Dockerfiles (middleware + frontend) — multi-stage, non-root, reviewed
 
 **Hub Types:**
 - Pitch Hubs: Prospecting/new business (proposal, videos, questionnaire)
@@ -61,6 +62,11 @@ Follow AGENTS.md canon: **Simple, Clean, DRY, Secure**.
 - `middleware/src/middleware/auth.ts` — Azure AD JWT + portal JWT + demo headers
 - `middleware/src/middleware/hub-access.ts` — Hub access verification
 - `middleware/src/middleware/inject-repository.ts` — Repository injection based on DATA_BACKEND
+
+**Docker (Cloud Run deployment):**
+- `middleware/Dockerfile` — Multi-stage middleware build (Node 20, pnpm, Prisma, tsup, non-root)
+- `Dockerfile` (root) — Multi-stage frontend build (Vite + nginx-unprivileged, PORT envsubst)
+- `nginx.conf.template` — SPA routing with `${PORT}` for Cloud Run
 
 **Frontend:**
 - `src/services/api.ts` — API client (has setTokenGetter pattern)

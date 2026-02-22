@@ -1,8 +1,8 @@
-# AgentFlow Pitch Hub — Production Roadmap v4.5
+# AgentFlow Pitch Hub — Production Roadmap v4.6
 
 **Date:** 22 Feb 2026
 **Author:** Hamish Nicklin / Claude Code
-**Status:** v4.5 — route migration complete, mock backend removed
+**Status:** v4.6 — Dockerfiles added for Cloud Run deployment
 **Audience:** Senior developer reviewing for feasibility and sequencing
 
 ---
@@ -58,7 +58,7 @@
 
 ## MVP Deployment (Pre-Phase 0a)
 
-**Status:** Deploying now (February 2026)
+**Status:** Deploying now (February 2026). Dockerfiles created and reviewed.
 
 **Business driver:** A real pharma comms client is starting a project now. Rather than waiting for the full Azure infrastructure (Phase 0a, ~£30-50/month), we're deploying an MVP using infrastructure AgentFlow already pays for — near-zero additional cost.
 
@@ -72,6 +72,39 @@
 | Documents | OneDrive links | No file uploads for MVP — staff share OneDrive links within hubs |
 | Auth (staff) | Azure AD | `AUTH_MODE=azure_ad` with `NODE_ENV=production` — same MSAL auth as the full plan |
 | Auth (portal) | Portal JWT | Password-protected portal access works as-is |
+
+**Containerisation (complete):**
+
+Both services have multi-stage Dockerfiles optimised for Cloud Run:
+
+| File | Purpose |
+|------|---------|
+| `middleware/Dockerfile` | Node 20 + pnpm + Prisma generate + tsup build → non-root runtime (uid 1001) |
+| `middleware/.dockerignore` | Excludes node_modules, dist, .env, tests |
+| `Dockerfile` (root) | Vite build with `VITE_*` build args → `nginxinc/nginx-unprivileged` runtime |
+| `.dockerignore` (root) | Excludes node_modules, dist, middleware/, .env |
+| `nginx.conf.template` (root) | SPA routing, gzip, `${PORT}` substitution via envsubst at startup |
+
+Build commands:
+```bash
+# Middleware
+docker build -t pitchhub-middleware ./middleware
+
+# Frontend (pass VITE_* args at build time)
+docker build -t pitchhub-frontend \
+  --build-arg VITE_API_BASE_URL=https://api.goagentflow.com \
+  --build-arg VITE_AZURE_CLIENT_ID=<client-id> \
+  --build-arg VITE_AZURE_TENANT_ID=<tenant-id> \
+  --build-arg VITE_AZURE_BACKEND_CLIENT_ID=<backend-client-id> \
+  .
+```
+
+Key design decisions:
+- **Mock API disabled by default** — `ARG VITE_USE_MOCK_API=false` ensures production builds use real middleware
+- **Cloud Run PORT compliance** — nginx uses `${PORT}` template (default 8080); middleware reads `process.env.PORT` (default 3001)
+- **Non-root containers** — middleware runs as `appuser:1001`, frontend uses `nginx-unprivileged` (uid 101)
+- **Prisma client preserved** — generated `.prisma/client/` explicitly saved before `pnpm prune --prod` to prevent engine binary loss
+- **Layer caching** — lockfile + package.json copied before source for efficient rebuilds
 
 **Auth:** Staff authenticate via Azure AD (Microsoft login), using the MSAL auth code already built and approved. This is the same auth that the full Azure deployment uses — no throwaway work. The Azure AD app registration must be configured before MVP goes live (see "What Hamish Needs to Do" below).
 
@@ -120,20 +153,22 @@ The `DATA_BACKEND` config stays as `azure_pg` throughout — it means "real Post
 
 The MVP cannot go live until ALL of these pass:
 
-| Check | Criteria | Owner |
-|-------|----------|-------|
-| **Route migration complete** | **All route handlers use injected Prisma repository — no direct Supabase adapter calls remain. The Supabase adapter throws in production PG mode, so any unmigrated route will crash at runtime. This is the Phase 0b sub-phase 4 deliverable.** | **Dev** |
-| HTTPS enforced | Cloud Run service accessible only via HTTPS | Infra |
-| Azure AD login | Staff can sign in via Microsoft and access hub management | Dev |
-| Portal access | Client can access portal via password-protected link | Dev |
-| Database connected | Prisma schema pushed to Supabase PG, hub CRUD works end-to-end | Dev |
-| Secrets management | `DATABASE_URL`, `PORTAL_TOKEN_SECRET`, Azure AD config in Cloud Run environment variables (not in code) | Dev |
-| Security headers | Helmet defaults: CSP, HSTS, X-Frame-Options, X-Content-Type-Options | Dev |
-| CORS locked | `CORS_ORIGIN` set to exact production domain (no wildcards) | Dev |
-| Health endpoint | `GET /health` returns 200 with DB connectivity check | Dev |
-| Rate limiting | Rate-limit on auth and public endpoints (already configured) | Dev |
-| All tests pass | `pnpm test` passes (84 tests across 5 files) | Dev |
-| Clean build | Fresh `pnpm build` with no stale dist artefacts | Dev |
+| Check | Criteria | Owner | Status |
+|-------|----------|-------|--------|
+| Route migration | All route handlers use injected Prisma repository | Dev | **DONE** (v4.5) |
+| Dockerfiles | Multi-stage Docker builds for middleware + frontend, Cloud Run PORT compliance, non-root, reviewed | Dev | **DONE** (v4.6) |
+| Health endpoint | `GET /health` returns 200 when DB reachable, 503 when DB unreachable. `/health/ready` checks DB. `/health/live` confirms process is running. | Dev | **DONE** (v4.6) |
+| HTTPS enforced | Cloud Run service accessible only via HTTPS | Infra | |
+| Azure AD login | Staff can sign in via Microsoft and access hub management | Dev | |
+| Portal access | Client can access portal via password-protected link | Dev | |
+| Database connected | Prisma schema pushed to Supabase PG, hub CRUD works end-to-end | Dev | |
+| Secrets management | `DATABASE_URL`, `PORTAL_TOKEN_SECRET`, Azure AD config in Cloud Run environment variables (not in code) | Dev | |
+| TRUST_PROXY | `TRUST_PROXY=true` set in Cloud Run env vars — required for correct `req.ip` behind Google's load balancer (rate limiting, logging) | Infra | |
+| Security headers | Helmet defaults: CSP, HSTS, X-Frame-Options, X-Content-Type-Options | Dev | |
+| CORS locked | `CORS_ORIGIN` set to exact production domain (no wildcards) | Dev | |
+| Rate limiting | Rate-limit on auth and public endpoints (already configured) | Dev | |
+| All tests pass | `pnpm test` passes (84+ tests across 5+ files) | Dev | |
+| Clean build | Fresh `pnpm build` with no stale dist artefacts | Dev | |
 
 **Not required for MVP** (required for full Azure deployment in Phase 0a):
 - Deployment slots / staging environment
@@ -279,7 +314,7 @@ Phase 0a (full Azure deployment) cannot ship until ALL of these pass:
 | HTTPS enforced | All endpoints accessible only via HTTPS (App Service enforces) | Infra |
 | Secrets management | All secrets in Azure App Service Application Settings, not in code or .env files | Dev |
 | Error monitoring | Pino logs shipped to Azure Monitor / Log Analytics | Dev |
-| Health endpoint | `GET /health` returns 200 with DB connectivity check | Dev |
+| Health endpoint | `GET /health` returns 200 when DB reachable, 503 when DB unreachable | Dev |
 | Backup/restore | Azure PostgreSQL daily backups enabled; manual restore tested once | Hamish |
 | Rollback runbook | Document: how to swap deployment slots to revert in <5 minutes | Dev |
 | Security headers | Helmet defaults: CSP, HSTS, X-Frame-Options, X-Content-Type-Options | Dev |
@@ -344,16 +379,18 @@ Phase 0a — Infrastructure (DEFERRED — MVP deployed on Google Cloud Run + Sup
 - Azure AD redirect URIs updated for production domain
 - Staging environment: staging App Service slot + staging DB snapshot
 
-Phase 0b — Codebase refactor:
-- Replace Supabase JS client with PostgreSQL client (`pg` or Prisma)
-- Replace `DEMO_MODE` with `AUTH_MODE` + `DATA_BACKEND` config model
-- Rewrite `env.ts` validation to match new truth table
-- Rewrite `supabase.adapter.ts` production guard (→ `pg.adapter.ts`)
-- Implement `TenantRepository` wrapper with tenant guard abstraction
-- Implement `AdminRepository` with `bypassTenant` logging
-- Build `npm run verify-endpoints` CI check
-- Production readiness gate checks (see above)
-- Rollback runbook documented
+Phase 0b — Codebase refactor (COMPLETE):
+- Replace Supabase JS client with PostgreSQL client (`pg` or Prisma) ✓
+- Replace `DEMO_MODE` with `AUTH_MODE` + `DATA_BACKEND` config model ✓
+- Rewrite `env.ts` validation to match new truth table ✓
+- Rewrite `supabase.adapter.ts` production guard (→ `pg.adapter.ts`) ✓
+- Implement `TenantRepository` wrapper with tenant guard abstraction ✓
+- Implement `AdminRepository` with `bypassTenant` logging ✓
+- All routes migrated to injected Prisma repository ✓
+- Cloud Run Dockerfiles for middleware + frontend (multi-stage, non-root, reviewed) ✓
+- Health endpoint with DB connectivity check (200/503) ✓
+- Build `npm run verify-endpoints` CI check (deferred — not required for MVP go-live, required before Phase 1)
+- Rollback runbook (deferred — Cloud Run revisions provide instant rollback for MVP)
 
 **Success criteria:**
 - All production readiness gate checks pass (table above)
@@ -726,7 +763,7 @@ Phase 0b — Codebase refactor:
 | Phase | Name | Est. Duration | Blocked By | Track |
 |-------|------|--------------|------------|-------|
 | MVP | Cloud Run + Supabase deployment | 1-2 days | Phase 0b | MVP |
-| 0b | Codebase Refactor (PG migration, config, TenantRepo) | 4-5 days | Nothing (in progress) | MVP |
+| 0b | Codebase Refactor (PG migration, config, TenantRepo, Dockerfiles) | 4-5 days | Nothing (COMPLETE) | MVP |
 | 0a | Azure Infrastructure + Staging | 3-4 days | Nothing (deferred) | Azure cutover |
 | 1 | File Storage (Upload + AV Scanning) | 5-6 days | Phase 0a | Azure cutover |
 | 2 | Members & Access (Magic Link + Dual-Run) | 6-7 days | Phase 0a | Azure cutover |
@@ -741,7 +778,7 @@ Phase 0b — Codebase refactor:
 
 **Total: ~15-16 weeks sequential, ~11-12 weeks with parallelisation**
 
-**Two tracks:** MVP track (0b → MVP deployment) is independent of the Azure cutover track (0a → Phase 1+). Phase 0b is in progress now. MVP deploys as soon as 0b completes. Phases 1+ require Phase 0a (Azure infrastructure). Phases 1, 2, 3, 4, 5 can run in parallel after Phase 0a. Phases 6 + 7 can partially overlap after Phase 5.
+**Two tracks:** MVP track (0b → MVP deployment) is independent of the Azure cutover track (0a → Phase 1+). Phase 0b is complete. MVP deployment is the current focus — Azure AD app registration, Cloud Run service creation, and environment variable configuration are the remaining blockers (see "What Hamish Needs to Do"). Phases 1+ require Phase 0a (Azure infrastructure). Phases 1, 2, 3, 4, 5 can run in parallel after Phase 0a. Phases 6 + 7 can partially overlap after Phase 5.
 
 **Conditional dependencies in timeline:**
 - Phase 2 has a soft dependency on Phase 5 (OBO for invite emails) OR a transactional email API key. If neither is available, invites are manual copy-paste only.
@@ -774,14 +811,15 @@ Phase 0b — Codebase refactor:
 3. **Cloud Run service setup** — Create the middleware Cloud Run service (or delegate to developer)
 4. **Supabase connection string** — Provide `DATABASE_URL` for the existing Supabase PostgreSQL instance
 5. **DNS** — Point chosen subdomain at the Cloud Run middleware service
+6. **Cloud Run environment variables** — Set all required env vars on the middleware service (see MVP Readiness Gate table). **Critical:** `TRUST_PROXY=true` must be set — Cloud Run sits behind Google's load balancer, and without it `req.ip` resolves to the load balancer IP, making rate limiting throttle all users as one.
 
 ### For full Azure deployment (Phase 0a, when scaling)
-6. **Azure subscription** — Ensure an Azure subscription is available with sufficient quota
-7. **Azure AD permissions** — Grant admin consent for Graph API scopes when Phase 5 begins
-8. **Azure AD client secret** — Generate one for the backend app registration (Phase 5)
-9. **DNS** — Point chosen domain at Azure services
-10. **AI provider** — Choose Claude API or OpenAI and create an API key (Phase 8)
-11. **Transactional email** — Choose Resend or Postmark and create API key, OR rely on OBO email (Phase 2)
+7. **Azure subscription** — Ensure an Azure subscription is available with sufficient quota
+8. **Azure AD permissions** — Grant admin consent for Graph API scopes when Phase 5 begins
+9. **Azure AD client secret** — Generate one for the backend app registration (Phase 5)
+10. **DNS** — Point chosen domain at Azure services
+11. **AI provider** — Choose Claude API or OpenAI and create an API key (Phase 8)
+12. **Transactional email** — Choose Resend or Postmark and create API key, OR rely on OBO email (Phase 2)
 
 ---
 
@@ -813,3 +851,4 @@ Phase 0b — Codebase refactor:
 | v4.3 | 22 Feb 2026 | Senior dev review round 1: (1) MVP uses Azure AD auth (not demo mode); (2) compliance narrative split MVP vs target-state; (3) Supabase→Azure migration runbook; (4) MVP readiness gate (11 checks); (5) phase dependency table fixed (MVP track vs Azure cutover); (6) verify-endpoints timing clarified; (7) test counts updated; (8) clean build requirement. |
 | v4.4 | 22 Feb 2026 | Senior dev review round 2: (1) route migration completion added as go-live blocker in MVP readiness gate — unmigrated routes crash in production PG mode; (2) normalised "Phase 0" → "Phase 0a" in timeline table and STATUS.md; (3) key decisions table marked hosting/database rows as "(target)" with MVP cross-reference. |
 | v4.5 | 22 Feb 2026 | Phase 0b sub-phase 4 (route migration) complete: all 9 route files migrated from Supabase adapter to Prisma TenantRepository. `DATA_BACKEND=mock` removed — `azure_pg` is now the only backend, `DATABASE_URL` always required. New Prisma-native mappers in `db/`. Public routes use direct Prisma queries. 3 rounds of external senior dev review, all findings addressed. |
+| v4.6 | 22 Feb 2026 | Cloud Run Dockerfiles + production readiness: (1) middleware multi-stage Dockerfile (Node 20 + pnpm + Prisma generate + tsup → non-root runtime); (2) frontend multi-stage Dockerfile (Vite build with VITE_* build args → nginx-unprivileged with PORT envsubst); (3) VITE_USE_MOCK_API=false default ensures production builds use real middleware; (4) Prisma generated client preserved across pnpm prune --prod; (5) nginx.conf.template with ${PORT} for Cloud Run compliance; (6) health endpoint rewritten with DB connectivity check (200/503); (7) health endpoint tests added (5 tests — 89 total across 6 files); (8) TRUST_PROXY added to MVP readiness gate and operator checklist; (9) readiness gate table reformatted with Status column. 3 rounds of senior dev review, all findings addressed. |
