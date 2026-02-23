@@ -1,8 +1,8 @@
-# AgentFlow Client Hub — Production Roadmap v4.8
+# AgentFlow Client Hub — Production Roadmap v5.0
 
 **Date:** 23 Feb 2026
 **Author:** Hamish Nicklin / Claude Code
-**Status:** v4.9 — Phase 1.5 (Portal Email Verification) deployed to production. Both services live on Cloud Run.
+**Status:** v5.0 — Phase 1.5 (Portal Email Verification) deployed and smoke-tested. All 5 smoke tests passed. Both services live on Cloud Run.
 **Audience:** Senior developer reviewing for feasibility and sequencing
 
 ---
@@ -214,7 +214,7 @@ The MVP cannot go live until ALL of these pass:
 | HTTPS enforced | Cloud Run service accessible only via HTTPS | Infra | **Auto** (Cloud Run enforces HTTPS by default) |
 | Azure AD login | Staff can sign in via Microsoft and access hub management | Dev | **DONE** (deployed, MSAL configured) |
 | Portal access | Client can access portal via password-protected link | Dev | **DONE** (deployed) |
-| Email verification | Email-verified portal access (Phase 1.5) | Dev | **DONE** (deployed, smoke test pending) |
+| Email verification | Email-verified portal access (Phase 1.5) | Dev | **DONE** (deployed and smoke-tested) |
 | Azure AD redirect URI | Add `https://www.goagentflow.com` to SPA redirect URIs | Hamish | **DONE** (v4.8) |
 | VITE_API_BASE_URL secret | Update with real middleware Cloud Run URL | Dev | **DONE** (v4.8 — `clienthub-api-axiw2ydgeq-uc.a.run.app`) |
 | Secrets management | All secrets in Cloud Run environment variables (not in code) | Dev | **DONE** (v4.7) |
@@ -518,7 +518,7 @@ Phase 0b — Codebase refactor (COMPLETE):
 
 **Objective:** Replace open-link portal access with email-verified access. Clients enter their email, receive a 6-digit code, and are granted a long-lived device token — no password to remember, but only authorised contacts can access the hub.
 
-**Status: DEPLOYED TO PRODUCTION** — 3 rounds automated review + 3 rounds external senior dev review. All findings resolved. Browser smoke test pending.
+**Status: DEPLOYED AND SMOKE-TESTED** — 3 rounds automated review + 3 rounds external senior dev review. All findings resolved. Browser smoke test passed (23 Feb 2026): staff setup, email verification flow, device remember-me, negative tests (unauthorised email, wrong code lockout), backwards compatibility all confirmed working.
 
 **Full implementation plan:** `docs/PHASE_1_5_EMAIL_VERIFICATION_PLAN.md`
 
@@ -876,7 +876,7 @@ Tests: 120 tests across 7 files (33 new tests for Phase 1.5)
 
 | Phase | Name | Est. Duration | Blocked By | Track |
 |-------|------|--------------|------------|-------|
-| MVP | Cloud Run + Supabase deployment | 1-2 days | Phase 0b | MVP — **first deploy pending (steps 1-5 in pickup guide)** |
+| MVP | Cloud Run + Supabase deployment | 1-2 days | Phase 0b | MVP — **LIVE** (deployed + smoke-tested 23 Feb 2026) |
 | 0b | Codebase Refactor (PG migration, config, TenantRepo, Dockerfiles, pipelines) | 4-5 days | Nothing (**COMPLETE**) | MVP |
 | 0a | Azure Infrastructure + Staging | 3-4 days | Nothing (deferred) | Azure cutover |
 | 1 | File Storage (Upload + AV Scanning) | 5-6 days | Phase 0a | Azure cutover |
@@ -1015,4 +1015,5 @@ gcloud builds submit --config=cloudbuild.yaml --project=agentflow-456021
 | v4.5 | 22 Feb 2026 | Phase 0b sub-phase 4 (route migration) complete: all 9 route files migrated from Supabase adapter to Prisma TenantRepository. `DATA_BACKEND=mock` removed — `azure_pg` is now the only backend, `DATABASE_URL` always required. New Prisma-native mappers in `db/`. Public routes use direct Prisma queries. 3 rounds of external senior dev review, all findings addressed. |
 | v4.6 | 22 Feb 2026 | Cloud Run Dockerfiles + production readiness: (1) middleware multi-stage Dockerfile (Node 20 + pnpm + Prisma generate + tsup → non-root runtime); (2) frontend multi-stage Dockerfile (Vite build with VITE_* build args → nginx-unprivileged with PORT envsubst); (3) VITE_USE_MOCK_API=false default ensures production builds use real middleware; (4) Prisma generated client preserved across pnpm prune --prod; (5) nginx.conf.template with ${PORT} for Cloud Run compliance; (6) health endpoint rewritten with DB connectivity check (200/503); (7) health endpoint tests added (5 tests — 89 total across 6 files); (8) TRUST_PROXY added to MVP readiness gate and operator checklist; (9) readiness gate table reformatted with Status column. 3 rounds of senior dev review, all findings addressed. |
 | v4.7 | 23 Feb 2026 | Cloud Build pipelines, GCP secrets, and Azure AD complete: (1) assembler pipeline updated — new `build-clienthub` step in `cloudbuild.yaml` (AFv2 repo) clones client-hub, builds with VITE_BASE_PATH, MSAL env vars, and VITE_USE_MOCK_API=false, adds to nginx image; (2) nginx.conf updated with `/clienthub/` SPA routing; (3) `cloudbuild-middleware.yaml` created for separate `clienthub-api` Cloud Run service with all env vars from Secret Manager; (4) 8 GCP secrets created (Azure AD IDs, database URL, portal token, API base URL) with Cloud Build SA access; (5) Azure AD app registration complete (client ID, tenant ID, scope `access_as_user`, Staff role, Hamish assigned); (6) Vite base path configured (`vite.config.ts` + `BrowserRouter basename`); (7) smoke tests with bundle integrity checks (non-empty guards prevent false-pass); (8) middleware smoke test validates `/health` + auth rejection on `/api/v1/hubs`; (9) Dockerfile updated with `VITE_BASE_PATH` arg and standalone-use comment; (10) "What's Left to Deploy" pickup guide added for new developer onboarding. 3 rounds of senior dev review (2 internal + 1 external), all findings addressed. |
+| v5.0 | 23 Feb 2026 | Phase 1.5 smoke test complete + two bug fixes deployed: (1) Browser smoke test passed all 5 checks — staff setup, email verification flow, device remember-me auto-unlock, negative tests (unauthorised email uniform response, wrong code rejection, lockout after 3 failures), backwards compatibility; (2) Fixed portal-preview endpoint response shape (wrapped in `{data: ...}` to match public portal-meta); (3) Fixed UnauthorizedHandler redirecting portal routes to /login (now skips `/portal/` paths); (4) Seeded production tenant record for Azure AD tenant; (5) Both middleware and frontend redeployed to Cloud Run. |
 | v4.9 | 23 Feb 2026 | Phase 1.5 (Portal Email Verification) implemented and deployed: (1) 3 new Prisma models (PortalContact, PortalVerification, PortalDevice) + Hub.accessMethod field; (2) 4 public endpoints (access-method, request-code, verify-code, verify-device) with rate limiting and enumeration prevention; (3) 5 staff endpoints (portal contacts CRUD + access method management) with tenant isolation; (4) Email via Resend REST API (fire-and-forget, XSS-safe templates); (5) Frontend EmailGate + PortalContactsCard + PortalDetail access-method routing; (6) SHA-256 hashed codes, timing-safe comparison, per-code lockout; (7) Device token remember-me (90-day, localStorage); (8) Method-switch side-effects (clear passwordHash on open, revoke artifacts on method change); (9) 120 tests across 7 files; (10) 3 rounds automated review + 3 rounds external senior dev review; (11) CLIENTHUB_RESEND_API_KEY added to GCP Secret Manager; (12) Both services redeployed to Cloud Run. Browser smoke test pending. |
