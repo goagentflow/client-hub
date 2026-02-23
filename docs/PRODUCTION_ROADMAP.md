@@ -1,8 +1,8 @@
-# AgentFlow Client Hub — Production Roadmap v4.7
+# AgentFlow Client Hub — Production Roadmap v4.8
 
 **Date:** 23 Feb 2026
 **Author:** Hamish Nicklin / Claude Code
-**Status:** v4.7 — Cloud Build pipelines, GCP secrets, and Azure AD complete. First deploy pending.
+**Status:** v4.8 — MVP deployed to production. Both services live on Cloud Run.
 **Audience:** Senior developer reviewing for feasibility and sequencing
 
 ---
@@ -58,7 +58,7 @@
 
 ## MVP Deployment (Pre-Phase 0a)
 
-**Status:** Final deployment steps in progress (February 2026). All code, pipelines, secrets, and Azure AD configuration complete. First deploy pending.
+**Status:** Live in production (23 Feb 2026). Both services deployed to Cloud Run.
 
 **Business driver:** A real pharma comms client is starting a project now. Rather than waiting for the full Azure infrastructure (Phase 0a, ~£30-50/month), we're deploying an MVP using infrastructure AgentFlow already pays for — near-zero additional cost.
 
@@ -89,7 +89,7 @@ Key design decisions:
 - **Mock API disabled by default** — `ARG VITE_USE_MOCK_API=false` ensures production builds use real middleware
 - **Cloud Run PORT compliance** — nginx uses `${PORT}` template (default 8080); middleware reads `process.env.PORT` (default 3001)
 - **Non-root containers** — middleware runs as `appuser:1001`, frontend uses `nginx-unprivileged` (uid 101)
-- **Prisma client preserved** — generated `.prisma/client/` explicitly saved before `pnpm prune --prod` to prevent engine binary loss
+- **Prisma client preserved** — `@prisma/client` is a production dependency, so `pnpm prune --prod` keeps the generated client intact within the pnpm store
 - **Layer caching** — lockfile + package.json copied before source for efficient rebuilds
 
 **Cloud Build pipelines (complete):**
@@ -211,10 +211,10 @@ The MVP cannot go live until ALL of these pass:
 | Azure AD app registration | App registration with scope, Staff role, redirect URIs | Hamish | **DONE** (v4.7) |
 | Database schema | Prisma schema pushed to Supabase PG | Dev | **DONE** (v4.6) |
 | HTTPS enforced | Cloud Run service accessible only via HTTPS | Infra | **Auto** (Cloud Run enforces HTTPS by default) |
-| Azure AD login | Staff can sign in via Microsoft and access hub management | Dev | Pending first deploy + smoke test |
-| Portal access | Client can access portal via password-protected link | Dev | Pending first deploy + smoke test |
-| Azure AD redirect URI | Add `https://www.goagentflow.com` to SPA redirect URIs | Hamish | **TODO** |
-| VITE_API_BASE_URL secret | Update placeholder with real middleware Cloud Run URL | Dev | **TODO** (after first middleware deploy) |
+| Azure AD login | Staff can sign in via Microsoft and access hub management | Dev | **DONE** (deployed, MSAL configured) |
+| Portal access | Client can access portal via password-protected link | Dev | **DONE** (deployed) |
+| Azure AD redirect URI | Add `https://www.goagentflow.com` to SPA redirect URIs | Hamish | **DONE** (v4.8) |
+| VITE_API_BASE_URL secret | Update with real middleware Cloud Run URL | Dev | **DONE** (v4.8 — `clienthub-api-axiw2ydgeq-uc.a.run.app`) |
 | Secrets management | All secrets in Cloud Run environment variables (not in code) | Dev | **DONE** (v4.7) |
 | TRUST_PROXY | `TRUST_PROXY=true` set in Cloud Run env vars | Infra | **DONE** (in cloudbuild-middleware.yaml) |
 | Security headers | Helmet defaults: CSP, HSTS, X-Frame-Options, X-Content-Type-Options | Dev | **DONE** (middleware has Helmet) |
