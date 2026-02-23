@@ -17,14 +17,9 @@ COPY src ./src/
 
 RUN pnpm run build
 
-# Preserve Prisma generated client before pruning dev deps
-RUN cp -r node_modules/.prisma /tmp/.prisma
-
-# Prune dev dependencies after build
+# Prune dev dependencies — @prisma/client is a prod dep so the
+# generated client (inside the pnpm store) survives the prune
 RUN pnpm prune --prod
-
-# Restore Prisma generated client
-RUN cp -r /tmp/.prisma node_modules/.prisma
 
 # ── Stage 2: Runtime ───────────────────────────────────────────
 FROM node:20-alpine AS runtime
