@@ -180,6 +180,16 @@ export {
   updateExpansionOpportunity,
 } from "./relationship-intelligence.service";
 
+// Portal contacts service (staff-only)
+export {
+  getPortalContacts,
+  addPortalContact,
+  removePortalContact,
+  getAccessMethod,
+  updateAccessMethod,
+} from "./portal-contacts.service";
+export type { PortalContact, AccessMethod } from "./portal-contacts.service";
+
 // Leadership Portfolio service (admin-only)
 export {
   getPortfolioOverview,

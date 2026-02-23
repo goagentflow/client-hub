@@ -21,6 +21,7 @@ export interface HubDTO {
   clientsInvited: number;
   lastVisit: string | null;
   clientDomain: string | null;
+  accessMethod: string;
   convertedAt?: string;
   convertedBy?: string;
 }
@@ -39,6 +40,7 @@ export function mapHub(hub: Hub): HubDTO {
     clientsInvited: hub.clientsInvited,
     lastVisit: hub.lastVisit?.toISOString() ?? null,
     clientDomain: hub.clientDomain ?? null,
+    accessMethod: hub.accessMethod,
     ...(hub.convertedAt ? { convertedAt: hub.convertedAt.toISOString() } : {}),
     ...(hub.convertedBy ? { convertedBy: hub.convertedBy } : {}),
   };

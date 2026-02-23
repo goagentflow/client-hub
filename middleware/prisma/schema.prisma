@@ -47,12 +47,14 @@ model Hub {
   showMeetings    Boolean   @default(true) @map("show_meetings")
   showQuestionnaire Boolean @default(true) @map("show_questionnaire")
   passwordHash    String?   @map("password_hash")
+  accessMethod    String    @default("password") @map("access_method")
 
-  tenant    Tenant       @relation(fields: [tenantId], references: [id])
-  videos    HubVideo[]
-  documents HubDocument[]
-  projects  HubProject[]
-  events    HubEvent[]
+  tenant         Tenant          @relation(fields: [tenantId], references: [id])
+  videos         HubVideo[]
+  documents      HubDocument[]
+  projects       HubProject[]
+  events         HubEvent[]
+  portalContacts PortalContact[]
 
   @@map("hub")
 }
@@ -162,4 +164,45 @@ model HubEvent {
   hub Hub? @relation(fields: [hubId], references: [id])
 
   @@map("hub_event")
+}
+
+model PortalContact {
+  id        String   @id @default(uuid())
+  hubId     String   @map("hub_id")
+  tenantId  String   @map("tenant_id")
+  email     String
+  name      String?
+  addedBy   String   @map("added_by")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  hub Hub @relation(fields: [hubId], references: [id])
+
+  @@unique([hubId, email])
+  @@map("portal_contact")
+}
+
+model PortalVerification {
+  id        String   @id @default(uuid())
+  hubId     String   @map("hub_id")
+  email     String
+  codeHash  String   @map("code_hash")
+  attempts  Int      @default(0)
+  expiresAt DateTime @map("expires_at")
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([hubId, email])
+  @@map("portal_verification")
+}
+
+model PortalDevice {
+  id              String   @id @default(uuid())
+  hubId           String   @map("hub_id")
+  email           String
+  deviceTokenHash String   @map("device_token_hash")
+  expiresAt       DateTime @map("expires_at")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  @@index([hubId, email])
+  @@map("portal_device")
 }

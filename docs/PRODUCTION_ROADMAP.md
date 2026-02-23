@@ -512,9 +512,52 @@ Phase 0b — Codebase refactor (COMPLETE):
 
 ---
 
+### Phase 1.5: Portal Email Verification (Quick Win)
+
+**Objective:** Replace open-link portal access with email-verified access. Clients enter their email, receive a 6-digit code, and are granted a long-lived device cookie — no password to remember, but only authorised contacts can access the hub.
+
+**Why this matters:**
+- Current portal links are "anyone with the link can access" — acceptable for pitch hubs, not for client hubs with project data
+- Clients hate passwords. Email verification is frictionless (one-time per device)
+- Gives staff control over who can access each hub
+- Provides an audit trail of who accessed what and when
+
+**How it works:**
+1. Client clicks portal link → sees "Enter your email to access this hub"
+2. Server checks email is in the hub's allowed contacts list → sends 6-digit code (10-minute expiry)
+3. Client enters code → server issues JWT + sets a `remember_device` cookie (90 days)
+4. **Next visits (same device):** portal opens immediately — no code needed
+5. New device or expired cookie → re-verify with a new code
+
+**What's built:**
+- `portal_contact` table: `hub_id`, `email`, `name`, `created_by` (staff who added them)
+- Staff UI: "Manage portal contacts" on hub detail page — add/remove email addresses
+- `POST /public/hubs/:hubId/request-code` — validates email is in allowed list, sends code
+- `POST /public/hubs/:hubId/verify-code` — validates code, issues JWT + device cookie
+- Auth middleware updated: check device cookie alongside existing portal JWT
+- Email sending: transactional email provider (Resend or Postmark — simple API, no Microsoft dependency)
+
+**Security:**
+- Codes are 6 digits, single-use, expire after 10 minutes
+- Rate-limited: 3 code requests per email per hour
+- Device cookie: `HttpOnly`, `Secure`, `SameSite=Lax`, 90-day expiry
+- Staff can remove a contact's email → immediately blocks future access (existing device cookies checked against contact list on each request)
+- Audit: every code request, verification, and access logged in `hub_event`
+
+**Migration:**
+- Runs alongside existing password portal (no breaking change)
+- Hubs with portal contacts use email verification; hubs without fall back to password/open access
+- Password portal can be deprecated once email verification is proven
+
+**Dependencies:** Transactional email API key (Resend free tier: 100 emails/day — plenty for MVP). No dependency on Phase 0a or Phase 5 (OBO).
+
+**Complexity:** Medium (~3-4 days). Small surface area: 2 new endpoints, 1 new table, device cookie logic, email sending, staff UI for managing contacts.
+
+---
+
 ### Phase 2: Members & Access Management
 
-**Objective:** Staff can invite client contacts to view their hub. Runs alongside (not replacing) password portal access during migration.
+**Objective:** Staff can invite client contacts to view their hub. Runs alongside (not replacing) password portal access during migration. Phase 1.5 (email verification) provides the lightweight version; Phase 2 adds full member management, role-based access, and proactive invite flows.
 
 **Client authentication — magic link:**
 - Staff invites a client by email address → system generates a time-limited magic link token

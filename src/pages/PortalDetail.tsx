@@ -16,6 +16,7 @@ import { ClientDecisionQueue } from "@/components/client-decision-queue";
 import { ClientPerformance } from "@/components/client-performance";
 import { ClientHistory } from "@/components/client-history";
 import { PasswordGate } from "@/components/PasswordGate";
+import { EmailGate } from "@/components/EmailGate";
 import { HubProvider } from "@/contexts/hub-context";
 import { useCurrentUser } from "@/hooks";
 import { isMockApiEnabled, api } from "@/services/api";
@@ -103,7 +104,7 @@ const PortalDetail = () => {
     if (!passwordUnlocked) {
       // For live hubs, show password gate (fetches hash from Supabase directly)
       return (
-        <PasswordGateWrapper
+        <AccessGateWrapper
           hubId={hubId}
           companyName={hubMeta.companyName}
           onSuccess={() => setPasswordUnlocked(true)}
@@ -191,11 +192,15 @@ const PortalDetail = () => {
 };
 
 /**
- * Wrapper that checks if a hub has a password and shows the gate if so.
- * Uses middleware API — attempts verify-password with empty hash to detect
- * no-password hubs and auto-issue a portal token.
+ * AccessGateWrapper — checks hub access method and shows the right gate.
+ *
+ * Flow:
+ *   1. GET /access-method → { method: 'email' | 'password' | 'open' }
+ *   2. email: try device token first, then show EmailGate
+ *   3. password: try empty verify-password (no-password auto-unlock), then PasswordGate
+ *   4. open: auto-unlock via verify-password with empty hash
  */
-function PasswordGateWrapper({
+function AccessGateWrapper({
   hubId,
   companyName,
   onSuccess,
@@ -204,31 +209,61 @@ function PasswordGateWrapper({
   companyName: string;
   onSuccess: () => void;
 }) {
-  const [hasPassword, setHasPassword] = useState<boolean | null>(null);
+  const [gate, setGate] = useState<"loading" | "email" | "password" | null>("loading");
 
   useEffect(() => {
-    // Try verify with empty hash — if hub has no password, token is issued immediately
-    api.post<{ data: { valid: boolean; token?: string } }>(
-      `/public/hubs/${hubId}/verify-password`,
-      { passwordHash: '' }
-    ).then((result) => {
-      if (result.data.valid && result.data.token) {
-        // No password — auto-unlock with issued token
-        sessionStorage.setItem(`portal_token_${hubId}`, result.data.token);
-        sessionStorage.setItem(`hub_access_${hubId}`, "true");
-        onSuccess();
-        setHasPassword(false);
-      } else {
-        // Hub has a password — show gate
-        setHasPassword(true);
+    (async () => {
+      try {
+        // Check access method
+        const methodResult = await api.get<{ data: { method: string } }>(
+          `/public/hubs/${hubId}/access-method`
+        );
+        const method = methodResult.data.method;
+
+        if (method === "email") {
+          // Try device token first (remember-me)
+          const stored = localStorage.getItem(`device_token_${hubId}`);
+          if (stored) {
+            try {
+              const { email, token } = JSON.parse(stored);
+              const deviceResult = await api.post<{ data: { valid: boolean; token?: string } }>(
+                `/public/hubs/${hubId}/verify-device`,
+                { email, deviceToken: token }
+              );
+              if (deviceResult.data.valid && deviceResult.data.token) {
+                sessionStorage.setItem(`portal_token_${hubId}`, deviceResult.data.token);
+                sessionStorage.setItem(`hub_access_${hubId}`, "true");
+                onSuccess();
+                return;
+              }
+            } catch { /* device token invalid — fall through to email gate */ }
+            localStorage.removeItem(`device_token_${hubId}`);
+          }
+          setGate("email");
+          return;
+        }
+
+        // password or open — try empty verify-password (auto-unlock for open/no-password hubs)
+        const pwResult = await api.post<{ data: { valid: boolean; token?: string } }>(
+          `/public/hubs/${hubId}/verify-password`,
+          { passwordHash: "" }
+        );
+        if (pwResult.data.valid && pwResult.data.token) {
+          sessionStorage.setItem(`portal_token_${hubId}`, pwResult.data.token);
+          sessionStorage.setItem(`hub_access_${hubId}`, "true");
+          onSuccess();
+          return;
+        }
+
+        // Has password — show password gate
+        setGate("password");
+      } catch {
+        setGate("password");
       }
-    }).catch(() => {
-      // On error, assume password required
-      setHasPassword(true);
-    });
+    })();
   }, [hubId, onSuccess]);
 
-  if (hasPassword === null) {
+  if (gate === "loading") {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <Loader2 className="h-8 w-8 animate-spin text-[hsl(var(--gradient-blue))]" />
@@ -236,15 +271,15 @@ function PasswordGateWrapper({
     );
   }
 
-  if (!hasPassword) return null;
+  if (gate === "email") {
+    return <EmailGate hubId={hubId} companyName={companyName} onSuccess={onSuccess} />;
+  }
 
-  return (
-    <PasswordGate
-      hubId={hubId}
-      companyName={companyName}
-      onSuccess={onSuccess}
-    />
-  );
+  if (gate === "password") {
+    return <PasswordGate hubId={hubId} companyName={companyName} onSuccess={onSuccess} />;
+  }
+
+  return null;
 }
 
 export default PortalDetail;

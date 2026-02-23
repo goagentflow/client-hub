@@ -194,6 +194,16 @@ export {
   useUpdateExpansionOpportunity,
 } from "./use-relationship-intelligence";
 
+// Portal contacts hooks (staff-only)
+export {
+  portalContactKeys,
+  usePortalContacts,
+  useAccessMethod,
+  useAddPortalContact,
+  useRemovePortalContact,
+  useUpdateAccessMethod,
+} from "./use-portal-contacts";
+
 // Leadership Portfolio hooks (admin-only)
 export {
   leadershipKeys,

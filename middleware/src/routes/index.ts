@@ -20,6 +20,7 @@ import { conversionRouter } from './conversion.route.js';
 import { leadershipRouter } from './leadership.route.js';
 import { clientIntelligenceRouter } from './client-intelligence.route.js';
 import { authRouter } from './auth.route.js';
+import { portalContactsRouter, accessMethodRouter } from './portal-contacts.route.js';
 
 export { healthRouter } from './health.js';
 
@@ -43,6 +44,8 @@ apiRouter.use('/hubs/:hubId/invites', invitesRouter);
 apiRouter.use('/hubs/:hubId/share-link', shareLinkRouter);
 apiRouter.use('/hubs/:hubId/questionnaires', questionnairesRouter);
 apiRouter.use('/hubs/:hubId/portal-config', portalConfigRouter);
+apiRouter.use('/hubs/:hubId/portal-contacts', portalContactsRouter);
+apiRouter.use('/hubs/:hubId/access-method', accessMethodRouter);
 apiRouter.use('/hubs/:hubId/events', eventsRouter);
 apiRouter.use('/hubs/:hubId/projects', projectsRouter);
 apiRouter.use('/hubs/:hubId/convert', conversionRouter);

@@ -86,8 +86,8 @@ export async function authMiddleware(req: Request, res: Response, next: NextFunc
       if (payload.type === 'portal' && typeof payload.sub === 'string') {
         req.user = {
           userId: `portal-${payload.sub}`,
-          email: '',
-          name: 'Portal User',
+          email: (payload.email as string) || '',
+          name: (payload.name as string) || 'Portal User',
           tenantId: `portal-${payload.sub}`,
           isStaff: false,
           portalHubId: payload.sub,

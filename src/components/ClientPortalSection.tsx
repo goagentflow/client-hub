@@ -23,6 +23,7 @@ import {
   PublishingChecklist,
   InviteClientDialog,
   PortalQuickStats,
+  PortalContactsCard,
 } from "./client-portal";
 import type { HeroContentType, PortalSectionConfig, CreateInviteRequest } from "@/types";
 
@@ -211,6 +212,8 @@ export function ClientPortalSection() {
               hasProposal={hasProposal}
               hasQuestionnaire={hasQuestionnaire}
             />
+
+            <PortalContactsCard hubId={hubId} />
 
             {isLive && overview && <PortalQuickStats stats={overview.engagementStats} />}
           </div>
