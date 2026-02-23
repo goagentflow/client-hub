@@ -1,8 +1,8 @@
-# AgentFlow Client Hub — Production Roadmap v4.6
+# AgentFlow Client Hub — Production Roadmap v4.7
 
-**Date:** 22 Feb 2026
+**Date:** 23 Feb 2026
 **Author:** Hamish Nicklin / Claude Code
-**Status:** v4.6 — Dockerfiles added for Cloud Run deployment
+**Status:** v4.7 — Cloud Build pipelines, GCP secrets, and Azure AD complete. First deploy pending.
 **Audience:** Senior developer reviewing for feasibility and sequencing
 
 ---
@@ -58,7 +58,7 @@
 
 ## MVP Deployment (Pre-Phase 0a)
 
-**Status:** Deploying now (February 2026). Dockerfiles created and reviewed.
+**Status:** Final deployment steps in progress (February 2026). All code, pipelines, secrets, and Azure AD configuration complete. First deploy pending.
 
 **Business driver:** A real pharma comms client is starting a project now. Rather than waiting for the full Azure infrastructure (Phase 0a, ~£30-50/month), we're deploying an MVP using infrastructure AgentFlow already pays for — near-zero additional cost.
 
@@ -81,23 +81,9 @@ Both services have multi-stage Dockerfiles optimised for Cloud Run:
 |------|---------|
 | `middleware/Dockerfile` | Node 20 + pnpm + Prisma generate + tsup build → non-root runtime (uid 1001) |
 | `middleware/.dockerignore` | Excludes node_modules, dist, .env, tests |
-| `Dockerfile` (root) | Vite build with `VITE_*` build args → `nginxinc/nginx-unprivileged` runtime |
+| `Dockerfile` (root) | Standalone/local builds only. Vite build with `VITE_*` build args → `nginxinc/nginx-unprivileged` runtime |
 | `.dockerignore` (root) | Excludes node_modules, dist, middleware/, .env |
 | `nginx.conf.template` (root) | SPA routing, gzip, `${PORT}` substitution via envsubst at startup |
-
-Build commands:
-```bash
-# Middleware
-docker build -t clienthub-middleware ./middleware
-
-# Frontend (pass VITE_* args at build time)
-docker build -t clienthub-frontend \
-  --build-arg VITE_API_BASE_URL=https://api.goagentflow.com \
-  --build-arg VITE_AZURE_CLIENT_ID=<client-id> \
-  --build-arg VITE_AZURE_TENANT_ID=<tenant-id> \
-  --build-arg VITE_AZURE_BACKEND_CLIENT_ID=<backend-client-id> \
-  .
-```
 
 Key design decisions:
 - **Mock API disabled by default** — `ARG VITE_USE_MOCK_API=false` ensures production builds use real middleware
@@ -105,6 +91,68 @@ Key design decisions:
 - **Non-root containers** — middleware runs as `appuser:1001`, frontend uses `nginx-unprivileged` (uid 101)
 - **Prisma client preserved** — generated `.prisma/client/` explicitly saved before `pnpm prune --prod` to prevent engine binary loss
 - **Layer caching** — lockfile + package.json copied before source for efficient rebuilds
+
+**Cloud Build pipelines (complete):**
+
+Production deploys use Google Cloud Build, not the local Dockerfiles. Two pipelines:
+
+| Pipeline | Repo | File | What it deploys |
+|----------|------|------|-----------------|
+| Assembler (frontend) | `goagentflow/AFv2` | `cloudbuild.yaml` | Builds marketing site + assess + discovery + **clienthub** into a single nginx image → `agentflow-site` Cloud Run service |
+| Middleware (API) | `goagentflow/client-hub` | `cloudbuild-middleware.yaml` | Builds Express API → `clienthub-api` Cloud Run service |
+
+**Assembler pipeline** — the frontend is built as step 3b alongside the other apps:
+1. Assemble static marketing site
+2. Build assess app (parallel)
+3. Build discovery app (parallel)
+3b. Build client hub app (parallel) — clones `goagentflow/client-hub`, runs `npm ci && npm run build` with `VITE_BASE_PATH=/clienthub/`, `VITE_API_BASE_URL`, `VITE_USE_MOCK_API=false`, and MSAL Azure AD env vars
+4. Write version manifest (waits for all builds)
+5. Docker build → nginx image with all apps
+6. Push to Artifact Registry
+7. Deploy to Cloud Run (`agentflow-site`)
+8. Smoke tests (HTML pages, JS/CSS bundles with integrity checks, version.json)
+
+**Middleware pipeline:**
+1. Docker build from `./middleware`
+2. Push to Artifact Registry (`clienthub-api`)
+3. Deploy to Cloud Run with env vars and secrets (Azure AD values from Secret Manager, not hardcoded)
+4. Smoke tests (health endpoint + auth rejection test on `/api/v1/hubs`)
+
+**nginx routing** (`nginx.conf` in AFv2 repo) serves the client hub SPA at `/clienthub/` with `try_files` fallback to `/clienthub/index.html` — same pattern as `/assess/` and `/discovery/`.
+
+**GCP Secret Manager (complete):**
+
+All secrets created in project `agentflow-456021` with Cloud Build SA access granted:
+
+| Secret | Purpose | Status |
+|--------|---------|--------|
+| `VITE_API_BASE_URL` | Client Hub middleware URL (baked into frontend at build time) | Created with placeholder — **update after first middleware deploy** |
+| `CLIENTHUB_DATABASE_URL` | Supabase PostgreSQL connection string | Created |
+| `CLIENTHUB_PORTAL_TOKEN_SECRET` | HMAC secret for portal JWT tokens (64-char random) | Created |
+| `CLIENTHUB_AZURE_CLIENT_ID` | Azure AD app registration client ID | Created |
+| `CLIENTHUB_AZURE_TENANT_ID` | Azure AD tenant ID | Created |
+| `VITE_AZURE_CLIENT_ID` | Same client ID, baked into frontend for MSAL | Created |
+| `VITE_AZURE_TENANT_ID` | Same tenant ID, baked into frontend for MSAL | Created |
+| `VITE_AZURE_BACKEND_CLIENT_ID` | Backend client ID for MSAL scope URI (same app registration) | Created |
+| `GITHUB_TOKEN` | Cloning repos during Cloud Build (pre-existing) | Already existed |
+
+**Azure AD app registration (complete):**
+
+| Setting | Value |
+|---------|-------|
+| App name | AgentFlow Client Hub |
+| Application (client) ID | `afc0d82d-a186-40ff-bc41-8e0af308c915` |
+| Directory (tenant) ID | `81fb6fd6-e413-4b3f-bdd5-2bd9049fd45f` |
+| Application ID URI | `api://afc0d82d-a186-40ff-bc41-8e0af308c915` |
+| Delegated scope | `api://afc0d82d-a186-40ff-bc41-8e0af308c915/access_as_user` |
+| App role | `Staff` (value: "Staff", Users/Groups, enabled) |
+| Redirect URIs (SPA) | `https://goagentflow.com`, `http://localhost:5173` |
+| Hamish Nicklin | Assigned Staff role via Enterprise Application |
+
+**Vite sub-path configuration (complete):**
+- `vite.config.ts` reads `VITE_BASE_PATH` env var (default `/`)
+- `App.tsx` sets `BrowserRouter basename={import.meta.env.BASE_URL}`
+- Assembler pipeline sets `VITE_BASE_PATH="/clienthub/"` at build time
 
 **Auth:** Staff authenticate via Azure AD (Microsoft login), using the MSAL auth code already built and approved. This is the same auth that the full Azure deployment uses — no throwaway work. The Azure AD app registration must be configured before MVP goes live (see "What Hamish Needs to Do" below).
 
@@ -158,17 +206,22 @@ The MVP cannot go live until ALL of these pass:
 | Route migration | All route handlers use injected Prisma repository | Dev | **DONE** (v4.5) |
 | Dockerfiles | Multi-stage Docker builds for middleware + frontend, Cloud Run PORT compliance, non-root, reviewed | Dev | **DONE** (v4.6) |
 | Health endpoint | `GET /health` returns 200 when DB reachable, 503 when DB unreachable. `/health/ready` checks DB. `/health/live` confirms process is running. | Dev | **DONE** (v4.6) |
-| HTTPS enforced | Cloud Run service accessible only via HTTPS | Infra | |
-| Azure AD login | Staff can sign in via Microsoft and access hub management | Dev | |
-| Portal access | Client can access portal via password-protected link | Dev | |
-| Database connected | Prisma schema pushed to Supabase PG, hub CRUD works end-to-end | Dev | |
-| Secrets management | `DATABASE_URL`, `PORTAL_TOKEN_SECRET`, Azure AD config in Cloud Run environment variables (not in code) | Dev | |
-| TRUST_PROXY | `TRUST_PROXY=true` set in Cloud Run env vars — required for correct `req.ip` behind Google's load balancer (rate limiting, logging) | Infra | |
-| Security headers | Helmet defaults: CSP, HSTS, X-Frame-Options, X-Content-Type-Options | Dev | |
-| CORS locked | `CORS_ORIGIN` set to exact production domain (no wildcards) | Dev | |
-| Rate limiting | Rate-limit on auth and public endpoints (already configured) | Dev | |
-| All tests pass | `pnpm test` passes (84+ tests across 5+ files) | Dev | |
-| Clean build | Fresh `pnpm build` with no stale dist artefacts | Dev | |
+| Cloud Build pipelines | Assembler pipeline (frontend) + middleware pipeline configured and reviewed | Dev | **DONE** (v4.7) |
+| GCP secrets | All secrets created in Secret Manager with Cloud Build SA access | Dev | **DONE** (v4.7) |
+| Azure AD app registration | App registration with scope, Staff role, redirect URIs | Hamish | **DONE** (v4.7) |
+| Database schema | Prisma schema pushed to Supabase PG | Dev | **DONE** (v4.6) |
+| HTTPS enforced | Cloud Run service accessible only via HTTPS | Infra | **Auto** (Cloud Run enforces HTTPS by default) |
+| Azure AD login | Staff can sign in via Microsoft and access hub management | Dev | Pending first deploy + smoke test |
+| Portal access | Client can access portal via password-protected link | Dev | Pending first deploy + smoke test |
+| Azure AD redirect URI | Add `https://www.goagentflow.com` to SPA redirect URIs | Hamish | **TODO** |
+| VITE_API_BASE_URL secret | Update placeholder with real middleware Cloud Run URL | Dev | **TODO** (after first middleware deploy) |
+| Secrets management | All secrets in Cloud Run environment variables (not in code) | Dev | **DONE** (v4.7) |
+| TRUST_PROXY | `TRUST_PROXY=true` set in Cloud Run env vars | Infra | **DONE** (in cloudbuild-middleware.yaml) |
+| Security headers | Helmet defaults: CSP, HSTS, X-Frame-Options, X-Content-Type-Options | Dev | **DONE** (middleware has Helmet) |
+| CORS locked | `CORS_ORIGIN` set to exact production domain (no wildcards) | Dev | **DONE** (`https://www.goagentflow.com` in pipeline) |
+| Rate limiting | Rate-limit on auth and public endpoints (already configured) | Dev | **DONE** |
+| All tests pass | `pnpm test` passes (89 tests across 6 files) | Dev | **DONE** |
+| Clean build | Fresh `pnpm build` with no stale dist artefacts | Dev | **DONE** (verified by senior dev) |
 
 **Not required for MVP** (required for full Azure deployment in Phase 0a):
 - Deployment slots / staging environment
@@ -389,6 +442,12 @@ Phase 0b — Codebase refactor (COMPLETE):
 - All routes migrated to injected Prisma repository ✓
 - Cloud Run Dockerfiles for middleware + frontend (multi-stage, non-root, reviewed) ✓
 - Health endpoint with DB connectivity check (200/503) ✓
+- Cloud Build pipelines for both services (assembler + middleware) ✓
+- GCP Secret Manager secrets created with Cloud Build SA access ✓
+- Azure AD app registration (scope, Staff role, redirect URIs) ✓
+- Vite sub-path config for `/clienthub/` deployment ✓
+- nginx SPA routing for `/clienthub/` ✓
+- Prisma schema pushed to Supabase PostgreSQL ✓
 - Build `npm run verify-endpoints` CI check (deferred — not required for MVP go-live, required before Phase 1)
 - Rollback runbook (deferred — Cloud Run revisions provide instant rollback for MVP)
 
@@ -762,8 +821,8 @@ Phase 0b — Codebase refactor (COMPLETE):
 
 | Phase | Name | Est. Duration | Blocked By | Track |
 |-------|------|--------------|------------|-------|
-| MVP | Cloud Run + Supabase deployment | 1-2 days | Phase 0b | MVP |
-| 0b | Codebase Refactor (PG migration, config, TenantRepo, Dockerfiles) | 4-5 days | Nothing (COMPLETE) | MVP |
+| MVP | Cloud Run + Supabase deployment | 1-2 days | Phase 0b | MVP — **first deploy pending (steps 1-5 in pickup guide)** |
+| 0b | Codebase Refactor (PG migration, config, TenantRepo, Dockerfiles, pipelines) | 4-5 days | Nothing (**COMPLETE**) | MVP |
 | 0a | Azure Infrastructure + Staging | 3-4 days | Nothing (deferred) | Azure cutover |
 | 1 | File Storage (Upload + AV Scanning) | 5-6 days | Phase 0a | Azure cutover |
 | 2 | Members & Access (Magic Link + Dual-Run) | 6-7 days | Phase 0a | Azure cutover |
@@ -803,15 +862,63 @@ Phase 0b — Codebase refactor (COMPLETE):
 
 ---
 
-## What Hamish Needs to Do (Non-Developer Tasks)
+## What's Left to Deploy (Pickup Guide for New Developer)
 
-### For MVP (before go-live)
-1. **Azure AD app registration** — Ensure the existing app registration has the correct redirect URIs for the Cloud Run domain (e.g. `https://hub.goagentflow.com`)
-2. **Azure AD environment variables** — Provide `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, and the JWKS endpoint for the Cloud Run middleware deployment
-3. **Cloud Run service setup** — Create the middleware Cloud Run service (or delegate to developer)
-4. **Supabase connection string** — Provide `DATABASE_URL` for the existing Supabase PostgreSQL instance
-5. **DNS** — Point chosen subdomain at the Cloud Run middleware service
-6. **Cloud Run environment variables** — Set all required env vars on the middleware service (see MVP Readiness Gate table). **Critical:** `TRUST_PROXY=true` must be set — Cloud Run sits behind Google's load balancer, and without it `req.ip` resolves to the load balancer IP, making rate limiting throttle all users as one.
+### Current state (as of 23 Feb 2026)
+
+Everything is built, reviewed, committed, and pushed. The remaining steps are operational — running the pipelines and verifying the output.
+
+**Repos:**
+- Frontend assembler: `goagentflow/AFv2` (builds the unified nginx image)
+- Client Hub app + middleware: `goagentflow/client-hub`
+- GCP project: `agentflow-456021`
+
+### Steps to complete MVP deployment
+
+**Step 1: Add Azure AD redirect URI** (manual, Azure Portal)
+- Go to Azure Portal → App registrations → "AgentFlow Client Hub"
+- Authentication → Add `https://www.goagentflow.com` as a SPA redirect URI
+- The existing `https://goagentflow.com` (no www) may not match since CORS uses the `www` version
+
+**Step 2: Deploy middleware first** (creates the `clienthub-api` Cloud Run service)
+```bash
+# From the client-hub repo root
+gcloud builds submit --config=cloudbuild-middleware.yaml --project=agentflow-456021
+```
+- This builds the Docker image, pushes to Artifact Registry, and deploys to Cloud Run
+- On success, note the Cloud Run service URL from the deploy output (e.g. `https://clienthub-api-xxxxxxxxxx-uc.a.run.app`)
+- The smoke test checks `/health` returns 200 and `/api/v1/hubs` returns 401
+
+**Step 3: Update VITE_API_BASE_URL secret** with the real middleware URL
+```bash
+echo -n "https://clienthub-api-XXXXX-uc.a.run.app" | \
+  gcloud secrets versions add VITE_API_BASE_URL --data-file=- --project=agentflow-456021
+```
+
+**Step 4: Deploy frontend** (adds clienthub to the goagentflow.com site)
+```bash
+# From the AFv2 repo root
+gcloud builds submit --config=cloudbuild.yaml --project=agentflow-456021
+```
+- This builds all four apps (marketing + assess + discovery + clienthub) into one nginx image
+- Deploys to the existing `agentflow-site` Cloud Run service
+- Smoke tests verify all apps load, JS/CSS bundles are reachable, and version.json is served
+
+**Step 5: Verify end-to-end**
+- Visit `https://www.goagentflow.com/clienthub/` — should show the login page
+- Click "Sign in with Microsoft" — should redirect to Microsoft login
+- After login, should redirect back and show the hub list (empty initially)
+- Check `https://www.goagentflow.com/version.json` — should include `clienthub_sha`
+
+### If something goes wrong
+
+- **Middleware deploy fails:** Check Cloud Build logs in GCP Console. Most likely cause: a secret doesn't exist or Cloud Build SA lacks access.
+- **Frontend deploy fails:** The assembler pipeline builds all apps. If clienthub build fails, set `_SKIP_CLIENTHUB=true` as a substitution to deploy without it (assess and discovery will still work).
+- **Login doesn't work:** Check the Azure AD redirect URI matches exactly (`https://www.goagentflow.com` with www). Check browser console for MSAL errors.
+- **API calls fail (CORS):** The middleware `CORS_ORIGIN` is set to `https://www.goagentflow.com`. If the frontend is accessed via a different domain, CORS will block requests.
+- **Rollback:** Cloud Run keeps previous revisions. Use `gcloud run services update-traffic` to route back to a previous revision instantly.
+
+### Hamish's remaining manual tasks
 
 ### For full Azure deployment (Phase 0a, when scaling)
 7. **Azure subscription** — Ensure an Azure subscription is available with sufficient quota
@@ -852,3 +959,4 @@ Phase 0b — Codebase refactor (COMPLETE):
 | v4.4 | 22 Feb 2026 | Senior dev review round 2: (1) route migration completion added as go-live blocker in MVP readiness gate — unmigrated routes crash in production PG mode; (2) normalised "Phase 0" → "Phase 0a" in timeline table and STATUS.md; (3) key decisions table marked hosting/database rows as "(target)" with MVP cross-reference. |
 | v4.5 | 22 Feb 2026 | Phase 0b sub-phase 4 (route migration) complete: all 9 route files migrated from Supabase adapter to Prisma TenantRepository. `DATA_BACKEND=mock` removed — `azure_pg` is now the only backend, `DATABASE_URL` always required. New Prisma-native mappers in `db/`. Public routes use direct Prisma queries. 3 rounds of external senior dev review, all findings addressed. |
 | v4.6 | 22 Feb 2026 | Cloud Run Dockerfiles + production readiness: (1) middleware multi-stage Dockerfile (Node 20 + pnpm + Prisma generate + tsup → non-root runtime); (2) frontend multi-stage Dockerfile (Vite build with VITE_* build args → nginx-unprivileged with PORT envsubst); (3) VITE_USE_MOCK_API=false default ensures production builds use real middleware; (4) Prisma generated client preserved across pnpm prune --prod; (5) nginx.conf.template with ${PORT} for Cloud Run compliance; (6) health endpoint rewritten with DB connectivity check (200/503); (7) health endpoint tests added (5 tests — 89 total across 6 files); (8) TRUST_PROXY added to MVP readiness gate and operator checklist; (9) readiness gate table reformatted with Status column. 3 rounds of senior dev review, all findings addressed. |
+| v4.7 | 23 Feb 2026 | Cloud Build pipelines, GCP secrets, and Azure AD complete: (1) assembler pipeline updated — new `build-clienthub` step in `cloudbuild.yaml` (AFv2 repo) clones client-hub, builds with VITE_BASE_PATH, MSAL env vars, and VITE_USE_MOCK_API=false, adds to nginx image; (2) nginx.conf updated with `/clienthub/` SPA routing; (3) `cloudbuild-middleware.yaml` created for separate `clienthub-api` Cloud Run service with all env vars from Secret Manager; (4) 8 GCP secrets created (Azure AD IDs, database URL, portal token, API base URL) with Cloud Build SA access; (5) Azure AD app registration complete (client ID, tenant ID, scope `access_as_user`, Staff role, Hamish assigned); (6) Vite base path configured (`vite.config.ts` + `BrowserRouter basename`); (7) smoke tests with bundle integrity checks (non-empty guards prevent false-pass); (8) middleware smoke test validates `/health` + auth rejection on `/api/v1/hubs`; (9) Dockerfile updated with `VITE_BASE_PATH` arg and standalone-use comment; (10) "What's Left to Deploy" pickup guide added for new developer onboarding. 3 rounds of senior dev review (2 internal + 1 external), all findings addressed. |
