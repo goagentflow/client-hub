@@ -2,7 +2,7 @@
 
 **Date:** 23 Feb 2026
 **Author:** Hamish Nicklin / Claude Code
-**Status:** v4.8 — MVP deployed to production. Both services live on Cloud Run.
+**Status:** v4.9 — Phase 1.5 (Portal Email Verification) deployed to production. Both services live on Cloud Run.
 **Audience:** Senior developer reviewing for feasibility and sequencing
 
 ---
@@ -134,6 +134,7 @@ All secrets created in project `agentflow-456021` with Cloud Build SA access gra
 | `VITE_AZURE_CLIENT_ID` | Same client ID, baked into frontend for MSAL | Created |
 | `VITE_AZURE_TENANT_ID` | Same tenant ID, baked into frontend for MSAL | Created |
 | `VITE_AZURE_BACKEND_CLIENT_ID` | Backend client ID for MSAL scope URI (same app registration) | Created |
+| `CLIENTHUB_RESEND_API_KEY` | Resend transactional email API key (Phase 1.5 email verification) | Created |
 | `GITHUB_TOKEN` | Cloning repos during Cloud Build (pre-existing) | Already existed |
 
 **Azure AD app registration (complete):**
@@ -213,6 +214,7 @@ The MVP cannot go live until ALL of these pass:
 | HTTPS enforced | Cloud Run service accessible only via HTTPS | Infra | **Auto** (Cloud Run enforces HTTPS by default) |
 | Azure AD login | Staff can sign in via Microsoft and access hub management | Dev | **DONE** (deployed, MSAL configured) |
 | Portal access | Client can access portal via password-protected link | Dev | **DONE** (deployed) |
+| Email verification | Email-verified portal access (Phase 1.5) | Dev | **DONE** (deployed, smoke test pending) |
 | Azure AD redirect URI | Add `https://www.goagentflow.com` to SPA redirect URIs | Hamish | **DONE** (v4.8) |
 | VITE_API_BASE_URL secret | Update with real middleware Cloud Run URL | Dev | **DONE** (v4.8 — `clienthub-api-axiw2ydgeq-uc.a.run.app`) |
 | Secrets management | All secrets in Cloud Run environment variables (not in code) | Dev | **DONE** (v4.7) |
@@ -220,7 +222,7 @@ The MVP cannot go live until ALL of these pass:
 | Security headers | Helmet defaults: CSP, HSTS, X-Frame-Options, X-Content-Type-Options | Dev | **DONE** (middleware has Helmet) |
 | CORS locked | `CORS_ORIGIN` set to exact production domain (no wildcards) | Dev | **DONE** (`https://www.goagentflow.com` in pipeline) |
 | Rate limiting | Rate-limit on auth and public endpoints (already configured) | Dev | **DONE** |
-| All tests pass | `pnpm test` passes (89 tests across 6 files) | Dev | **DONE** |
+| All tests pass | `pnpm test` passes (120 tests across 7 files) | Dev | **DONE** |
 | Clean build | Fresh `pnpm build` with no stale dist artefacts | Dev | **DONE** (verified by senior dev) |
 
 **Not required for MVP** (required for full Azure deployment in Phase 0a):
@@ -512,46 +514,56 @@ Phase 0b — Codebase refactor (COMPLETE):
 
 ---
 
-### Phase 1.5: Portal Email Verification (Quick Win)
+### Phase 1.5: Portal Email Verification (COMPLETE — deployed 23 Feb 2026)
 
-**Objective:** Replace open-link portal access with email-verified access. Clients enter their email, receive a 6-digit code, and are granted a long-lived device cookie — no password to remember, but only authorised contacts can access the hub.
+**Objective:** Replace open-link portal access with email-verified access. Clients enter their email, receive a 6-digit code, and are granted a long-lived device token — no password to remember, but only authorised contacts can access the hub.
 
-**Why this matters:**
-- Current portal links are "anyone with the link can access" — acceptable for pitch hubs, not for client hubs with project data
-- Clients hate passwords. Email verification is frictionless (one-time per device)
-- Gives staff control over who can access each hub
-- Provides an audit trail of who accessed what and when
+**Status: DEPLOYED TO PRODUCTION** — 3 rounds automated review + 3 rounds external senior dev review. All findings resolved. Browser smoke test pending.
 
-**How it works:**
-1. Client clicks portal link → sees "Enter your email to access this hub"
-2. Server checks email is in the hub's allowed contacts list → sends 6-digit code (10-minute expiry)
-3. Client enters code → server issues JWT + sets a `remember_device` cookie (90 days)
-4. **Next visits (same device):** portal opens immediately — no code needed
-5. New device or expired cookie → re-verify with a new code
+**Full implementation plan:** `docs/PHASE_1_5_EMAIL_VERIFICATION_PLAN.md`
 
-**What's built:**
-- `portal_contact` table: `hub_id`, `email`, `name`, `created_by` (staff who added them)
-- Staff UI: "Manage portal contacts" on hub detail page — add/remove email addresses
-- `POST /public/hubs/:hubId/request-code` — validates email is in allowed list, sends code
-- `POST /public/hubs/:hubId/verify-code` — validates code, issues JWT + device cookie
-- Auth middleware updated: check device cookie alongside existing portal JWT
-- Email sending: transactional email provider (Resend or Postmark — simple API, no Microsoft dependency)
+**What was built:**
 
-**Security:**
-- Codes are 6 digits, single-use, expire after 10 minutes
-- Rate-limited: 3 code requests per email per hour
-- Device cookie: `HttpOnly`, `Secure`, `SameSite=Lax`, 90-day expiry
-- Staff can remove a contact's email → immediately blocks future access (existing device cookies checked against contact list on each request)
-- Audit: every code request, verification, and access logged in `hub_event`
+Database:
+- 3 new Prisma models: `PortalContact`, `PortalVerification`, `PortalDevice`
+- `Hub.accessMethod` field (`password` | `email` | `open`, defaults to `password`)
 
-**Migration:**
-- Runs alongside existing password portal (no breaking change)
-- Hubs with portal contacts use email verification; hubs without fall back to password/open access
-- Password portal can be deprecated once email verification is proven
+Middleware — public endpoints (no auth, rate-limited):
+- `GET /public/hubs/:hubId/access-method` — which gate to show
+- `POST /public/hubs/:hubId/request-code` — send 6-digit code (always returns `{ sent: true }` for enumeration prevention)
+- `POST /public/hubs/:hubId/verify-code` — validate code → issue portal JWT + device token
+- `POST /public/hubs/:hubId/verify-device` — validate device token → issue portal JWT
 
-**Dependencies:** Transactional email API key (Resend free tier: 100 emails/day — plenty for MVP). No dependency on Phase 0a or Phase 5 (OBO).
+Middleware — staff endpoints (auth required):
+- `GET /hubs/:hubId/portal-contacts` — list contacts
+- `POST /hubs/:hubId/portal-contacts` — add contact
+- `DELETE /hubs/:hubId/portal-contacts/:id` — remove contact + cascade revoke
+- `GET /hubs/:hubId/access-method` — get current method
+- `PATCH /hubs/:hubId/access-method` — set method (with side-effects: clears passwordHash on open, revokes devices/verifications on method switch away from email)
 
-**Complexity:** Medium (~3-4 days). Small surface area: 2 new endpoints, 1 new table, device cookie logic, email sending, staff UI for managing contacts.
+Frontend:
+- `EmailGate.tsx` — client email → code verification UI
+- `PortalContactsCard.tsx` — staff contact management + access method toggle
+- `PortalDetail.tsx` updated — routes to correct gate based on access method
+
+Email:
+- Resend REST API via native `fetch()` (zero new npm packages)
+- XSS-safe HTML templates with `escapeHtml()`
+- Fire-and-forget sending (prevents timing-based enumeration)
+
+Security:
+- SHA-256 hashed codes + timing-safe comparison
+- Per-code attempt lockout (5 failures)
+- Rate limits: 3 code requests/min, 1 per email/min cooldown, 5 verify attempts/min
+- Tenant isolation via `verifyTenant()` on all staff endpoints
+- Contact existence required before JWT minting
+- Device tokens: 32 random bytes, SHA-256 hashed in DB, 90-day expiry
+
+Tests: 120 tests across 7 files (33 new tests for Phase 1.5)
+
+**Dependencies:** Resend API key (configured in GCP Secret Manager). No dependency on Phase 0a or Phase 5.
+
+**Complexity:** Medium (~3-4 days planned, ~1 day actual).
 
 ---
 
@@ -1003,3 +1015,4 @@ gcloud builds submit --config=cloudbuild.yaml --project=agentflow-456021
 | v4.5 | 22 Feb 2026 | Phase 0b sub-phase 4 (route migration) complete: all 9 route files migrated from Supabase adapter to Prisma TenantRepository. `DATA_BACKEND=mock` removed — `azure_pg` is now the only backend, `DATABASE_URL` always required. New Prisma-native mappers in `db/`. Public routes use direct Prisma queries. 3 rounds of external senior dev review, all findings addressed. |
 | v4.6 | 22 Feb 2026 | Cloud Run Dockerfiles + production readiness: (1) middleware multi-stage Dockerfile (Node 20 + pnpm + Prisma generate + tsup → non-root runtime); (2) frontend multi-stage Dockerfile (Vite build with VITE_* build args → nginx-unprivileged with PORT envsubst); (3) VITE_USE_MOCK_API=false default ensures production builds use real middleware; (4) Prisma generated client preserved across pnpm prune --prod; (5) nginx.conf.template with ${PORT} for Cloud Run compliance; (6) health endpoint rewritten with DB connectivity check (200/503); (7) health endpoint tests added (5 tests — 89 total across 6 files); (8) TRUST_PROXY added to MVP readiness gate and operator checklist; (9) readiness gate table reformatted with Status column. 3 rounds of senior dev review, all findings addressed. |
 | v4.7 | 23 Feb 2026 | Cloud Build pipelines, GCP secrets, and Azure AD complete: (1) assembler pipeline updated — new `build-clienthub` step in `cloudbuild.yaml` (AFv2 repo) clones client-hub, builds with VITE_BASE_PATH, MSAL env vars, and VITE_USE_MOCK_API=false, adds to nginx image; (2) nginx.conf updated with `/clienthub/` SPA routing; (3) `cloudbuild-middleware.yaml` created for separate `clienthub-api` Cloud Run service with all env vars from Secret Manager; (4) 8 GCP secrets created (Azure AD IDs, database URL, portal token, API base URL) with Cloud Build SA access; (5) Azure AD app registration complete (client ID, tenant ID, scope `access_as_user`, Staff role, Hamish assigned); (6) Vite base path configured (`vite.config.ts` + `BrowserRouter basename`); (7) smoke tests with bundle integrity checks (non-empty guards prevent false-pass); (8) middleware smoke test validates `/health` + auth rejection on `/api/v1/hubs`; (9) Dockerfile updated with `VITE_BASE_PATH` arg and standalone-use comment; (10) "What's Left to Deploy" pickup guide added for new developer onboarding. 3 rounds of senior dev review (2 internal + 1 external), all findings addressed. |
+| v4.9 | 23 Feb 2026 | Phase 1.5 (Portal Email Verification) implemented and deployed: (1) 3 new Prisma models (PortalContact, PortalVerification, PortalDevice) + Hub.accessMethod field; (2) 4 public endpoints (access-method, request-code, verify-code, verify-device) with rate limiting and enumeration prevention; (3) 5 staff endpoints (portal contacts CRUD + access method management) with tenant isolation; (4) Email via Resend REST API (fire-and-forget, XSS-safe templates); (5) Frontend EmailGate + PortalContactsCard + PortalDetail access-method routing; (6) SHA-256 hashed codes, timing-safe comparison, per-code lockout; (7) Device token remember-me (90-day, localStorage); (8) Method-switch side-effects (clear passwordHash on open, revoke artifacts on method change); (9) 120 tests across 7 files; (10) 3 rounds automated review + 3 rounds external senior dev review; (11) CLIENTHUB_RESEND_API_KEY added to GCP Secret Manager; (12) Both services redeployed to Cloud Run. Browser smoke test pending. |

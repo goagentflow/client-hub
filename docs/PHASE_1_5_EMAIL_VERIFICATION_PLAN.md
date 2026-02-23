@@ -1,10 +1,10 @@
 # Phase 1.5: Portal Email Verification — Implementation Plan
 
-**Date:** 23 Feb 2026 (v3 — approved by senior dev)
+**Date:** 23 Feb 2026 (v4 — IMPLEMENTED AND DEPLOYED)
 **Author:** Hamish Nicklin / Claude Code
-**Status:** Plan v3 — implementation-ready (v2 review: 4 fixes applied)
-**Estimated effort:** 3-4 days
-**Review history:** v1 reviewed 23 Feb (9 findings), v2 reviewed 23 Feb (4 findings), v3 submitted 23 Feb
+**Status:** COMPLETE — deployed to production 23 Feb 2026
+**Estimated effort:** 3-4 days (actual: ~1 day)
+**Review history:** v1 reviewed 23 Feb (9 findings), v2 reviewed 23 Feb (4 findings), v3 submitted 23 Feb, v4 implementation complete + 3 rounds external senior dev review + deployed
 
 ---
 
@@ -449,3 +449,70 @@ Step 9: Deploy (add RESEND_API_KEY to GCP Secret Manager, redeploy both services
 | 2 | MEDIUM | Open-mode test uses GET/200 instead of POST/201 | Fixed to POST/201; added negative test: GET /events → 403 for portal users |
 | 3 | MEDIUM | "Transactional upsert" is delete+insert (race-prone) | Changed to true Prisma `upsert` on composite unique key — atomic, no P2002 errors |
 | 4 | LOW | File path typo: `hub-mapper.ts` | Corrected to `hub.mapper.ts` |
+
+### Implementation Review (3 rounds external senior dev)
+
+| Round | Findings | Resolution |
+|-------|----------|------------|
+| 1 | 3 HIGH + 3 MEDIUM: missing GET access-method staff endpoint, access method not enforced on verification endpoints, open mode breaks with existing password hash, tenant isolation bypassed, Prisma errors become 500s, test gaps | All 6 fixed: added GET endpoint, enforced `accessMethod === 'email'` on all verify endpoints, PATCH clears passwordHash on open + revokes artifacts on method switch, added `verifyTenant()` helper, mapped P2002→409 and P2025→404 |
+| 2 | 2 LOW (non-blocking): verify-code mints token without contact check, non-existent hub returns 403 instead of 404 | Both fixed: added contact existence check before JWT minting, split verifyTenant into 404 (missing) vs 403 (wrong tenant) |
+| 3 | APPROVED — 1 low observation (parallel deletes vs transaction in PATCH access-method, acceptable for MVP) | No action required |
+
+---
+
+## Deployment Status (23 Feb 2026)
+
+**Status: LIVE IN PRODUCTION**
+
+| Component | Service | Revision | Status |
+|-----------|---------|----------|--------|
+| Middleware | `clienthub-api` (Cloud Run) | `clienthub-api-00003-jgk` | Live |
+| Frontend | `agentflow-site` (Cloud Run) | `agentflow-site-00241-p6c` | Live |
+| Database | Supabase PostgreSQL | 3 new tables + Hub.accessMethod | Migrated |
+| Email | Resend API | `CLIENTHUB_RESEND_API_KEY` in GCP Secret Manager | Configured |
+
+**GCP details:**
+- Project: `agentflow-456021`
+- Region: `us-central1`
+- Middleware image: `us-central1-docker.pkg.dev/agentflow-456021/agentflow-repo/clienthub-api:phase1.5`
+- Secrets: `CLIENTHUB_DATABASE_URL`, `CLIENTHUB_PORTAL_TOKEN_SECRET`, `CLIENTHUB_RESEND_API_KEY`
+- Resend API key: stored in GCP Secret Manager (sourced from existing AgentFlow Resend account)
+
+**Commit:** `67a0fc6` — 23 files changed, pushed to `origin/main`
+
+**Test suite:** 120 tests across 7 files (portal-verification.test.ts: 19 tests, portal-contacts.test.ts: 14 tests)
+
+### Smoke Test Checklist (PENDING)
+
+Browser smoke test not yet performed. Steps to verify:
+
+1. **Staff: set up email access on a hub**
+   - Log in at `https://www.goagentflow.com/clienthub/` with Microsoft (Azure AD)
+   - Open an existing hub (or create one)
+   - Navigate to Client Portal section
+   - Add a portal contact (use a real email address you can receive at)
+   - Set access method to "Email verification"
+   - Verify the UI shows the contact in the list
+
+2. **Client: email verification flow**
+   - Open the hub's portal link: `https://www.goagentflow.com/clienthub/portal/<hubId>`
+   - Should see "Enter your email" (not password field)
+   - Enter the authorised email → should see "Code sent" message
+   - Check email inbox for 6-digit code from `noreply@goagentflow.com`
+   - Enter the code → portal should open with full access
+
+3. **Client: device remember-me**
+   - Close browser tab
+   - Reopen the same portal link
+   - Portal should open immediately (device token in localStorage, 90-day expiry)
+
+4. **Negative tests**
+   - Enter an unauthorised email → should say "sent" but no code arrives
+   - Enter wrong code 5 times → should be locked out
+   - Remove the contact in staff view → client's device token should stop working
+
+5. **Backwards compatibility**
+   - Any existing password-protected hub → should still show password gate
+   - Any open hub → should auto-unlock as before
+
+**Note on Resend domain:** Emails come from the Resend account's configured sender. If `goagentflow.com` is not verified in Resend, emails may go to spam or use Resend's default domain. Check the Resend dashboard to confirm domain verification status.
