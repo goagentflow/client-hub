@@ -32,6 +32,9 @@ function UnauthorizedHandler() {
 
   useEffect(() => {
     setUnauthorizedHandler(() => {
+      // Portal routes handle their own auth (email gate, password gate, etc.)
+      // Don't redirect to login — let the portal page manage the flow.
+      if (window.location.pathname.includes("/portal/")) return;
       qc.clear();
       navigate("/login", { replace: true });
     });
