@@ -1,0 +1,121 @@
+# Cloud Build pipeline for Client Hub middleware (Express API)
+# Deploys as a separate Cloud Run service: clienthub-api
+#
+# Trigger: manual or on push to goagentflow/client-hub (filtered to middleware/ path)
+#
+# Requires secrets in Secret Manager:
+#   CLIENTHUB_DATABASE_URL, CLIENTHUB_PORTAL_TOKEN_SECRET
+
+steps:
+  # ──────────────────────────────────────────────
+  # 1. Build middleware Docker image
+  # ──────────────────────────────────────────────
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'docker-build'
+    args:
+      - 'build'
+      - '-t'
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/agentflow-repo/clienthub-api:$BUILD_ID'
+      - '-t'
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/agentflow-repo/clienthub-api:latest'
+      - './middleware'
+
+  # ──────────────────────────────────────────────
+  # 2. Push Docker image (both tags)
+  # ──────────────────────────────────────────────
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'docker-push-immutable'
+    args: ['push', 'us-central1-docker.pkg.dev/$PROJECT_ID/agentflow-repo/clienthub-api:$BUILD_ID']
+    waitFor: ['docker-build']
+
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'docker-push-latest'
+    args: ['push', 'us-central1-docker.pkg.dev/$PROJECT_ID/agentflow-repo/clienthub-api:latest']
+    waitFor: ['docker-build']
+
+  # ──────────────────────────────────────────────
+  # 3. Deploy to Cloud Run
+  # ──────────────────────────────────────────────
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: 'deploy'
+    entrypoint: 'bash'
+    secretEnv: ['CLIENTHUB_DATABASE_URL', 'CLIENTHUB_PORTAL_TOKEN_SECRET', 'CLIENTHUB_AZURE_CLIENT_ID', 'CLIENTHUB_AZURE_TENANT_ID']
+    args:
+      - '-c'
+      - |
+        gcloud run deploy clienthub-api \
+          --image us-central1-docker.pkg.dev/$PROJECT_ID/agentflow-repo/clienthub-api:$BUILD_ID \
+          --region us-central1 \
+          --platform managed \
+          --allow-unauthenticated \
+          --port 3001 \
+          --memory 512Mi \
+          --cpu 1 \
+          --max-instances 10 \
+          --set-env-vars "NODE_ENV=production" \
+          --set-env-vars "AUTH_MODE=azure_ad" \
+          --set-env-vars "DATA_BACKEND=azure_pg" \
+          --set-env-vars "AZURE_CLIENT_ID=$$CLIENTHUB_AZURE_CLIENT_ID" \
+          --set-env-vars "AZURE_TENANT_ID=$$CLIENTHUB_AZURE_TENANT_ID" \
+          --set-env-vars "STAFF_ROLE_NAME=Staff" \
+          --set-env-vars "CORS_ORIGIN=https://www.goagentflow.com" \
+          --set-env-vars "TRUST_PROXY=true" \
+          --set-env-vars "LOG_LEVEL=info" \
+          --set-secrets "DATABASE_URL=CLIENTHUB_DATABASE_URL:latest" \
+          --set-secrets "PORTAL_TOKEN_SECRET=CLIENTHUB_PORTAL_TOKEN_SECRET:latest" \
+          --format "value(status.url)" | tail -1 > /workspace/service-url.txt
+
+        echo "Deployed to: $(cat /workspace/service-url.txt)"
+    waitFor: ['docker-push-immutable']
+
+  # ──────────────────────────────────────────────
+  # 4. Post-deploy smoke test
+  # ──────────────────────────────────────────────
+  - name: 'curlimages/curl'
+    id: 'smoke-tests'
+    entrypoint: 'sh'
+    args:
+      - '-c'
+      - |
+        sleep 15
+
+        SERVICE_URL=$$(cat /workspace/service-url.txt)
+        if [ -z "$$SERVICE_URL" ]; then
+          echo "FATAL: No service URL found in /workspace/service-url.txt"
+          exit 1
+        fi
+
+        echo "Testing health endpoint at $$SERVICE_URL..."
+        curl -sf "$$SERVICE_URL/health" || exit 1
+
+        echo "Testing that auth rejects unauthenticated requests..."
+        HTTP_CODE=$$(curl -s -o /dev/null -w "%{http_code}" "$$SERVICE_URL/api/v1/hubs")
+        if [ "$$HTTP_CODE" != "401" ]; then
+          echo "FATAL: Expected 401 for unauthenticated /api/v1/hubs, got $$HTTP_CODE"
+          exit 1
+        fi
+
+        echo "All smoke tests passed"
+    waitFor: ['deploy']
+
+# Store images in Artifact Registry
+images:
+  - 'us-central1-docker.pkg.dev/$PROJECT_ID/agentflow-repo/clienthub-api:$BUILD_ID'
+  - 'us-central1-docker.pkg.dev/$PROJECT_ID/agentflow-repo/clienthub-api:latest'
+
+availableSecrets:
+  secretManager:
+    - versionName: projects/$PROJECT_ID/secrets/CLIENTHUB_DATABASE_URL/versions/latest
+      env: 'CLIENTHUB_DATABASE_URL'
+    - versionName: projects/$PROJECT_ID/secrets/CLIENTHUB_PORTAL_TOKEN_SECRET/versions/latest
+      env: 'CLIENTHUB_PORTAL_TOKEN_SECRET'
+    - versionName: projects/$PROJECT_ID/secrets/CLIENTHUB_AZURE_CLIENT_ID/versions/latest
+      env: 'CLIENTHUB_AZURE_CLIENT_ID'
+    - versionName: projects/$PROJECT_ID/secrets/CLIENTHUB_AZURE_TENANT_ID/versions/latest
+      env: 'CLIENTHUB_AZURE_TENANT_ID'
+
+timeout: '600s'
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+  machineType: 'E2_HIGHCPU_8'

@@ -1,3 +1,7 @@
+# Standalone Dockerfile for local/independent Docker builds.
+# Production deploys via the afv2-temp assembler pipeline (cloudbuild.yaml),
+# which clones this repo, runs npm build, and copies dist/ into a shared nginx image.
+
 # ── Stage 1: Build ──────────────────────────────────────────────
 FROM node:20-alpine AS build
 
@@ -11,6 +15,7 @@ COPY pnpm-lock.yaml package.json ./
 RUN pnpm install --frozen-lockfile
 
 # Build args — Vite bakes these into the bundle at build time
+ARG VITE_BASE_PATH=/
 ARG VITE_API_BASE_URL
 ARG VITE_USE_MOCK_API=false
 ARG VITE_AZURE_CLIENT_ID
