@@ -42,7 +42,7 @@ export async function initializeMsal(): Promise<void> {
     auth: {
       clientId,
       authority: `https://login.microsoftonline.com/${tenantId}`,
-      redirectUri: window.location.origin,
+      redirectUri: window.location.origin + import.meta.env.BASE_URL,
     },
     cache: {
       cacheLocation: 'sessionStorage',
