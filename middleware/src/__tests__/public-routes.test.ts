@@ -32,6 +32,10 @@ describe('Public routes — response shape', () => {
   it('GET /public/hubs/:hubId/portal-meta returns portal-meta shape for published hub', async () => {
     mockFindPublishedHub.mockResolvedValueOnce({
       id: 'hub-pub', companyName: 'Published Co', hubType: 'pitch', isPublished: true,
+      welcomeHeadline: 'Hello!', welcomeMessage: 'Welcome to your hub',
+      heroContentType: 'video', heroContentId: 'vid-1',
+      showProposal: true, showVideos: true, showDocuments: false,
+      showMessages: true, showMeetings: false, showQuestionnaire: true,
     });
 
     const res = await request(app).get('/api/v1/public/hubs/hub-pub/portal-meta');
@@ -41,6 +45,18 @@ describe('Public routes — response shape', () => {
       companyName: 'Published Co',
       hubType: 'pitch',
       isPublished: true,
+      welcomeHeadline: 'Hello!',
+      welcomeMessage: 'Welcome to your hub',
+      heroContentType: 'video',
+      heroContentId: 'vid-1',
+      sections: {
+        showProposal: true,
+        showVideos: true,
+        showDocuments: false,
+        showMessages: true,
+        showMeetings: false,
+        showQuestionnaire: true,
+      },
     });
     // Verify no sensitive fields leak
     expect(res.body.data).not.toHaveProperty('contactEmail');

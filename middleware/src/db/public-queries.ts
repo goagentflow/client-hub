@@ -12,7 +12,22 @@ import { getPrisma } from './prisma.js';
 export async function findPublishedHub(hubId: string) {
   return getPrisma().hub.findFirst({
     where: { id: hubId, isPublished: true },
-    select: { id: true, companyName: true, hubType: true, isPublished: true },
+    select: {
+      id: true,
+      companyName: true,
+      hubType: true,
+      isPublished: true,
+      welcomeHeadline: true,
+      welcomeMessage: true,
+      heroContentType: true,
+      heroContentId: true,
+      showProposal: true,
+      showVideos: true,
+      showDocuments: true,
+      showMessages: true,
+      showMeetings: true,
+      showQuestionnaire: true,
+    },
   });
 }
 

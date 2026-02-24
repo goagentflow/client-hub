@@ -116,6 +116,19 @@ export interface PortalSectionConfig {
   showQuestionnaire: boolean;
 }
 
+// Portal metadata returned by public portal-meta endpoint
+export interface PortalMeta {
+  id: EntityId;
+  companyName: string;
+  hubType: string;
+  isPublished: boolean;
+  welcomeHeadline: string;
+  welcomeMessage: string;
+  heroContentType: HeroContentType;
+  heroContentId: EntityId | null;
+  sections: PortalSectionConfig;
+}
+
 // Portal config update request
 export interface UpdatePortalConfigRequest {
   welcomeHeadline?: string;

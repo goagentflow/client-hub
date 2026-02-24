@@ -23,6 +23,7 @@ import { isMockApiEnabled, api } from "@/services/api";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import type { PortalMeta } from "@/types";
 
 const PortalDetail = () => {
   const { hubId } = useParams<{ hubId: string }>();
@@ -30,6 +31,8 @@ const PortalDetail = () => {
   const isStaff = authData?.user?.role === "staff";
 
   // Portal meta: staff uses portal-preview (no published filter), clients use public endpoint
+  // Wait for auth to settle before choosing endpoint to prevent staff briefly hitting public endpoint
+  type HubMetaBase = { id: string; companyName: string; hubType: string; isPublished: boolean };
   const { data: hubMeta, isLoading: hubLoading } = useQuery({
     queryKey: ["portal-meta", hubId, isStaff],
     queryFn: async () => {
@@ -37,10 +40,10 @@ const PortalDetail = () => {
       const endpoint = isStaff
         ? `/hubs/${hubId}/portal-preview`
         : `/public/hubs/${hubId}/portal-meta`;
-      const result = await api.get<{ data: { id: string; companyName: string; hubType: string; isPublished: boolean } }>(endpoint);
+      const result = await api.get<{ data: HubMetaBase | PortalMeta }>(endpoint);
       return result.data;
     },
-    enabled: !!hubId && !isMockApiEnabled(),
+    enabled: !!hubId && !isMockApiEnabled() && !isLoading,
   });
 
   // Password gate state — check sessionStorage for existing access
@@ -55,8 +58,8 @@ const PortalDetail = () => {
   const hubName = hubAccess?.hubName || hubMeta?.companyName || "Your AgentFlow Hub";
   const hubType = hubMeta?.hubType || "pitch";
 
-  // Show loading state while data is being fetched
-  if (hubLoading || (isLoading && !isLiveHub)) {
+  // Show loading state while auth or hub meta is being fetched
+  if (hubLoading || isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <Loader2 className="h-8 w-8 animate-spin text-[hsl(var(--gradient-blue))]" />
@@ -82,7 +85,8 @@ const PortalDetail = () => {
   }
 
   // Live hub not found or unpublished — show "unavailable" (not login redirect)
-  if (isLiveHub && !hubLoading && !hubMeta) {
+  // Gate on auth settled too, since hubMeta query is disabled while auth is loading
+  if (isLiveHub && !isLoading && !hubLoading && !hubMeta) {
     return (
       <div className="flex items-center justify-center min-h-screen p-8">
         <Card className="max-w-md">
@@ -117,7 +121,7 @@ const PortalDetail = () => {
       <HubProvider hubId={hubId}>
         <ClientHubLayout hubName={hubName} hubType={hubType} viewMode="client">
           <Routes>
-            <Route path="overview" element={<ClientOverviewSection />} />
+            <Route path="overview" element={<ClientOverviewSection hubMeta={hubMeta} isStaff={!!isStaff} />} />
             <Route path="documents" element={<ClientDocumentsSection />} />
             <Route path="messages" element={<ClientMessagesSection />} />
             <Route path="proposal" element={<ClientProposalSection />} />
@@ -167,7 +171,7 @@ const PortalDetail = () => {
       <ClientHubLayout hubName={hubName} hubType={hubType} viewMode="client">
         <Routes>
           {/* Shared routes */}
-          <Route path="overview" element={<ClientOverviewSection />} />
+          <Route path="overview" element={<ClientOverviewSection hubMeta={hubMeta} isStaff={!!isStaff} />} />
           <Route path="documents" element={<ClientDocumentsSection />} />
           <Route path="messages" element={<ClientMessagesSection />} />
 

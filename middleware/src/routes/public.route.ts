@@ -54,6 +54,18 @@ publicRouter.get('/hubs/:hubId/portal-meta', generalLimit, async (req: Request, 
         companyName: hub.companyName,
         hubType: hub.hubType,
         isPublished: hub.isPublished,
+        welcomeHeadline: hub.welcomeHeadline ?? '',
+        welcomeMessage: hub.welcomeMessage ?? '',
+        heroContentType: hub.heroContentType ?? 'none',
+        heroContentId: hub.heroContentId ?? null,
+        sections: {
+          showProposal: hub.showProposal ?? true,
+          showVideos: hub.showVideos ?? true,
+          showDocuments: hub.showDocuments ?? true,
+          showMessages: hub.showMessages ?? true,
+          showMeetings: hub.showMeetings ?? true,
+          showQuestionnaire: hub.showQuestionnaire ?? true,
+        },
       },
     });
   } catch (err) {

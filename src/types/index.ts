@@ -47,6 +47,7 @@ export type {
   PortalConfig,
   HeroContentType,
   PortalSectionConfig,
+  PortalMeta,
   UpdatePortalConfigRequest,
 } from "./hub";
 export { isPitchHub, isClientHub } from "./hub";
