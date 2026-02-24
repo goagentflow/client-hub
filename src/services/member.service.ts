@@ -92,7 +92,7 @@ export async function createInvite(
       invitedByName: "Hamish Nicklin",
       invitedAt: new Date().toISOString(),
       expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-      token: `token-${Date.now()}`,
+      message: data.message || null,
       status: "pending",
     };
 
@@ -280,7 +280,7 @@ export async function inviteColleague(
       invitedByName: "Sarah Mitchell",
       invitedAt: new Date().toISOString(),
       expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-      token: `token-${Date.now()}`,
+      message: null,
       status: "pending",
     };
 

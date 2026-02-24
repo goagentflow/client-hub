@@ -37,7 +37,7 @@ export interface HubInvite {
   invitedByName: string;
   invitedAt: ISODateString;
   expiresAt: ISODateString;
-  token: string; // For invite link
+  message?: string | null;
   status: InviteStatus;
 }
 

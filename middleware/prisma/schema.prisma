@@ -55,6 +55,7 @@ model Hub {
   projects       HubProject[]
   events         HubEvent[]
   portalContacts PortalContact[]
+  invites        HubInvite[]
 
   @@map("hub")
 }
@@ -164,6 +165,27 @@ model HubEvent {
   hub Hub? @relation(fields: [hubId], references: [id])
 
   @@map("hub_event")
+}
+
+model HubInvite {
+  id            String   @id @default(uuid())
+  hubId         String   @map("hub_id")
+  tenantId      String   @map("tenant_id")
+  email         String
+  accessLevel   String   @map("access_level")
+  message       String?
+  invitedBy     String   @map("invited_by")
+  invitedByName String   @map("invited_by_name")
+  invitedAt     DateTime @default(now()) @map("invited_at")
+  expiresAt     DateTime @map("expires_at")
+  token         String   @default(uuid())
+  status        String   @default("pending")
+
+  hub Hub @relation(fields: [hubId], references: [id])
+
+  @@unique([hubId, email])
+  @@index([hubId, tenantId, status])
+  @@map("hub_invite")
 }
 
 model PortalContact {

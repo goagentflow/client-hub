@@ -30,3 +30,6 @@ dist-ssr
 
 # Repomix outputs (keep configs, exclude generated outputs)
 repomix-output*.xml
+
+# Supabase local temp files
+middleware/supabase/.temp/
