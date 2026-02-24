@@ -1,7 +1,7 @@
 /**
- * CreateHubDialog — form for creating a new pitch hub
+ * CreateHubDialog — form for creating a new hub (pitch or client)
  *
- * Collects company name, contact name, and contact email.
+ * Collects hub type, company name, contact name, and contact email.
  * Inserts into Supabase (or mock) via hub.service.createHub().
  */
 
@@ -18,8 +18,16 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { createHub } from "@/services/hub.service";
 import { useQueryClient } from "@tanstack/react-query";
+import type { HubType } from "@/types/hub";
 
 interface CreateHubDialogProps {
   open: boolean;
@@ -30,6 +38,7 @@ export function CreateHubDialog({ open, onOpenChange }: CreateHubDialogProps) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
+  const [hubType, setHubType] = useState<HubType>("pitch");
   const [companyName, setCompanyName] = useState("");
   const [contactName, setContactName] = useState("");
   const [contactEmail, setContactEmail] = useState("");
@@ -37,6 +46,7 @@ export function CreateHubDialog({ open, onOpenChange }: CreateHubDialogProps) {
   const [error, setError] = useState("");
 
   const resetForm = () => {
+    setHubType("pitch");
     setCompanyName("");
     setContactName("");
     setContactEmail("");
@@ -63,6 +73,7 @@ export function CreateHubDialog({ open, onOpenChange }: CreateHubDialogProps) {
         companyName: companyName.trim(),
         contactName: contactName.trim(),
         contactEmail: contactEmail.trim(),
+        hubType,
       });
 
       // Invalidate hub list cache so the new hub appears
@@ -83,11 +94,24 @@ export function CreateHubDialog({ open, onOpenChange }: CreateHubDialogProps) {
         <DialogHeader>
           <DialogTitle>Create New Hub</DialogTitle>
           <DialogDescription>
-            Set up a new pitch hub for a prospective client.
+            Set up a new hub for a prospective or existing client.
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="hubType">Hub Type</Label>
+            <Select value={hubType} onValueChange={(v) => setHubType(v as HubType)}>
+              <SelectTrigger id="hubType">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="pitch">Pitch Hub — new business</SelectItem>
+                <SelectItem value="client">Client Hub — existing client</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
           <div className="space-y-2">
             <Label htmlFor="companyName">Company Name</Label>
             <Input

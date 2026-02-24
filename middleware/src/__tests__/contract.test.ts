@@ -144,6 +144,52 @@ describe('Empty-list stubs (200)', () => {
 });
 
 // ============================================================================
+// 4c. Hub creation with hubType
+// ============================================================================
+describe('Hub creation with hubType', () => {
+  it('POST /hubs with hubType: "client" creates a client hub', async () => {
+    const res = await request(app)
+      .post('/api/v1/hubs')
+      .set(STAFF_HEADERS)
+      .send({
+        companyName: 'Client Co',
+        contactName: 'Jane Doe',
+        contactEmail: 'jane@clientco.com',
+        hubType: 'client',
+      });
+    expect(res.status).toBe(201);
+    expect(res.body.hubType).toBe('client');
+  });
+
+  it('POST /hubs with invalid hubType defaults to "pitch"', async () => {
+    const res = await request(app)
+      .post('/api/v1/hubs')
+      .set(STAFF_HEADERS)
+      .send({
+        companyName: 'Fallback Co',
+        contactName: 'John Smith',
+        contactEmail: 'john@fallback.com',
+        hubType: 'invalid',
+      });
+    expect(res.status).toBe(201);
+    expect(res.body.hubType).toBe('pitch');
+  });
+
+  it('POST /hubs without hubType defaults to "pitch"', async () => {
+    const res = await request(app)
+      .post('/api/v1/hubs')
+      .set(STAFF_HEADERS)
+      .send({
+        companyName: 'Default Co',
+        contactName: 'Bob Jones',
+        contactEmail: 'bob@default.com',
+      });
+    expect(res.status).toBe(201);
+    expect(res.body.hubType).toBe('pitch');
+  });
+});
+
+// ============================================================================
 // 5. Admin guard — rejects non-staff
 // ============================================================================
 describe('Admin guard', () => {

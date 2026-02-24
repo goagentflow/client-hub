@@ -19,14 +19,14 @@ export interface Hub {
   contactName: string;
   contactEmail: string;
   status: HubStatus;
-  hubType: HubType; // Phase 2: "pitch" for new business, "client" for converted
+  hubType: HubType; // Phase 2: "pitch" for new business, "client" for active clients
   createdAt: ISODateString;
   updatedAt: ISODateString;
   lastActivity: ISODateString;
   clientsInvited: number;
   lastVisit: ISODateString | null;
   clientDomain: string; // For domain-restricted sharing
-  // Phase 2: Conversion audit fields (only set when hubType === "client")
+  // Phase 2: Conversion audit fields (only set when converted from pitch to client)
   convertedAt?: ISODateString;
   convertedBy?: EntityId;
 }
@@ -46,6 +46,7 @@ export interface CreateHubRequest {
   contactName: string;
   contactEmail: string;
   clientDomain?: string; // Extracted from contactEmail if not provided
+  hubType?: HubType; // Defaults to "pitch" if not provided
 }
 
 // Hub update request

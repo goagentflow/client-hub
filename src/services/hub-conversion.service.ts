@@ -64,21 +64,22 @@ export async function convertToClientHub(
     const now = new Date().toISOString();
     const userId = "user-staff-1";
 
-    // Check if already converted (idempotent)
+    // Check if already a client hub (converted or created directly)
     if (hub.hubType === "client") {
+      const wasConverted = !!hub.convertedAt;
       return {
         hub,
         archiveSummary: {
-          proposalArchived: true,
-          proposalDocumentId: `doc-archived-${hubId}`,
-          questionnaireArchived: true,
-          questionnaireHistoryId: `history-questionnaire-${hubId}`,
+          proposalArchived: wasConverted,
+          proposalDocumentId: wasConverted ? `doc-archived-${hubId}` : undefined,
+          questionnaireArchived: wasConverted,
+          questionnaireHistoryId: wasConverted ? `history-questionnaire-${hubId}` : undefined,
         },
         alreadyConverted: true,
-        audit: {
-          convertedBy: hub.convertedBy || userId,
-          convertedAt: hub.convertedAt || now,
-        },
+        createdAsClient: !wasConverted,
+        audit: wasConverted
+          ? { convertedBy: hub.convertedBy!, convertedAt: hub.convertedAt! }
+          : { convertedBy: null, convertedAt: null },
       };
     }
 

@@ -74,7 +74,7 @@ export async function createHub(data: CreateHubRequest): Promise<Hub> {
       contactName: data.contactName,
       contactEmail: data.contactEmail,
       status: "draft",
-      hubType: "pitch", // New hubs start as pitch hubs
+      hubType: data.hubType || "pitch",
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       lastActivity: new Date().toISOString(),

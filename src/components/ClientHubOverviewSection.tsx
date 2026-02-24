@@ -79,16 +79,19 @@ export function ClientHubOverviewSection({
         >
           Client Hub
         </Badge>
-        {hub.convertedAt && (
-          <span className="text-sm text-[hsl(var(--medium-grey))]">
-            Converted{" "}
-            {new Date(hub.convertedAt).toLocaleDateString("en-US", {
-              month: "short",
-              day: "numeric",
-              year: "numeric",
-            })}
-          </span>
-        )}
+        <span className="text-sm text-[hsl(var(--medium-grey))]">
+          {hub.convertedAt
+            ? `Converted ${new Date(hub.convertedAt).toLocaleDateString("en-US", {
+                month: "short",
+                day: "numeric",
+                year: "numeric",
+              })}`
+            : `Created ${new Date(hub.createdAt).toLocaleDateString("en-US", {
+                month: "short",
+                day: "numeric",
+                year: "numeric",
+              })}`}
+        </span>
       </div>
 
       {/* Quick Stats Grid */}

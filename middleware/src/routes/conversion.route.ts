@@ -31,21 +31,22 @@ conversionRouter.post('/', async (req: Request, res: Response, next: NextFunctio
     });
     if (!hub) throw Errors.notFound('Hub', hubId);
 
-    // Idempotent: if already converted, return existing state
+    // Idempotent: if already a client hub (converted or created directly), return existing state
     if (hub.hubType === 'client') {
+      const wasConverted = !!hub.convertedAt;
       sendItem(res, {
         hub: mapHub(hub),
         archiveSummary: {
-          proposalArchived: true,
+          proposalArchived: wasConverted,
           proposalDocumentId: undefined,
-          questionnaireArchived: true,
+          questionnaireArchived: wasConverted,
           questionnaireHistoryId: undefined,
         },
         alreadyConverted: true,
-        audit: {
-          convertedBy: hub.convertedBy || req.user.userId,
-          convertedAt: hub.convertedAt?.toISOString() || now.toISOString(),
-        },
+        createdAsClient: !wasConverted,
+        audit: wasConverted
+          ? { convertedBy: hub.convertedBy, convertedAt: hub.convertedAt!.toISOString() }
+          : { convertedBy: null, convertedAt: null },
       });
       return;
     }

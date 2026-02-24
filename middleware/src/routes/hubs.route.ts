@@ -86,16 +86,19 @@ hubsRouter.get('/:hubId', requireStaffAccess, async (req: Request, res: Response
 // POST /hubs — create hub (staff-only)
 hubsRouter.post('/', requireStaffAccess, async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { companyName, contactName, contactEmail, clientDomain } = req.body;
+    const { companyName, contactName, contactEmail, clientDomain, hubType } = req.body;
     if (!companyName || !contactName || !contactEmail) {
       throw Errors.badRequest('companyName, contactName, and contactEmail are required');
     }
+
+    const VALID_HUB_TYPES = ['pitch', 'client'];
+    const validatedHubType = VALID_HUB_TYPES.includes(hubType) ? hubType : 'pitch';
 
     const domain = clientDomain || contactEmail.split('@')[1];
     const hub = await req.repo!.hub.create({
       data: {
         companyName, contactName, contactEmail,
-        status: 'draft', hubType: 'pitch', clientDomain: domain,
+        status: 'draft', hubType: validatedHubType, clientDomain: domain,
       },
       select: HUB_SELECT,
     });
