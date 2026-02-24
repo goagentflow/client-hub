@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { ArrowRight, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { useHubId } from "@/contexts/hub-context";
 import {
   useHubOverview,
@@ -32,12 +34,15 @@ import { ComposeDialog } from "./messages/ComposeDialog";
 import { ScheduleMeetingDialog } from "./meetings/ScheduleMeetingDialog";
 import { AddQuestionnaireDialog } from "./questionnaire/AddQuestionnaireDialog";
 import { ClientHubOverviewSection } from "./ClientHubOverviewSection";
+import { ConversionWizard } from "./conversion";
 
 export function OverviewSection() {
   const hubId = useHubId();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   // Dialog open states
+  const [conversionOpen, setConversionOpen] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [uploadVideoOpen, setUploadVideoOpen] = useState(false);
   const [uploadDocOpen, setUploadDocOpen] = useState(false);
@@ -139,6 +144,16 @@ export function OverviewSection() {
           onNavigateToDecisions={handleNavigateToDecisions}
           onNavigateToHealth={handleNavigateToHealth}
           onNavigateToActivity={handleViewAllActivity}
+          onInviteClient={() => setInviteOpen(true)}
+        />
+        <InviteClientDialog
+          isOpen={inviteOpen}
+          onClose={() => setInviteOpen(false)}
+          onInvite={(data) => {
+            createInvite(data, { onSuccess: () => setInviteOpen(false) });
+          }}
+          isInviting={isInviting}
+          clientDomain={hub.clientDomain}
         />
       </div>
     );
@@ -173,6 +188,27 @@ export function OverviewSection() {
         </div>
       </div>
 
+      {/* Convert to Client Hub banner — shown for won pitch hubs */}
+      {hub.hubType === "pitch" && hub.status === "won" && (
+        <div className="mb-8 rounded-lg border border-[hsl(var(--bold-royal-blue))]/20 bg-[hsl(var(--bold-royal-blue))]/5 p-4 flex items-center justify-between">
+          <div>
+            <p className="font-medium text-[hsl(var(--deep-navy))]">
+              Ready to convert to a client hub?
+            </p>
+            <p className="text-sm text-[hsl(var(--medium-grey))]">
+              Set up projects, health tracking, and client intelligence for {hub.companyName}.
+            </p>
+          </div>
+          <Button
+            onClick={() => setConversionOpen(true)}
+            className="bg-[hsl(var(--bold-royal-blue))] hover:bg-[hsl(var(--bold-royal-blue))]/90 text-white"
+          >
+            Convert to Client Hub
+            <ArrowRight className="w-4 h-4 ml-2" />
+          </Button>
+        </div>
+      )}
+
       {/* Preview as Client Link */}
       <div className="text-center">
         <button
@@ -183,6 +219,18 @@ export function OverviewSection() {
           <ArrowRight className="w-4 h-4" />
         </button>
       </div>
+
+      {/* Conversion Wizard */}
+      <ConversionWizard
+        hubId={hubId}
+        companyName={hub.companyName}
+        open={conversionOpen}
+        onOpenChange={setConversionOpen}
+        onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ["hubs"] });
+          queryClient.invalidateQueries({ queryKey: ["hub-overview", hubId] });
+        }}
+      />
 
       {/* Quick Action Dialogs */}
       <InviteClientDialog

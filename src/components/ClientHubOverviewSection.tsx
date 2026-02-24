@@ -8,7 +8,7 @@
  * - Recent activity and alerts
  */
 
-import { FolderKanban, Heart, Activity, ChevronRight, ClipboardCheck } from "lucide-react";
+import { FolderKanban, Heart, Activity, ChevronRight, ClipboardCheck, UserPlus } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -27,6 +27,7 @@ interface ClientHubOverviewSectionProps {
   onNavigateToDecisions?: () => void;
   onNavigateToHealth?: () => void;
   onNavigateToActivity?: () => void;
+  onInviteClient?: () => void;
 }
 
 const healthStatusColors: Record<HealthStatus, { bg: string; text: string }> = {
@@ -47,6 +48,7 @@ export function ClientHubOverviewSection({
   onNavigateToDecisions,
   onNavigateToHealth,
   onNavigateToActivity,
+  onInviteClient,
 }: ClientHubOverviewSectionProps) {
   const { data: projectsData, isLoading: projectsLoading } = useProjects(hub.id);
   const { data: decisionsData, isLoading: decisionsLoading } = useDecisions(hub.id);
@@ -71,27 +73,36 @@ export function ClientHubOverviewSection({
 
   return (
     <div className="space-y-6">
-      {/* Client Hub Badge */}
-      <div className="flex items-center gap-3">
-        <Badge
-          variant="outline"
-          className="border-[hsl(var(--rich-violet))] text-[hsl(var(--rich-violet))] px-3 py-1"
+      {/* Client Hub Badge + Invite */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <Badge
+            variant="outline"
+            className="border-[hsl(var(--rich-violet))] text-[hsl(var(--rich-violet))] px-3 py-1"
+          >
+            Client Hub
+          </Badge>
+          <span className="text-sm text-[hsl(var(--medium-grey))]">
+            {hub.convertedAt
+              ? `Converted ${new Date(hub.convertedAt).toLocaleDateString("en-US", {
+                  month: "short",
+                  day: "numeric",
+                  year: "numeric",
+                })}`
+              : `Created ${new Date(hub.createdAt).toLocaleDateString("en-US", {
+                  month: "short",
+                  day: "numeric",
+                  year: "numeric",
+                })}`}
+          </span>
+        </div>
+        <Button
+          onClick={onInviteClient}
+          className="bg-[hsl(var(--soft-coral))] hover:bg-[hsl(var(--soft-coral))]/90 text-white"
         >
-          Client Hub
-        </Badge>
-        <span className="text-sm text-[hsl(var(--medium-grey))]">
-          {hub.convertedAt
-            ? `Converted ${new Date(hub.convertedAt).toLocaleDateString("en-US", {
-                month: "short",
-                day: "numeric",
-                year: "numeric",
-              })}`
-            : `Created ${new Date(hub.createdAt).toLocaleDateString("en-US", {
-                month: "short",
-                day: "numeric",
-                year: "numeric",
-              })}`}
-        </span>
+          <UserPlus className="w-4 h-4 mr-2" />
+          Invite Client
+        </Button>
       </div>
 
       {/* Quick Stats Grid */}
