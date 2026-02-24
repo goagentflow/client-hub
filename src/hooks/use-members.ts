@@ -50,6 +50,7 @@ export function useMembers(hubId: string, params?: PaginationParams) {
     queryKey: memberKeys.list(hubId),
     queryFn: () => getMembers(hubId, params),
     enabled: !!hubId,
+    retry: false,
   });
 }
 

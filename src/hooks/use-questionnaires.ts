@@ -42,6 +42,7 @@ export function useQuestionnaires(hubId: string, params?: PaginationParams) {
     queryKey: questionnaireKeys.list(hubId, params),
     queryFn: () => getQuestionnaires(hubId, params),
     enabled: !!hubId,
+    retry: false,
   });
 }
 

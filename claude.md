@@ -1,4 +1,4 @@
-# AgentFlow Client Hub v0.1 (Phase 1.5)
+# AgentFlow Client Hub v0.1 (Phase 2a)
 
 Read these files for full project context:
 - .cursorrules — Project context, scope, brand guidelines, code patterns
@@ -9,8 +9,8 @@ Read these files for full project context:
 - docs/API_SPECIFICATION.md — Complete API contract (113 endpoints)
 
 For middleware development:
-- docs/PRODUCTION_ROADMAP.md — **Current architecture and implementation plan** (v4.9, Phase 1.5 deployed)
-- docs/PHASE_1_5_EMAIL_VERIFICATION_PLAN.md — Email verification design (implemented, deployed, smoke test pending)
+- docs/PRODUCTION_ROADMAP.md — **Current architecture and implementation plan** (v5.1, Phase 2a invite endpoints deployed)
+- docs/PHASE_1_5_EMAIL_VERIFICATION_PLAN.md — Email verification design (implemented, deployed, smoke-tested)
 - docs/middleware/MSAL_AUTH_IMPLEMENTATION_PLAN.md — Auth design (approved by senior dev)
 - ~~docs/middleware/ARCHITECTURE_V3_FINAL.md~~ — Moved to `docs/archive/`
 - ~~docs/middleware/ARCHITECTURE_DECISIONS.md~~ — Moved to `docs/archive/`
@@ -25,15 +25,18 @@ Follow AGENTS.md canon: **Simple, Clean, DRY, Secure**.
 
 **MVP Deployment:** LIVE on Google Cloud Run + Supabase PostgreSQL + Azure AD auth. See "MVP Deployment" section in `docs/PRODUCTION_ROADMAP.md`. Production target remains full Azure (Phase 0a).
 
-**Phase 1.5 (Portal Email Verification):** DEPLOYED — browser smoke test pending. See `docs/PHASE_1_5_EMAIL_VERIFICATION_PLAN.md`.
+**Phase 1.5 (Portal Email Verification):** DEPLOYED and smoke-tested. See `docs/PHASE_1_5_EMAIL_VERIFICATION_PLAN.md`.
 
-**Middleware:** Phase 0b complete + Phase 1.5 complete:
+**Phase 2a (Portal Invite Endpoints):** DEPLOYED — browser test pending. Staff can invite clients by email, clients receive invite email with portal link, land on EmailGate to verify.
+
+**Middleware:** Phase 0b + Phase 1.5 + Phase 2a (invite endpoints) complete:
 - Prisma 6 ORM (replaced Supabase JS client)
 - `AUTH_MODE` + `DATA_BACKEND` config (replaced `DEMO_MODE`)
 - TenantRepository + AdminRepository pattern for tenant isolation
 - All routes migrated to injected Prisma repository
 - Cloud Run Dockerfiles (middleware + frontend) — multi-stage, non-root, reviewed
 - Portal email verification (Phase 1.5) — public + staff endpoints, Resend email, device tokens
+- Portal invite endpoints (Phase 2a) — POST/GET/DELETE invites with email, domain validation, cascade revoke
 
 **Hub Types:**
 - Pitch Hubs: Prospecting/new business (proposal, videos, questionnaire)
@@ -59,7 +62,7 @@ Follow AGENTS.md canon: **Simple, Clean, DRY, Secure**.
 
 **Middleware config & data:**
 - `middleware/src/config/env.ts` — AUTH_MODE, DATA_BACKEND, RESEND_API_KEY, production guards
-- `middleware/prisma/schema.prisma` — Database schema (Hub, HubEvent, HubNote, PortalContact, PortalVerification, PortalDevice)
+- `middleware/prisma/schema.prisma` — Database schema (Hub, HubEvent, HubNote, HubInvite, PortalContact, PortalVerification, PortalDevice)
 - `middleware/src/db/` — Prisma client, TenantRepository, AdminRepository, hub mapper, portal-verification-queries
 
 **Middleware auth:**
@@ -67,15 +70,17 @@ Follow AGENTS.md canon: **Simple, Clean, DRY, Secure**.
 - `middleware/src/middleware/hub-access.ts` — Hub access verification
 - `middleware/src/middleware/inject-repository.ts` — Repository injection based on DATA_BACKEND
 
-**Middleware routes (Phase 1.5):**
+**Middleware routes:**
 - `middleware/src/routes/portal-verification.route.ts` — Public endpoints (access-method, request-code, verify-code, verify-device)
 - `middleware/src/routes/portal-contacts.route.ts` — Staff endpoints (contacts CRUD, access method management)
-- `middleware/src/services/email.service.ts` — Resend transactional email
+- `middleware/src/routes/members.route.ts` — Staff invite endpoints (POST/GET/DELETE) + 5 remaining 501 stubs
+- `middleware/src/services/email.service.ts` — Resend transactional email (verification codes + portal invites)
 
 **Docker (Cloud Run deployment):**
 - `middleware/Dockerfile` — Multi-stage middleware build (Node 20, pnpm, Prisma, tsup, non-root)
 - `Dockerfile` (root) — Multi-stage frontend build (Vite + nginx-unprivileged, PORT envsubst)
 - `nginx.conf.template` — SPA routing with `${PORT}` for Cloud Run
+- `cloudbuild-middleware.yaml` — Cloud Build pipeline for middleware (includes RESEND_API_KEY secret)
 
 **Frontend:**
 - `src/services/api.ts` — API client (has setTokenGetter pattern)
@@ -83,6 +88,7 @@ Follow AGENTS.md canon: **Simple, Clean, DRY, Secure**.
 - `src/components/EmailGate.tsx` — Client email verification UI
 - `src/components/client-portal/PortalContactsCard.tsx` — Staff contact management UI
 - `src/pages/PortalDetail.tsx` — Portal landing page (routes to correct gate based on access method)
+- `src/types/member.ts` — HubInvite type (no token field, has message field)
 
 ## Mandatory Review Process
 

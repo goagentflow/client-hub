@@ -34,7 +34,7 @@ export function ClientPortalSection() {
   // Data hooks
   const { data: overview, isLoading: loadingOverview } = useHubOverview(hubId);
   const { data: config, isLoading: loadingConfig } = usePortalConfig(hubId);
-  const { data: membersData, isLoading: loadingMembers } = useMembers(hubId);
+  const { data: membersData } = useMembers(hubId);
   const { data: invitesData } = useInvites(hubId);
   const { data: proposalData } = useProposal(hubId);
   const { data: questionnairesData } = useQuestionnaires(hubId);
@@ -51,7 +51,7 @@ export function ClientPortalSection() {
     trackHubViewed("client-portal");
   }, [trackHubViewed]);
 
-  const isLoading = loadingOverview || loadingConfig || loadingMembers;
+  const isLoading = loadingOverview || loadingConfig;
   const members = membersData?.items || [];
   const invites = invitesData || [];
   const hasProposal = !!proposalData;
