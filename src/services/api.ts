@@ -18,6 +18,10 @@ const config = {
   useMockApi: import.meta.env.VITE_USE_MOCK_API !== "false", // Default to mock
 };
 
+// Base path for portal route matching (accounts for /clienthub/ deploy prefix)
+const BASE_PATH = import.meta.env.BASE_URL?.replace(/\/$/, '') || '';
+const PORTAL_PATH_RE = new RegExp(`^${BASE_PATH}/portal/([^/]+)`);
+
 // Token getter - will be replaced with MSAL token acquisition
 let getAccessToken: (() => Promise<string | null>) | null = null;
 
@@ -118,7 +122,7 @@ async function apiFetch<T>(
   // Step 2: Portal token — only if NO staff auth was set above (Bearer OR dev header)
   const hasStaffAuth = !!headers["Authorization"] || !!headers["X-Dev-User-Email"];
   if (!hasStaffAuth) {
-    const portalMatch = window.location.pathname.match(/^\/portal\/([^/]+)/);
+    const portalMatch = window.location.pathname.match(PORTAL_PATH_RE);
     if (portalMatch) {
       const portalHubId = portalMatch[1];
       const portalToken = sessionStorage.getItem(`portal_token_${portalHubId}`);
@@ -153,7 +157,7 @@ async function apiFetch<T>(
         // Portal token rejected — clear stale session, redirect to password gate
         sessionStorage.removeItem(`portal_token_${portalHubIdForCleanup}`);
         sessionStorage.removeItem(`hub_access_${portalHubIdForCleanup}`);
-        window.location.href = `/portal/${portalHubIdForCleanup}`;
+        window.location.href = `${BASE_PATH}/portal/${portalHubIdForCleanup}`;
         // Short-circuit to prevent noisy error handling before navigation
         throw new ApiRequestError(
           { code: 'UNAUTHENTICATED', message: 'Portal session expired' },
