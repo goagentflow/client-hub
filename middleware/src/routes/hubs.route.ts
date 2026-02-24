@@ -99,6 +99,7 @@ hubsRouter.post('/', requireStaffAccess, async (req: Request, res: Response, nex
       data: {
         companyName, contactName, contactEmail,
         status: 'draft', hubType: validatedHubType, clientDomain: domain,
+        accessMethod: 'email',
       },
       select: HUB_SELECT,
     });
