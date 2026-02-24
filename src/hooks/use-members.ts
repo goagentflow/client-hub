@@ -51,6 +51,7 @@ export function useMembers(hubId: string, params?: PaginationParams) {
     queryFn: () => getMembers(hubId, params),
     enabled: !!hubId,
     retry: false,
+    refetchOnWindowFocus: false,
   });
 }
 

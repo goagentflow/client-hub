@@ -43,6 +43,7 @@ export function useQuestionnaires(hubId: string, params?: PaginationParams) {
     queryFn: () => getQuestionnaires(hubId, params),
     enabled: !!hubId,
     retry: false,
+    refetchOnWindowFocus: false,
   });
 }
 
