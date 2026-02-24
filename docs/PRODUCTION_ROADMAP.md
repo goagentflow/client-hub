@@ -2,7 +2,7 @@
 
 **Date:** 23 Feb 2026
 **Author:** Hamish Nicklin / Claude Code
-**Status:** v5.0 — Phase 1.5 (Portal Email Verification) deployed and smoke-tested. All 5 smoke tests passed. Both services live on Cloud Run.
+**Status:** v5.1 — Portal invite endpoints implemented, reviewed, deployed. 3 of 11 Phase 2 stubs resolved (POST/GET/DELETE invites). `hub_invite` table created in Supabase. Both services live on Cloud Run.
 **Audience:** Senior developer reviewing for feasibility and sequencing
 
 ---
@@ -222,7 +222,7 @@ The MVP cannot go live until ALL of these pass:
 | Security headers | Helmet defaults: CSP, HSTS, X-Frame-Options, X-Content-Type-Options | Dev | **DONE** (middleware has Helmet) |
 | CORS locked | `CORS_ORIGIN` set to exact production domain (no wildcards) | Dev | **DONE** (`https://www.goagentflow.com` in pipeline) |
 | Rate limiting | Rate-limit on auth and public endpoints (already configured) | Dev | **DONE** |
-| All tests pass | `pnpm test` passes (120 tests across 7 files) | Dev | **DONE** |
+| All tests pass | `pnpm test` passes (141 tests across 10 files) | Dev | **DONE** |
 | Clean build | Fresh `pnpm build` with no stale dist artefacts | Dev | **DONE** (verified by senior dev) |
 
 **Not required for MVP** (required for full Azure deployment in Phase 0a):
@@ -277,13 +277,13 @@ Audited by reading every handler registration in `middleware/src/routes/*.ts` �
 | public.route.ts | 3 | 1 | 4 | Invite accept stubbed |
 | messages.route.ts | 0 | 5 | 5 | All 501 (Graph Mail) |
 | meetings.route.ts | 0 | 9 | 9 | All 501 (Graph Calendar + Teams) |
-| members.route.ts | 0 | 8 | 8 | All 501 (4 member + 3 invite + 1 share-link). Invite-accept lives in public.route.ts. |
+| members.route.ts | 3 | 5 | 8 | 3 invite endpoints real (POST/GET/DELETE); 4 member + 1 share-link still 501. Invite-accept lives in public.route.ts. |
 | questionnaires.route.ts | 0 | 6 | 6 | All 501 |
 | client-intelligence.route.ts | 0 | 18 | 18 | All 501 (answers 3, prep 4, performance 3, decisions 5, history 1, alerts 2) |
 | intelligence.route.ts | 0 | 3 | 3 | All 501 (relationship health + expansion) |
 | leadership.route.ts | 2 | 3 | 5 | Portfolio/clients real; at-risk/expansion/refresh stubbed |
 | conversion.route.ts | 1 | 1 | 2 | POST convert real; POST rollback stubbed |
-| **TOTAL** | **46** | **67** | **113** | **41% real, 59% stubbed** |
+| **TOTAL** | **49** | **64** | **113** | **43% real, 57% stubbed** |
 
 **Corrections from v3:** projects (8 not 9), documents (5/2/7 not 5/3/8), videos (6/2/8 not 6/3/9), portal (3/7/10 not 3/5/8), meetings (0/9/9 not 0/10/10), members (0/8/8 not 0/11/11 — dead `acceptInviteRouter` deleted, live version in public.route.ts), questionnaires (0/6/6 not 0/7/7). Net: 67 stubs to implement (was 72 in v3).
 
@@ -292,7 +292,7 @@ Audited by reading every handler registration in `middleware/src/routes/*.ts` �
 | Phase | Route file stubs owned | Count |
 |-------|----------------------|-------|
 | Phase 1 (Files) | documents:upload, proposals:upload, videos:upload | 3 |
-| Phase 2 (Members) | members:all 8, portal:members+invite, public:invite-accept | 11 |
+| Phase 2 (Members) | members:4 member + 1 share-link (invite 3 done), portal:members+invite, public:invite-accept | 8 |
 | Phase 3 (Questionnaires) | questionnaires:all 6, portal:questionnaires | 7 |
 | Phase 4 (Engagement) | documents:engagement, proposals:engagement, videos:engagement, leadership:at-risk+expansion+refresh | 6 |
 | Phase 6 (Messages) | messages:all 5, portal:messages(GET+POST) | 7 |
@@ -300,7 +300,7 @@ Audited by reading every handler registration in `middleware/src/routes/*.ts` �
 | Phase 8 (AI) | client-intelligence:all 18, intelligence:all 3 | 21 |
 | Phase 9 (Intelligence) | (uses intelligence.route.ts endpoints — counted in Phase 8) | 0 |
 | Phase 10 (Polish) | conversion:rollback, portal:proposal/comment | 2 |
-| **TOTAL** | | **67** |
+| **TOTAL** | | **64** |
 
 ---
 
@@ -559,7 +559,7 @@ Security:
 - Contact existence required before JWT minting
 - Device tokens: 32 random bytes, SHA-256 hashed in DB, 90-day expiry
 
-Tests: 120 tests across 7 files (33 new tests for Phase 1.5)
+Tests: 141 tests across 10 files (33 for Phase 1.5, 21 for invite endpoints)
 
 **Dependencies:** Resend API key (configured in GCP Secret Manager). No dependency on Phase 0a or Phase 5.
 
@@ -570,6 +570,55 @@ Tests: 120 tests across 7 files (33 new tests for Phase 1.5)
 ### Phase 2: Members & Access Management
 
 **Objective:** Staff can invite client contacts to view their hub. Runs alongside (not replacing) password portal access during migration. Phase 1.5 (email verification) provides the lightweight version; Phase 2 adds full member management, role-based access, and proactive invite flows.
+
+#### Phase 2a: Portal Invite Endpoints (COMPLETE — deployed 24 Feb 2026)
+
+**What was built:**
+
+Staff can invite clients by email. Client clicks the portal link in the invite email, lands on the existing EmailGate, verifies their email, and they're in. No magic links or member sessions — uses the Phase 1.5 email verification flow.
+
+Database:
+- `HubInvite` model in Prisma schema — `id`, `hubId`, `tenantId`, `email`, `accessLevel`, `message`, `invitedBy`, `invitedByName`, `invitedAt`, `expiresAt`, `token`, `status`
+- Unique constraint on `(hubId, email)` — re-invites handled via create + P2002 catch → update
+- Composite index on `(hubId, tenantId, status)` for query performance
+- `hub_invite` table created in Supabase via raw SQL (not `prisma db push` — see note below)
+
+Middleware — 3 invite endpoints in `members.route.ts`:
+- `POST /hubs/:hubId/invites` — Create invite + auto-add portal contact + send invite email via Resend
+  - Production email guard: returns 500 if `NODE_ENV=production` and no `RESEND_API_KEY`
+  - Zod validation: email (normalised to lowercase), accessLevel (enum), message (max 500 chars, optional)
+  - Hub lookup with tenant check (404/403)
+  - Access method guard: rejects unless `hub.accessMethod === 'email'` (400)
+  - Domain validation: email domain must match `hub.clientDomain` or `goagentflow.com` (400)
+  - Interactive transaction: create invite + upsert portal contact + increment `clientsInvited` (only on first invite, not re-invite)
+  - Fire-and-forget email after transaction commits
+  - `INVITE_SELECT` constant excludes `token` from response
+- `GET /hubs/:hubId/invites` — List pending non-expired invites (newest first)
+- `DELETE /hubs/:hubId/invites/:id` — Revoke with cascade (delete PortalContact + PortalVerification + PortalDevice)
+
+Email:
+- `sendPortalInvite()` in `email.service.ts` — branded HTML email with hub name, inviter name, optional message, "Open Portal" button
+- Portal URL: `new URL('/clienthub/portal/' + hubId, env.CORS_ORIGIN)`
+
+Frontend:
+- `src/types/member.ts` — removed `token` from HubInvite type, added `message` field
+- `src/services/member.service.ts` — updated mock data to match
+
+Tests: 21 tests across 2 new files + 1 shared fixture file:
+- `members-invites-fixtures.ts` — shared test data
+- `members-invites.test.ts` — 15 POST tests (create, re-invite, email normalisation, all 4 access levels, message length, tenant mismatch, 404, access method guard, domain mismatch, null clientDomain, production guard)
+- `members-invites-list-delete.test.ts` — 6 GET/DELETE tests (pending filter, expired filter, select excludes token, cascade revoke, 404, hub-mismatch)
+
+Cloud Build:
+- `RESEND_API_KEY` added to `cloudbuild-middleware.yaml` (secret from GCP Secret Manager)
+
+**Note on `prisma db push`:** The `prisma db push` command fails with P4002 due to cross-schema references from the CRM's `activity_log` table to `auth.users` in the shared Supabase instance. The `hub_invite` table was created via raw SQL instead. Future schema changes may also need raw SQL — check if `prisma db push` works first, fall back to raw SQL if it doesn't.
+
+**Bug fix included:** `hubs.route.ts` portal-preview endpoint fixed to use `sendItem()` instead of `res.json({ data: {...} })` — resolved a pre-existing test failure.
+
+#### Phase 2b: Full Members & Access (NOT STARTED)
+
+**What remains:**
 
 **Client authentication — magic link:**
 - Staff invites a client by email address → system generates a time-limited magic link token
@@ -587,11 +636,6 @@ Tests: 120 tests across 7 files (33 new tests for Phase 1.5)
   - Revocation: staff can revoke a member's access, which invalidates all active sessions (revocation list checked on each request)
 - Audit: every magic link generation, redemption, and session creation is logged in `hub_event`
 
-**Invite delivery:**
-- Invite emails sent via Microsoft Graph Mail (OBO) if Phase 5 is complete, OR via transactional email provider (Resend/Postmark) as fallback
-- Fallback: if no email provider configured, invite URL is displayed in-app for staff to copy and send manually
-- This means Phase 2 has a soft dependency on Phase 5 (OBO) OR requires a transactional email API key
-
 **Portal migration plan:**
 - **Dual-run period:** Both password access and member-based magic link access work simultaneously
 - **Feature flag:** `MEMBER_ACCESS_ENABLED=true` enables the new member system
@@ -599,30 +643,27 @@ Tests: 120 tests across 7 files (33 new tests for Phase 1.5)
 - **Migration path:** Once member system is proven, password access can be deprecated (separate decision, not in this phase)
 - **Rollback:** Disable feature flag. Password access is unaffected.
 
-**What's built:**
-- New tables: `hub_member`, `hub_invite`, `hub_session` (all with `tenant_id`)
-- 8 endpoints in members.route.ts: list, activity, update, delete members; list, create, revoke invites; share link
+**What's to be built:**
+- New tables: `hub_member`, `hub_session` (all with `tenant_id`) — `hub_invite` already exists
+- 5 remaining endpoints in members.route.ts: list, activity, update, delete members; share link
 - Plus 2 portal stubs: portal:members, portal:invite
 - Plus 1 public stub: public:invite-accept (the live invite-accept handler)
-- Domain restriction (invites only to `client_domain` or `goagentflow.com`)
 - Hub access middleware updated to check member session (alongside existing password check)
 
 **Success criteria:**
-- Staff invites client contacts by email
 - Client receives magic link and gains hub access after clicking
 - Magic links are single-use and expire after 15 minutes
 - Sessions expire after 7 days of inactivity
 - Staff can revoke access (immediate effect)
-- Invites are domain-restricted (server-side enforcement)
 - Password portal still works (dual-run)
 - Cross-hub member access denied (negative test)
 - Replayed magic link tokens rejected (negative test)
 
-**Stub endpoints resolved:** members:all 8, portal:members+invite (2), public:invite-accept (1) = **11 stubs**
+**Stub endpoints resolved:** members:4 member + 1 share-link (5), portal:members+invite (2), public:invite-accept (1) = **8 stubs**
 
-**Dependencies:** Phase 0a. Soft dependency on Phase 5 (OBO) or transactional email API key.
+**Dependencies:** Phase 0a. Soft dependency on Phase 5 (OBO) or transactional email API key (already configured for Resend).
 
-**Complexity:** Medium-high (~6-7 days, increased for magic link auth implementation)
+**Complexity:** Medium (~4-5 days, reduced from 6-7 since invite infrastructure is done)
 
 ---
 
@@ -917,71 +958,95 @@ Tests: 120 tests across 7 files (33 new tests for Phase 1.5)
 
 ---
 
-## What's Left to Deploy (Pickup Guide for New Developer)
+## What's Left to Do (Pickup Guide for New Developer)
 
-### Current state (as of 23 Feb 2026)
+### Current state (as of 24 Feb 2026)
 
-Everything is built, reviewed, committed, and pushed. The remaining steps are operational — running the pipelines and verifying the output.
+**Both services are LIVE on Cloud Run.** The MVP is deployed and working. Portal invite endpoints (Phase 2a) are the most recent addition — deployed 24 Feb 2026.
 
 **Repos:**
 - Frontend assembler: `goagentflow/AFv2` (builds the unified nginx image)
 - Client Hub app + middleware: `goagentflow/client-hub`
 - GCP project: `agentflow-456021`
 
-### Steps to complete MVP deployment
+**Live URLs:**
+- Frontend: `https://www.goagentflow.com/clienthub/`
+- Middleware: `https://clienthub-api-axiw2ydgeq-uc.a.run.app`
 
-**Step 1: Add Azure AD redirect URI** (manual, Azure Portal)
-- Go to Azure Portal → App registrations → "AgentFlow Client Hub"
-- Authentication → Add `https://www.goagentflow.com` as a SPA redirect URI
-- The existing `https://goagentflow.com` (no www) may not match since CORS uses the `www` version
+**Test status:** 141 tests across 10 files, all passing.
 
-**Step 2: Deploy middleware first** (creates the `clienthub-api` Cloud Run service)
+### IMMEDIATE NEXT STEP: Browser test the invite flow
+
+The invite endpoints are deployed but have not been browser-tested end-to-end yet. This is the critical next task.
+
+**Test plan:**
+1. Log in at `https://www.goagentflow.com/clienthub/` via Azure AD (Microsoft login)
+2. Navigate to an existing hub (or create one)
+3. Set the hub's access method to "email" via the portal contacts card
+4. Set the hub's `clientDomain` to a domain you can receive email at
+5. Open the invite dialog and invite a client email address
+6. Check the invited email's inbox for the invite email from Resend
+7. Click the "Open Portal" link in the email
+8. Verify the EmailGate appears and the email verification flow works
+9. Test revoke: revoke the invite and confirm the client can no longer verify
+
+**Negative tests:**
+- Invite an email from a non-matching domain → should get 400
+- Invite to a hub without `accessMethod: 'email'` → should get 400
+
+### How to deploy
+
+**Deploy middleware only** (most common — backend changes):
 ```bash
 # From the client-hub repo root
 gcloud builds submit --config=cloudbuild-middleware.yaml --project=agentflow-456021
 ```
-- This builds the Docker image, pushes to Artifact Registry, and deploys to Cloud Run
-- On success, note the Cloud Run service URL from the deploy output (e.g. `https://clienthub-api-xxxxxxxxxx-uc.a.run.app`)
-- The smoke test checks `/health` returns 200 and `/api/v1/hubs` returns 401
+- Builds Docker image → pushes to Artifact Registry → deploys to Cloud Run
+- Smoke tests: `/health` returns 200, unauthenticated `/api/v1/hubs` returns 401
+- Secrets (DATABASE_URL, PORTAL_TOKEN_SECRET, RESEND_API_KEY, Azure AD) injected from GCP Secret Manager
 
-**Step 3: Update VITE_API_BASE_URL secret** with the real middleware URL
-```bash
-echo -n "https://clienthub-api-XXXXX-uc.a.run.app" | \
-  gcloud secrets versions add VITE_API_BASE_URL --data-file=- --project=agentflow-456021
-```
-
-**Step 4: Deploy frontend** (adds clienthub to the goagentflow.com site)
+**Deploy frontend** (frontend changes — requires AFv2 repo):
 ```bash
 # From the AFv2 repo root
 gcloud builds submit --config=cloudbuild.yaml --project=agentflow-456021
 ```
-- This builds all four apps (marketing + assess + discovery + clienthub) into one nginx image
-- Deploys to the existing `agentflow-site` Cloud Run service
-- Smoke tests verify all apps load, JS/CSS bundles are reachable, and version.json is served
+- Builds all four apps (marketing + assess + discovery + clienthub) into one nginx image
 
-**Step 5: Verify end-to-end**
-- Visit `https://www.goagentflow.com/clienthub/` — should show the login page
-- Click "Sign in with Microsoft" — should redirect to Microsoft login
-- After login, should redirect back and show the hub list (empty initially)
-- Check `https://www.goagentflow.com/version.json` — should include `clienthub_sha`
+**Database schema changes:**
+- Try `npx prisma db push` first (from `middleware/` directory)
+- If it fails with P4002 (cross-schema reference from CRM's `activity_log` to `auth.users`), create the table via raw SQL using a Node.js script with PrismaClient `$executeRawUnsafe()`
+- Column types must match existing tables: `hub.id` and `hub.tenant_id` are `TEXT` not `UUID`
+- Always run `npx prisma generate` after schema changes
 
 ### If something goes wrong
 
-- **Middleware deploy fails:** Check Cloud Build logs in GCP Console. Most likely cause: a secret doesn't exist or Cloud Build SA lacks access.
-- **Frontend deploy fails:** The assembler pipeline builds all apps. If clienthub build fails, set `_SKIP_CLIENTHUB=true` as a substitution to deploy without it (assess and discovery will still work).
-- **Login doesn't work:** Check the Azure AD redirect URI matches exactly (`https://www.goagentflow.com` with www). Check browser console for MSAL errors.
-- **API calls fail (CORS):** The middleware `CORS_ORIGIN` is set to `https://www.goagentflow.com`. If the frontend is accessed via a different domain, CORS will block requests.
-- **Rollback:** Cloud Run keeps previous revisions. Use `gcloud run services update-traffic` to route back to a previous revision instantly.
+- **Middleware deploy fails:** Check Cloud Build logs in GCP Console. Most likely: a secret doesn't exist or Cloud Build SA lacks access.
+- **Frontend deploy fails:** Set `_SKIP_CLIENTHUB=true` as a substitution to deploy without clienthub.
+- **Login doesn't work:** Check Azure AD redirect URI matches exactly (`https://www.goagentflow.com` with www). Check browser console for MSAL errors.
+- **API calls fail (CORS):** Middleware `CORS_ORIGIN` is `https://www.goagentflow.com`. Mismatched domain = CORS block.
+- **Rollback:** `gcloud run services update-traffic clienthub-api --to-revisions=<previous-revision>=100 --region=us-central1 --project=agentflow-456021`
+
+### Key files for invite endpoints (Phase 2a)
+
+| File | Purpose |
+|------|---------|
+| `middleware/prisma/schema.prisma` | HubInvite model (lines 170-189) |
+| `middleware/src/routes/members.route.ts` | POST/GET/DELETE invite handlers |
+| `middleware/src/services/email.service.ts` | `sendPortalInvite()` + `buildInviteHtml()` |
+| `middleware/src/__tests__/members-invites-fixtures.ts` | Shared test data |
+| `middleware/src/__tests__/members-invites.test.ts` | 15 POST tests |
+| `middleware/src/__tests__/members-invites-list-delete.test.ts` | 6 GET/DELETE tests |
+| `src/types/member.ts` | Frontend HubInvite type (no token, has message) |
+| `cloudbuild-middleware.yaml` | RESEND_API_KEY added to deploy config |
 
 ### Hamish's remaining manual tasks
 
 ### For full Azure deployment (Phase 0a, when scaling)
-7. **Azure subscription** — Ensure an Azure subscription is available with sufficient quota
-8. **Azure AD permissions** — Grant admin consent for Graph API scopes when Phase 5 begins
-9. **Azure AD client secret** — Generate one for the backend app registration (Phase 5)
-10. **DNS** — Point chosen domain at Azure services
-11. **AI provider** — Choose Claude API or OpenAI and create an API key (Phase 8)
-12. **Transactional email** — Choose Resend or Postmark and create API key, OR rely on OBO email (Phase 2)
+1. **Azure subscription** — Ensure an Azure subscription is available with sufficient quota
+2. **Azure AD permissions** — Grant admin consent for Graph API scopes when Phase 5 begins
+3. **Azure AD client secret** — Generate one for the backend app registration (Phase 5)
+4. **DNS** — Point chosen domain at Azure services
+5. **AI provider** — Choose Claude API or OpenAI and create an API key (Phase 8)
 
 ---
 
@@ -1016,4 +1081,5 @@ gcloud builds submit --config=cloudbuild.yaml --project=agentflow-456021
 | v4.6 | 22 Feb 2026 | Cloud Run Dockerfiles + production readiness: (1) middleware multi-stage Dockerfile (Node 20 + pnpm + Prisma generate + tsup → non-root runtime); (2) frontend multi-stage Dockerfile (Vite build with VITE_* build args → nginx-unprivileged with PORT envsubst); (3) VITE_USE_MOCK_API=false default ensures production builds use real middleware; (4) Prisma generated client preserved across pnpm prune --prod; (5) nginx.conf.template with ${PORT} for Cloud Run compliance; (6) health endpoint rewritten with DB connectivity check (200/503); (7) health endpoint tests added (5 tests — 89 total across 6 files); (8) TRUST_PROXY added to MVP readiness gate and operator checklist; (9) readiness gate table reformatted with Status column. 3 rounds of senior dev review, all findings addressed. |
 | v4.7 | 23 Feb 2026 | Cloud Build pipelines, GCP secrets, and Azure AD complete: (1) assembler pipeline updated — new `build-clienthub` step in `cloudbuild.yaml` (AFv2 repo) clones client-hub, builds with VITE_BASE_PATH, MSAL env vars, and VITE_USE_MOCK_API=false, adds to nginx image; (2) nginx.conf updated with `/clienthub/` SPA routing; (3) `cloudbuild-middleware.yaml` created for separate `clienthub-api` Cloud Run service with all env vars from Secret Manager; (4) 8 GCP secrets created (Azure AD IDs, database URL, portal token, API base URL) with Cloud Build SA access; (5) Azure AD app registration complete (client ID, tenant ID, scope `access_as_user`, Staff role, Hamish assigned); (6) Vite base path configured (`vite.config.ts` + `BrowserRouter basename`); (7) smoke tests with bundle integrity checks (non-empty guards prevent false-pass); (8) middleware smoke test validates `/health` + auth rejection on `/api/v1/hubs`; (9) Dockerfile updated with `VITE_BASE_PATH` arg and standalone-use comment; (10) "What's Left to Deploy" pickup guide added for new developer onboarding. 3 rounds of senior dev review (2 internal + 1 external), all findings addressed. |
 | v5.0 | 23 Feb 2026 | Phase 1.5 smoke test complete + two bug fixes deployed: (1) Browser smoke test passed all 5 checks — staff setup, email verification flow, device remember-me auto-unlock, negative tests (unauthorised email uniform response, wrong code rejection, lockout after 3 failures), backwards compatibility; (2) Fixed portal-preview endpoint response shape (wrapped in `{data: ...}` to match public portal-meta); (3) Fixed UnauthorizedHandler redirecting portal routes to /login (now skips `/portal/` paths); (4) Seeded production tenant record for Azure AD tenant; (5) Both middleware and frontend redeployed to Cloud Run. |
+| v5.1 | 24 Feb 2026 | Phase 2a (Portal Invite Endpoints) implemented, reviewed, and deployed: (1) HubInvite model added to Prisma schema with unique(hubId, email) and composite index; (2) hub_invite table created in Supabase via raw SQL (prisma db push fails due to CRM cross-schema refs); (3) 3 invite endpoints in members.route.ts — POST (create/re-invite with zod validation, domain check, email normalisation, interactive transaction, fire-and-forget email), GET (pending non-expired), DELETE (revoke with cascade); (4) sendPortalInvite() added to email.service.ts with branded HTML; (5) INVITE_SELECT excludes token from responses; (6) RESEND_API_KEY added to cloudbuild-middleware.yaml; (7) Frontend type updated (token removed, message added); (8) 21 new tests across 2 files + shared fixtures (141 total, 10 files); (9) hubs.route.ts portal-preview bug fixed; (10) 3 rounds automated review + external senior dev review, all findings addressed (hub-scoped DELETE, frontend type drift, test coverage, pre-existing test failure); (11) Middleware redeployed to Cloud Run. Browser test of invite flow pending. |
 | v4.9 | 23 Feb 2026 | Phase 1.5 (Portal Email Verification) implemented and deployed: (1) 3 new Prisma models (PortalContact, PortalVerification, PortalDevice) + Hub.accessMethod field; (2) 4 public endpoints (access-method, request-code, verify-code, verify-device) with rate limiting and enumeration prevention; (3) 5 staff endpoints (portal contacts CRUD + access method management) with tenant isolation; (4) Email via Resend REST API (fire-and-forget, XSS-safe templates); (5) Frontend EmailGate + PortalContactsCard + PortalDetail access-method routing; (6) SHA-256 hashed codes, timing-safe comparison, per-code lockout; (7) Device token remember-me (90-day, localStorage); (8) Method-switch side-effects (clear passwordHash on open, revoke artifacts on method change); (9) 120 tests across 7 files; (10) 3 rounds automated review + 3 rounds external senior dev review; (11) CLIENTHUB_RESEND_API_KEY added to GCP Secret Manager; (12) Both services redeployed to Cloud Run. Browser smoke test pending. |
