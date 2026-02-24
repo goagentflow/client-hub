@@ -87,8 +87,6 @@ describe('501 stubs', () => {
     ['POST', '/api/v1/hubs/hub-1/proposal'],
     ['GET', '/api/v1/hubs/hub-1/messages'],
     ['GET', '/api/v1/hubs/hub-1/meetings'],
-    ['GET', '/api/v1/hubs/hub-1/members'],
-    ['GET', '/api/v1/hubs/hub-1/questionnaires'],
     ['GET', '/api/v1/hubs/hub-1/relationship-health'],
     ['GET', '/api/v1/hubs/hub-1/expansion-opportunities'],
     ['GET', '/api/v1/hubs/hub-1/decision-queue'],
@@ -117,6 +115,30 @@ describe('501 stubs', () => {
       expect(res.status).toBe(501);
       expect(res.body.code).toBe('NOT_IMPLEMENTED');
       expect(res.body.message).toBeDefined();
+    });
+  }
+});
+
+// ============================================================================
+// 4b. Empty-list stubs (200) — endpoints returning empty PaginatedList
+// ============================================================================
+describe('Empty-list stubs (200)', () => {
+  const emptyListRoutes = [
+    '/api/v1/hubs/hub-1/members',
+    '/api/v1/hubs/hub-1/questionnaires',
+  ];
+
+  for (const path of emptyListRoutes) {
+    it(`GET ${path} → 200 with empty PaginatedList`, async () => {
+      const res = await request(app).get(path).set(STAFF_HEADERS);
+      expect(res.status).toBe(200);
+      expect(res.body.items).toEqual([]);
+      expect(res.body.pagination).toEqual({
+        page: 1,
+        pageSize: 20,
+        totalItems: 0,
+        totalPages: 0,
+      });
     });
   }
 });

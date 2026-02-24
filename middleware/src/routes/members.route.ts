@@ -1,6 +1,6 @@
 /**
  * Member and invite routes
- * Members: 4 endpoints (still 501)
+ * Members: 1 empty-list stub (GET /) + 3 endpoints (still 501)
  * Invites: 3 endpoints (implemented — POST, GET, DELETE)
  * Share link: 1 endpoint (still 501)
  */
@@ -15,7 +15,7 @@ import { getPrisma } from '../db/prisma.js';
 import { env } from '../config/env.js';
 import { sendPortalInvite } from '../services/email.service.js';
 import { logger } from '../utils/logger.js';
-import { sendItem, send204, send501 } from '../utils/response.js';
+import { sendItem, sendList, send204, send501 } from '../utils/response.js';
 import type { Request, Response, NextFunction } from 'express';
 
 const INVITE_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
@@ -42,7 +42,7 @@ export const membersRouter = Router({ mergeParams: true });
 membersRouter.use(hubAccessMiddleware);
 membersRouter.use(requireStaffAccess);
 
-membersRouter.get('/', (_req: Request, res: Response) => res.json({ items: [], total: 0 }));
+membersRouter.get('/', (_req: Request, res: Response) => sendList(res, [], { page: 1, pageSize: 20, totalItems: 0, totalPages: 0 }));
 membersRouter.get('/activity', (_req: Request, res: Response) => send501(res, 'Member activity'));
 membersRouter.patch('/:id', (_req: Request, res: Response) => send501(res, 'Update member'));
 membersRouter.delete('/:id', (_req: Request, res: Response) => send501(res, 'Remove member'));

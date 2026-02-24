@@ -12,10 +12,25 @@ import PortalDetail from "./pages/PortalDetail";
 import LeadershipPortfolio from "./pages/LeadershipPortfolio";
 import NotFound from "./pages/NotFound";
 import { RequireStaff, RequireAdmin, RequireClient } from "./routes/guards";
-import { setUnauthorizedHandler, setTokenGetter, isMockApiEnabled } from "./services/api";
+import { setUnauthorizedHandler, setTokenGetter, isMockApiEnabled, ApiRequestError } from "./services/api";
 import { getAccessToken, completeMsalRedirect } from "./services/auth.service";
 
-const queryClient = new QueryClient();
+const NON_RETRIABLE = new Set([400, 401, 403, 404, 409, 422, 501]);
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      retry: (failureCount, error) => {
+        if (error instanceof ApiRequestError && NON_RETRIABLE.has(error.status)) {
+          return false;
+        }
+        return failureCount < 2;
+      },
+    },
+  },
+});
 
 // Wire MSAL token acquisition into API client (production only)
 if (!isMockApiEnabled()) {
