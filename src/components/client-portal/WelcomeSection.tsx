@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { Video, FileText } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -24,6 +25,13 @@ export function WelcomeSection({
   onMessageChange,
   onHeroTypeChange,
 }: WelcomeSectionProps) {
+  const [headline, setHeadline] = useState(welcomeHeadline);
+  const [message, setMessage] = useState(welcomeMessage);
+
+  // Sync local state when server data changes (e.g. after initial load)
+  useEffect(() => { setHeadline(welcomeHeadline); }, [welcomeHeadline]);
+  useEffect(() => { setMessage(welcomeMessage); }, [welcomeMessage]);
+
   return (
     <Card>
       <CardHeader>
@@ -35,8 +43,9 @@ export function WelcomeSection({
           <Label htmlFor="welcome-headline">Welcome Headline</Label>
           <Input
             id="welcome-headline"
-            value={welcomeHeadline}
-            onChange={(e) => onHeadlineChange(e.target.value)}
+            value={headline}
+            onChange={(e) => setHeadline(e.target.value)}
+            onBlur={() => { if (headline !== welcomeHeadline) onHeadlineChange(headline); }}
             className="font-semibold"
           />
         </div>
@@ -45,8 +54,9 @@ export function WelcomeSection({
           <Label htmlFor="welcome-message">Welcome Message</Label>
           <Textarea
             id="welcome-message"
-            value={welcomeMessage}
-            onChange={(e) => onMessageChange(e.target.value)}
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            onBlur={() => { if (message !== welcomeMessage) onMessageChange(message); }}
             rows={3}
           />
         </div>

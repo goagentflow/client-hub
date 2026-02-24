@@ -6,6 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -48,6 +49,7 @@ export function InviteClientDialog({ isOpen, onClose, onInvite, isInviting, clie
       <DialogContent>
         <DialogHeader>
           <DialogTitle className="text-[hsl(var(--bold-royal-blue))]">Invite Client</DialogTitle>
+          <DialogDescription>Send an email invitation to a client contact</DialogDescription>
         </DialogHeader>
         <div className="space-y-6">
           <div className="space-y-2">
