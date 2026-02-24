@@ -8,6 +8,8 @@
 
 import { Request, Response, NextFunction } from 'express';
 import { logger } from '../utils/logger.js';
+import { getPrisma } from '../db/prisma.js';
+import { createTenantRepository } from '../db/tenant-repository.js';
 import type { HubAccess } from '../types/api.js';
 
 // Extend Express Request
@@ -29,15 +31,16 @@ export async function hubAccessMiddleware(req: Request, res: Response, next: Nex
 
   const user = req.user;
 
-  // Portal token user — can only access their bound hub, and only if still published
+  // Portal token user — can only access their bound hub, and only if still published.
+  // Uses adminRepo (unscoped) because portal tenantId doesn't match the hub's real tenant.
   if (user.portalHubId) {
     if (user.portalHubId !== hubId) {
       res.status(403).json({ code: 'FORBIDDEN', message: 'Portal access denied', correlationId: req.correlationId });
       return;
     }
-    const hub = await req.repo!.hub.findFirst({
+    const hub = await req.adminRepo!.hub.findFirst({
       where: { id: hubId },
-      select: { isPublished: true },
+      select: { isPublished: true, tenantId: true },
     });
     if (!hub) {
       res.status(500).json({ code: 'INTERNAL_ERROR', message: 'Unable to verify hub access', correlationId: req.correlationId });
@@ -47,6 +50,10 @@ export async function hubAccessMiddleware(req: Request, res: Response, next: Nex
       res.status(403).json({ code: 'FORBIDDEN', message: 'This hub is no longer available', correlationId: req.correlationId });
       return;
     }
+    // Re-scope tenant repository to the hub's actual tenant so downstream
+    // route handlers can query hub data (videos, documents, etc.)
+    req.user.tenantId = hub.tenantId;
+    req.repo = createTenantRepository(getPrisma(), hub.tenantId);
     req.hubAccess = {
       hubId, canView: true, canEdit: false,
       canInvite: false, canViewInternal: false, accessLevel: 'view_only',
