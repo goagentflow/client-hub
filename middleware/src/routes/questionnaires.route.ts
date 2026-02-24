@@ -13,7 +13,7 @@ export const questionnairesRouter = Router({ mergeParams: true });
 questionnairesRouter.use(hubAccessMiddleware);
 questionnairesRouter.use(requireStaffAccess);
 
-questionnairesRouter.get('/', (_req: Request, res: Response) => send501(res, 'Questionnaires'));
+questionnairesRouter.get('/', (_req: Request, res: Response) => res.json({ items: [], total: 0 }));
 questionnairesRouter.get('/:id', (_req: Request, res: Response) => send501(res, 'Questionnaire detail'));
 questionnairesRouter.post('/', (_req: Request, res: Response) => send501(res, 'Create questionnaire'));
 questionnairesRouter.patch('/:id', (_req: Request, res: Response) => send501(res, 'Update questionnaire'));

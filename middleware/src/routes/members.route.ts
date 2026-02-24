@@ -42,7 +42,7 @@ export const membersRouter = Router({ mergeParams: true });
 membersRouter.use(hubAccessMiddleware);
 membersRouter.use(requireStaffAccess);
 
-membersRouter.get('/', (_req: Request, res: Response) => send501(res, 'Members'));
+membersRouter.get('/', (_req: Request, res: Response) => res.json({ items: [], total: 0 }));
 membersRouter.get('/activity', (_req: Request, res: Response) => send501(res, 'Member activity'));
 membersRouter.patch('/:id', (_req: Request, res: Response) => send501(res, 'Update member'));
 membersRouter.delete('/:id', (_req: Request, res: Response) => send501(res, 'Remove member'));
