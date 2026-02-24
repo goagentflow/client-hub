@@ -186,6 +186,14 @@ export {
   useAcknowledgeRiskAlert,
 } from "./use-client-intelligence";
 
+// Status Update hooks
+export {
+  statusUpdateKeys,
+  useStatusUpdates,
+  usePortalStatusUpdates,
+  useCreateStatusUpdate,
+} from "./use-status-updates";
+
 // Relationship Intelligence hooks
 export {
   relationshipKeys,

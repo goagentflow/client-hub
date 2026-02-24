@@ -9,6 +9,7 @@ import { mapDocument, mapProposal } from '../db/document.mapper.js';
 import { hubAccessMiddleware } from '../middleware/hub-access.js';
 import { sendItem, sendList, send501 } from '../utils/response.js';
 import { parsePagination } from '../utils/pagination.js';
+import { queryStatusUpdates, mapStatusUpdateForPortal } from '../services/status-update-queries.js';
 import type { Request, Response, NextFunction } from 'express';
 
 export const portalRouter = Router({ mergeParams: true });
@@ -114,4 +115,20 @@ portalRouter.post('/invite', (_req: Request, res: Response) => {
 // GET /hubs/:hubId/portal/questionnaires — 501
 portalRouter.get('/questionnaires', (_req: Request, res: Response) => {
   send501(res, 'Portal questionnaires');
+});
+
+// GET /hubs/:hubId/portal/status-updates
+portalRouter.get('/status-updates', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const hubId = req.params.hubId as string;
+    const result = await queryStatusUpdates(req.repo!, hubId, req.query as Record<string, unknown>);
+    sendList(res, result.items.map(mapStatusUpdateForPortal), {
+      page: result.page,
+      pageSize: result.pageSize,
+      totalItems: result.totalItems,
+      totalPages: result.totalPages,
+    });
+  } catch (err) {
+    next(err);
+  }
 });

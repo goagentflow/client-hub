@@ -16,3 +16,4 @@ export { QuickAskInput } from "./QuickAskInput";
 export { ProjectStatusCard } from "./ProjectStatusCard";
 export { UpcomingCard } from "./UpcomingCard";
 export { RecentMessagesCard } from "./RecentMessagesCard";
+export { StatusUpdateCard } from "./StatusUpdateCard";

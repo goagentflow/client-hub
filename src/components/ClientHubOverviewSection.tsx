@@ -3,16 +3,15 @@
  *
  * Shows:
  * - Client hub badge and status
- * - Projects summary with quick stats
- * - Relationship health compact view
- * - Recent activity and alerts
+ * - Quick stats grid (decisions, projects, health, activity)
+ * - Recent activity preview
  */
 
-import { FolderKanban, Heart, Activity, ChevronRight, ClipboardCheck, UserPlus } from "lucide-react";
+import { FolderKanban, Heart, Activity, ChevronRight, ClipboardCheck, UserPlus, ClipboardList } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
+import { QuickStatCard } from "./overview/QuickStatCard";
 import {
   useProjects,
   useRelationshipHealth,
@@ -28,6 +27,7 @@ interface ClientHubOverviewSectionProps {
   onNavigateToHealth?: () => void;
   onNavigateToActivity?: () => void;
   onInviteClient?: () => void;
+  onAddStatusUpdate?: () => void;
 }
 
 const healthStatusColors: Record<HealthStatus, { bg: string; text: string }> = {
@@ -49,6 +49,7 @@ export function ClientHubOverviewSection({
   onNavigateToHealth,
   onNavigateToActivity,
   onInviteClient,
+  onAddStatusUpdate,
 }: ClientHubOverviewSectionProps) {
   const { data: projectsData, isLoading: projectsLoading } = useProjects(hub.id);
   const { data: decisionsData, isLoading: decisionsLoading } = useDecisions(hub.id);
@@ -62,7 +63,6 @@ export function ClientHubOverviewSection({
   const activeProjects = projects.filter((p) => p.status === "active").length;
   const recentActivity = activityData?.items ?? [];
 
-  // Count pending decisions (waiting on client)
   const pendingDecisions = decisionsData?.items.filter(
     (d) => d.status === "open" || d.status === "in_review"
   ) ?? [];
@@ -73,7 +73,7 @@ export function ClientHubOverviewSection({
 
   return (
     <div className="space-y-6">
-      {/* Client Hub Badge + Invite */}
+      {/* Client Hub Badge + Actions */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Badge
@@ -85,162 +85,111 @@ export function ClientHubOverviewSection({
           <span className="text-sm text-[hsl(var(--medium-grey))]">
             {hub.convertedAt
               ? `Converted ${new Date(hub.convertedAt).toLocaleDateString("en-US", {
-                  month: "short",
-                  day: "numeric",
-                  year: "numeric",
+                  month: "short", day: "numeric", year: "numeric",
                 })}`
               : `Created ${new Date(hub.createdAt).toLocaleDateString("en-US", {
-                  month: "short",
-                  day: "numeric",
-                  year: "numeric",
+                  month: "short", day: "numeric", year: "numeric",
                 })}`}
           </span>
         </div>
-        <Button
-          onClick={onInviteClient}
-          className="bg-[hsl(var(--soft-coral))] hover:bg-[hsl(var(--soft-coral))]/90 text-white"
-        >
-          <UserPlus className="w-4 h-4 mr-2" />
-          Invite Client
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            onClick={onAddStatusUpdate}
+            variant="outline"
+            className="border-[hsl(var(--bold-royal-blue))] text-[hsl(var(--bold-royal-blue))]"
+          >
+            <ClipboardList className="w-4 h-4 mr-2" />
+            Add Status Update
+          </Button>
+          <Button
+            onClick={onInviteClient}
+            className="bg-[hsl(var(--soft-coral))] hover:bg-[hsl(var(--soft-coral))]/90 text-white"
+          >
+            <UserPlus className="w-4 h-4 mr-2" />
+            Invite Client
+          </Button>
+        </div>
       </div>
 
       {/* Quick Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Decisions Card - First position for visibility */}
-        <Card
-          className="cursor-pointer hover:shadow-md transition-shadow"
+        <QuickStatCard
+          icon={<ClipboardCheck className="w-4 h-4" />}
+          title="Waiting on Client"
+          isLoading={decisionsLoading}
           onClick={onNavigateToDecisions}
         >
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-[hsl(var(--medium-grey))] flex items-center gap-2">
-              <ClipboardCheck className="w-4 h-4" />
-              Waiting on Client
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {decisionsLoading ? (
-              <Skeleton className="h-8 w-16" />
-            ) : (
-              <div className="flex items-baseline gap-2">
-                <span className={`text-2xl font-bold ${
-                  overdueDecisions.length > 0
-                    ? "text-[hsl(var(--soft-coral))]"
-                    : "text-[hsl(var(--bold-royal-blue))]"
-                }`}>
-                  {pendingDecisions.length}
-                </span>
-                <span className="text-sm text-[hsl(var(--medium-grey))]">
-                  {pendingDecisions.length === 1 ? "decision" : "decisions"}
-                </span>
-                {overdueDecisions.length > 0 && (
-                  <Badge variant="outline" className="text-xs bg-[hsl(var(--soft-coral))]/10 text-[hsl(var(--soft-coral))] border-0">
-                    {overdueDecisions.length} overdue
-                  </Badge>
-                )}
-              </div>
+          <div className="flex items-baseline gap-2">
+            <span className={`text-2xl font-bold ${
+              overdueDecisions.length > 0
+                ? "text-[hsl(var(--soft-coral))]"
+                : "text-[hsl(var(--bold-royal-blue))]"
+            }`}>
+              {pendingDecisions.length}
+            </span>
+            <span className="text-sm text-[hsl(var(--medium-grey))]">
+              {pendingDecisions.length === 1 ? "decision" : "decisions"}
+            </span>
+            {overdueDecisions.length > 0 && (
+              <Badge variant="outline" className="text-xs bg-[hsl(var(--soft-coral))]/10 text-[hsl(var(--soft-coral))] border-0">
+                {overdueDecisions.length} overdue
+              </Badge>
             )}
-            <div className="flex items-center justify-end mt-2 text-xs text-[hsl(var(--bold-royal-blue))]">
-              View all <ChevronRight className="w-3 h-3 ml-1" />
-            </div>
-          </CardContent>
-        </Card>
+          </div>
+        </QuickStatCard>
 
-        {/* Projects Card */}
-        <Card
-          className="cursor-pointer hover:shadow-md transition-shadow"
+        <QuickStatCard
+          icon={<FolderKanban className="w-4 h-4" />}
+          title="Projects"
+          isLoading={projectsLoading}
           onClick={onNavigateToProjects}
         >
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-[hsl(var(--medium-grey))] flex items-center gap-2">
-              <FolderKanban className="w-4 h-4" />
-              Projects
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {projectsLoading ? (
-              <Skeleton className="h-8 w-16" />
-            ) : (
-              <div className="flex items-baseline gap-2">
-                <span className="text-2xl font-bold text-[hsl(var(--bold-royal-blue))]">
-                  {activeProjects}
-                </span>
-                <span className="text-sm text-[hsl(var(--medium-grey))]">
-                  active of {projects.length}
-                </span>
-              </div>
-            )}
-            <div className="flex items-center justify-end mt-2 text-xs text-[hsl(var(--bold-royal-blue))]">
-              View all <ChevronRight className="w-3 h-3 ml-1" />
-            </div>
-          </CardContent>
-        </Card>
+          <div className="flex items-baseline gap-2">
+            <span className="text-2xl font-bold text-[hsl(var(--bold-royal-blue))]">
+              {activeProjects}
+            </span>
+            <span className="text-sm text-[hsl(var(--medium-grey))]">
+              active of {projects.length}
+            </span>
+          </div>
+        </QuickStatCard>
 
-        {/* Health Card */}
-        <Card
-          className="cursor-pointer hover:shadow-md transition-shadow"
+        <QuickStatCard
+          icon={<Heart className="w-4 h-4" />}
+          title="Relationship Health"
+          isLoading={healthLoading}
           onClick={onNavigateToHealth}
+          linkText="View details"
         >
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-[hsl(var(--medium-grey))] flex items-center gap-2">
-              <Heart className="w-4 h-4" />
-              Relationship Health
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {healthLoading ? (
-              <Skeleton className="h-8 w-24" />
-            ) : health ? (
-              <div className="flex items-center gap-3">
-                <span className="text-2xl font-bold text-[hsl(var(--bold-royal-blue))]">
-                  {health.score}
-                </span>
-                <Badge
-                  className={`${healthStatusColors[health.status].bg} ${
-                    healthStatusColors[health.status].text
-                  } border-0`}
-                >
-                  {healthStatusLabels[health.status]}
-                </Badge>
-              </div>
-            ) : (
-              <span className="text-sm text-[hsl(var(--medium-grey))]">
-                Calculating...
+          {health ? (
+            <div className="flex items-center gap-3">
+              <span className="text-2xl font-bold text-[hsl(var(--bold-royal-blue))]">
+                {health.score}
               </span>
-            )}
-            <div className="flex items-center justify-end mt-2 text-xs text-[hsl(var(--bold-royal-blue))]">
-              View details <ChevronRight className="w-3 h-3 ml-1" />
+              <Badge
+                className={`${healthStatusColors[health.status].bg} ${healthStatusColors[health.status].text} border-0`}
+              >
+                {healthStatusLabels[health.status]}
+              </Badge>
             </div>
-          </CardContent>
-        </Card>
+          ) : (
+            <span className="text-sm text-[hsl(var(--medium-grey))]">Calculating...</span>
+          )}
+        </QuickStatCard>
 
-        {/* Activity Card */}
-        <Card
-          className="cursor-pointer hover:shadow-md transition-shadow"
+        <QuickStatCard
+          icon={<Activity className="w-4 h-4" />}
+          title="Recent Activity"
+          isLoading={activityLoading}
           onClick={onNavigateToActivity}
         >
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-[hsl(var(--medium-grey))] flex items-center gap-2">
-              <Activity className="w-4 h-4" />
-              Recent Activity
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {activityLoading ? (
-              <Skeleton className="h-8 w-16" />
-            ) : (
-              <div className="flex items-baseline gap-2">
-                <span className="text-2xl font-bold text-[hsl(var(--bold-royal-blue))]">
-                  {activityData?.total ?? 0}
-                </span>
-                <span className="text-sm text-[hsl(var(--medium-grey))]">events</span>
-              </div>
-            )}
-            <div className="flex items-center justify-end mt-2 text-xs text-[hsl(var(--bold-royal-blue))]">
-              View all <ChevronRight className="w-3 h-3 ml-1" />
-            </div>
-          </CardContent>
-        </Card>
+          <div className="flex items-baseline gap-2">
+            <span className="text-2xl font-bold text-[hsl(var(--bold-royal-blue))]">
+              {activityData?.total ?? 0}
+            </span>
+            <span className="text-sm text-[hsl(var(--medium-grey))]">events</span>
+          </div>
+        </QuickStatCard>
       </div>
 
       {/* Recent Activity Preview */}
@@ -260,15 +209,10 @@ export function ClientHubOverviewSection({
                 >
                   <div className="w-2 h-2 rounded-full bg-[hsl(var(--gradient-blue))] mt-2" />
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm text-[hsl(var(--dark-grey))]">
-                      {item.description}
-                    </p>
+                    <p className="text-sm text-[hsl(var(--dark-grey))]">{item.description}</p>
                     <p className="text-xs text-[hsl(var(--medium-grey))]">
                       {new Date(item.timestamp).toLocaleString("en-US", {
-                        month: "short",
-                        day: "numeric",
-                        hour: "numeric",
-                        minute: "2-digit",
+                        month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
                       })}
                     </p>
                   </div>

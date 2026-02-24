@@ -49,6 +49,10 @@ export type {
   PortalSectionConfig,
   PortalMeta,
   UpdatePortalConfigRequest,
+  OnTrackStatus,
+  StatusUpdateSource,
+  StatusUpdate,
+  CreateStatusUpdateRequest,
 } from "./hub";
 export { isPitchHub, isClientHub } from "./hub";
 

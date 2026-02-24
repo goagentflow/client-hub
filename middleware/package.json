@@ -10,6 +10,8 @@
     "dev": "tsx watch src/server.ts",
     "build": "prisma generate && tsup",
     "db:migrate": "prisma migrate deploy",
+    "db:migrate:sql": "set -e; for f in prisma/sql/*.sql; do echo \"Running $f...\"; psql \"$DATABASE_URL\" -f \"$f\" || exit 1; done",
+    "db:migrate:all": "pnpm db:migrate && pnpm db:migrate:sql",
     "db:generate": "prisma generate",
     "start": "node dist/server.js",
     "test": "vitest",

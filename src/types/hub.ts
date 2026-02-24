@@ -130,6 +130,33 @@ export interface PortalMeta {
   sections: PortalSectionConfig;
 }
 
+// Status Update types (Phase 2a — fortnightly status updates)
+export type OnTrackStatus = 'on_track' | 'at_risk' | 'off_track';
+export type StatusUpdateSource = 'staff_ui' | 'claude_sql';
+
+export interface StatusUpdate {
+  id: string;
+  hubId: string;
+  period: string;
+  completed: string;
+  inProgress: string;
+  nextPeriod: string;
+  neededFromClient: string | null;
+  onTrack: OnTrackStatus;
+  createdBy: string;
+  createdSource?: StatusUpdateSource;
+  createdAt: string;
+}
+
+export interface CreateStatusUpdateRequest {
+  period: string;
+  completed: string;
+  inProgress: string;
+  nextPeriod: string;
+  neededFromClient?: string;
+  onTrack: OnTrackStatus;
+}
+
 // Portal config update request
 export interface UpdatePortalConfigRequest {
   welcomeHeadline?: string;

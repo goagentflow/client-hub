@@ -20,6 +20,7 @@ import {
   DecisionsWaitingCard,
   QuickAskInput,
   ProjectStatusCard,
+  StatusUpdateCard,
   UpcomingCard,
   RecentMessagesCard,
 } from "./index";
@@ -58,6 +59,11 @@ export function ClientHubOverview({ hubId, hubName }: ClientHubOverviewProps) {
         {/* Quick Ask - Below decisions */}
         <section aria-label="Quick question">
           <QuickAskInput hubId={hubId} />
+        </section>
+
+        {/* Status Update — fortnightly update from agency */}
+        <section aria-label="Status update">
+          <StatusUpdateCard hubId={hubId} />
         </section>
 
         {/* Main Grid: Responsive 2-column on desktop */}

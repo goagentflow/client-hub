@@ -59,6 +59,7 @@ export function makeMockRepo(tenantId = 'tenant-agentflow'): Record<string, unkn
     hubProject: makeMockScopedModel(),
     hubMilestone: makeMockScopedModel(),
     hubEvent: makeMockScopedModel(),
+    hubStatusUpdate: makeMockScopedModel(),
   };
 }
 

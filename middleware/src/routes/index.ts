@@ -21,6 +21,7 @@ import { leadershipRouter } from './leadership.route.js';
 import { clientIntelligenceRouter } from './client-intelligence.route.js';
 import { authRouter } from './auth.route.js';
 import { portalContactsRouter, accessMethodRouter } from './portal-contacts.route.js';
+import { statusUpdatesRouter } from './status-updates.route.js';
 
 export { healthRouter } from './health.js';
 
@@ -48,6 +49,7 @@ apiRouter.use('/hubs/:hubId/portal-contacts', portalContactsRouter);
 apiRouter.use('/hubs/:hubId/access-method', accessMethodRouter);
 apiRouter.use('/hubs/:hubId/events', eventsRouter);
 apiRouter.use('/hubs/:hubId/projects', projectsRouter);
+apiRouter.use('/hubs/:hubId/status-updates', statusUpdatesRouter);
 apiRouter.use('/hubs/:hubId/convert', conversionRouter);
 
 // Hub intelligence (relationship health, expansion)

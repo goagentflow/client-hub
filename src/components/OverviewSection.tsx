@@ -33,7 +33,7 @@ import { UploadDocumentDialog } from "./documents/UploadDocumentDialog";
 import { ComposeDialog } from "./messages/ComposeDialog";
 import { ScheduleMeetingDialog } from "./meetings/ScheduleMeetingDialog";
 import { AddQuestionnaireDialog } from "./questionnaire/AddQuestionnaireDialog";
-import { ClientHubOverviewSection } from "./ClientHubOverviewSection";
+import { ClientHubOverviewPage } from "./ClientHubOverviewPage";
 import { ConversionWizard } from "./conversion";
 
 export function OverviewSection() {
@@ -128,35 +128,9 @@ export function OverviewSection() {
     });
   };
 
-  // Navigation handlers for client hub overview
-  const handleNavigateToProjects = () => navigate(`/hub/${hubId}/projects`);
-  const handleNavigateToDecisions = () => navigate(`/hub/${hubId}/decisions`);
-  const handleNavigateToHealth = () => navigate(`/hub/${hubId}/intelligence`);
-
   // Render client hub overview if this is a client hub
   if (hub.hubType === "client") {
-    return (
-      <div className="min-h-screen bg-[hsl(var(--warm-cream))]">
-        <HubHeader hub={hub} onSettings={handleSettings} />
-        <ClientHubOverviewSection
-          hub={hub}
-          onNavigateToProjects={handleNavigateToProjects}
-          onNavigateToDecisions={handleNavigateToDecisions}
-          onNavigateToHealth={handleNavigateToHealth}
-          onNavigateToActivity={handleViewAllActivity}
-          onInviteClient={() => setInviteOpen(true)}
-        />
-        <InviteClientDialog
-          isOpen={inviteOpen}
-          onClose={() => setInviteOpen(false)}
-          onInvite={(data) => {
-            createInvite(data, { onSuccess: () => setInviteOpen(false) });
-          }}
-          isInviting={isInviting}
-          clientDomain={hub.clientDomain}
-        />
-      </div>
-    );
+    return <ClientHubOverviewPage hub={hub} hubId={hubId} onSettings={handleSettings} />;
   }
 
   return (

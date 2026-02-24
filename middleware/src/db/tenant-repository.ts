@@ -75,6 +75,7 @@ export interface TenantRepository {
   hubProject: ScopedModel;
   hubMilestone: ScopedModel;
   hubEvent: ScopedModel;
+  hubStatusUpdate: ScopedModel;
 }
 
 export function createTenantRepository(
@@ -89,5 +90,6 @@ export function createTenantRepository(
     hubProject: scopeModel(prisma.hubProject, tenantId),
     hubMilestone: scopeModel(prisma.hubMilestone, tenantId),
     hubEvent: scopeModel(prisma.hubEvent, tenantId),
+    hubStatusUpdate: scopeModel(prisma.hubStatusUpdate, tenantId),
   };
 }

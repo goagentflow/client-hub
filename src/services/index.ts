@@ -173,6 +173,13 @@ export {
 } from "./client-intelligence";
 export type { DecisionFilterParams } from "./client-intelligence";
 
+// Status Update service
+export {
+  getStatusUpdates,
+  getPortalStatusUpdates,
+  createStatusUpdate,
+} from "./status-update.service";
+
 // Relationship Intelligence service
 export {
   getRelationshipHealth,
