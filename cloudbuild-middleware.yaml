@@ -39,7 +39,7 @@ steps:
   - name: 'gcr.io/cloud-builders/gcloud'
     id: 'deploy'
     entrypoint: 'bash'
-    secretEnv: ['CLIENTHUB_DATABASE_URL', 'CLIENTHUB_PORTAL_TOKEN_SECRET', 'CLIENTHUB_AZURE_CLIENT_ID', 'CLIENTHUB_AZURE_TENANT_ID']
+    secretEnv: ['CLIENTHUB_DATABASE_URL', 'CLIENTHUB_PORTAL_TOKEN_SECRET', 'CLIENTHUB_AZURE_CLIENT_ID', 'CLIENTHUB_AZURE_TENANT_ID', 'CLIENTHUB_RESEND_API_KEY']
     args:
       - '-c'
       - |
@@ -63,6 +63,7 @@ steps:
           --set-env-vars "LOG_LEVEL=info" \
           --set-secrets "DATABASE_URL=CLIENTHUB_DATABASE_URL:latest" \
           --set-secrets "PORTAL_TOKEN_SECRET=CLIENTHUB_PORTAL_TOKEN_SECRET:latest" \
+          --set-secrets "RESEND_API_KEY=CLIENTHUB_RESEND_API_KEY:latest" \
           --format "value(status.url)" | tail -1 > /workspace/service-url.txt
 
         echo "Deployed to: $(cat /workspace/service-url.txt)"
@@ -113,6 +114,8 @@ availableSecrets:
       env: 'CLIENTHUB_AZURE_CLIENT_ID'
     - versionName: projects/$PROJECT_ID/secrets/CLIENTHUB_AZURE_TENANT_ID/versions/latest
       env: 'CLIENTHUB_AZURE_TENANT_ID'
+    - versionName: projects/$PROJECT_ID/secrets/CLIENTHUB_RESEND_API_KEY/versions/latest
+      env: 'CLIENTHUB_RESEND_API_KEY'
 
 timeout: '600s'
 
