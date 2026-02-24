@@ -139,6 +139,11 @@ export function ClientOverviewSection() {
           <h1 className="text-4xl font-bold text-[hsl(var(--bold-royal-blue))]">
             Welcome, {userName}
           </h1>
+          {config?.welcomeHeadline && (
+            <p className="text-xl font-semibold text-[hsl(var(--dark-grey))]">
+              {config.welcomeHeadline}
+            </p>
+          )}
           <p className="text-lg text-[hsl(var(--dark-grey))]">
             {config?.welcomeMessage || "Here's everything you need for your project"}
           </p>
