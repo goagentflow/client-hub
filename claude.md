@@ -1,4 +1,4 @@
-# AgentFlow Client Hub v0.1 (Phase 2a)
+# AgentFlow Client Hub v0.1 (Phase 2b)
 
 Read these files for full project context:
 - .cursorrules — Project context, scope, brand guidelines, code patterns
@@ -9,7 +9,7 @@ Read these files for full project context:
 - docs/API_SPECIFICATION.md — Complete API contract (113 endpoints)
 
 For middleware development:
-- docs/PRODUCTION_ROADMAP.md — **Current architecture and implementation plan** (v5.1, Phase 2a invite endpoints deployed)
+- docs/PRODUCTION_ROADMAP.md — **Current architecture and implementation plan** (v5.2, Phase 2b status updates deployed)
 - docs/PHASE_1_5_EMAIL_VERIFICATION_PLAN.md — Email verification design (implemented, deployed, smoke-tested)
 - docs/middleware/MSAL_AUTH_IMPLEMENTATION_PLAN.md — Auth design (approved by senior dev)
 - ~~docs/middleware/ARCHITECTURE_V3_FINAL.md~~ — Moved to `docs/archive/`
@@ -29,7 +29,9 @@ Follow AGENTS.md canon: **Simple, Clean, DRY, Secure**.
 
 **Phase 2a (Portal Invite Endpoints):** DEPLOYED — browser test pending. Staff can invite clients by email, clients receive invite email with portal link, land on EmailGate to verify.
 
-**Middleware:** Phase 0b + Phase 1.5 + Phase 2a (invite endpoints) complete:
+**Phase 2b (Status Updates):** DEPLOYED. Staff create fortnightly status updates via dialog UI, clients view them on the portal. Append-only data model enforced at DB level with triggers. Two input methods: staff UI + direct SQL via Claude Code.
+
+**Middleware:** Phase 0b + Phase 1.5 + Phase 2a + Phase 2b complete:
 - Prisma 6 ORM (replaced Supabase JS client)
 - `AUTH_MODE` + `DATA_BACKEND` config (replaced `DEMO_MODE`)
 - TenantRepository + AdminRepository pattern for tenant isolation
@@ -37,6 +39,7 @@ Follow AGENTS.md canon: **Simple, Clean, DRY, Secure**.
 - Cloud Run Dockerfiles (middleware + frontend) — multi-stage, non-root, reviewed
 - Portal email verification (Phase 1.5) — public + staff endpoints, Resend email, device tokens
 - Portal invite endpoints (Phase 2a) — POST/GET/DELETE invites with email, domain validation, cascade revoke
+- Status updates (Phase 2b) — append-only fortnightly updates, staff POST + GET, portal GET with field redaction, raw SQL migration with triggers
 
 **Hub Types:**
 - Pitch Hubs: Prospecting/new business (proposal, videos, questionnaire)
@@ -45,6 +48,7 @@ Follow AGENTS.md canon: **Simple, Clean, DRY, Secure**.
 **Key Features Implemented:**
 - Hub conversion (pitch → client)
 - Projects with milestones
+- Fortnightly status updates (append-only, staff + portal views)
 - Relationship Health Dashboard (AI-powered)
 - Expansion Radar (upsell/cross-sell detection)
 - Client Intelligence (Instant Answers, Meeting Prep, Performance Narratives)
@@ -62,7 +66,7 @@ Follow AGENTS.md canon: **Simple, Clean, DRY, Secure**.
 
 **Middleware config & data:**
 - `middleware/src/config/env.ts` — AUTH_MODE, DATA_BACKEND, RESEND_API_KEY, production guards
-- `middleware/prisma/schema.prisma` — Database schema (Hub, HubEvent, HubNote, HubInvite, PortalContact, PortalVerification, PortalDevice)
+- `middleware/prisma/schema.prisma` — Database schema (Hub, HubEvent, HubNote, HubInvite, HubStatusUpdate, PortalContact, PortalVerification, PortalDevice)
 - `middleware/src/db/` — Prisma client, TenantRepository, AdminRepository, hub mapper, portal-verification-queries
 
 **Middleware auth:**
@@ -74,7 +78,10 @@ Follow AGENTS.md canon: **Simple, Clean, DRY, Secure**.
 - `middleware/src/routes/portal-verification.route.ts` — Public endpoints (access-method, request-code, verify-code, verify-device)
 - `middleware/src/routes/portal-contacts.route.ts` — Staff endpoints (contacts CRUD, access method management)
 - `middleware/src/routes/members.route.ts` — Staff invite endpoints (POST/GET/DELETE) + 5 remaining 501 stubs
+- `middleware/src/routes/status-updates.route.ts` — Staff-only POST + GET for fortnightly status updates
+- `middleware/src/services/status-update-queries.ts` — Shared query helper + portal field mapper
 - `middleware/src/services/email.service.ts` — Resend transactional email (verification codes + portal invites)
+- `middleware/prisma/sql/001_hub_status_update.sql` — Raw SQL migration (table, composite FK, CHECK constraints, append-only triggers)
 
 **Docker (Cloud Run deployment):**
 - `middleware/Dockerfile` — Multi-stage middleware build (Node 20, pnpm, Prisma, tsup, non-root)

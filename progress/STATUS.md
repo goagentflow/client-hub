@@ -1,6 +1,6 @@
 # AgentFlow Client Hub — Project Status
 
-**Last Updated:** 22 February 2026
+**Last Updated:** 24 February 2026
 
 ---
 
@@ -18,12 +18,12 @@ Frontend (React/Vite/TypeScript)
   ├── Portal access via password-protected JWT tokens
   └── All data fetched through middleware API
 
-Middleware (Express/TypeScript) — 113 endpoints (46 real, 67 stubbed)
+Middleware (Express/TypeScript) — 115 endpoints (52 real, 63 stubbed)
   ├── Auth: Azure AD JWT (RS256 via jose) + portal JWT (HS256) + demo headers
   ├── Config: AUTH_MODE (azure_ad | demo) + DATA_BACKEND (azure_pg)
   ├── Database: Prisma 6 ORM (PostgreSQL via DATABASE_URL)
   ├── Tenant isolation: TenantRepository + AdminRepository pattern
-  └── 89 tests passing across 6 test files
+  └── 159 tests passing across 11 test files
 
 MVP Deployment (Live — first client)
   ├── Google Cloud Run (frontend, alongside goagentflow.com)
@@ -123,17 +123,53 @@ Migrated all route handlers from Supabase adapter to injected Prisma repository 
 
 **Review:** 2 rounds of external senior dev review. All findings addressed.
 
+### Phase 2b: Status Updates (COMPLETE)
+
+Append-only fortnightly status updates for client hubs. Staff create updates via dialog UI, clients view them on the portal. Two input methods: staff UI and direct SQL via Claude Code.
+
+**Files created:**
+- `middleware/prisma/sql/001_hub_status_update.sql` — Raw SQL migration (table, composite FK, CHECK constraints, append-only triggers)
+- `middleware/src/routes/status-updates.route.ts` — Staff-only POST + GET with input validation
+- `middleware/src/services/status-update-queries.ts` — Shared query helper + portal field mapper
+- `middleware/src/__tests__/status-updates.test.ts` — 15 contract tests
+- `src/components/status-updates/CreateStatusUpdateDialog.tsx` — Staff creation form
+- `src/components/client-hub-overview/StatusUpdateCard.tsx` — Portal card with load-more pagination
+- `src/components/ClientHubOverviewPage.tsx` — Extracted for file-length compliance
+- `src/components/overview/QuickStatCard.tsx` — Reusable stat card
+- `src/hooks/use-status-updates.ts` — React Query hooks (staff + portal + mutation)
+- `src/services/status-update.service.ts` — API service (staff + portal + mock)
+
+**Files changed:**
+- `middleware/prisma/schema.prisma` — Added HubStatusUpdate model
+- `middleware/src/db/tenant-repository.ts` — Added hubStatusUpdate to TenantRepository
+- `middleware/src/routes/index.ts` — Mounted statusUpdatesRouter
+- `middleware/src/routes/portal.route.ts` — Added portal GET /status-updates
+- `middleware/src/__tests__/test-setup.ts` — Added hubStatusUpdate mock
+- `middleware/src/__tests__/contract.test.ts` — Removed moved tests
+- `middleware/package.json` — Added db:migrate:sql and db:migrate:all scripts
+- `src/types/hub.ts` — Added StatusUpdate, OnTrackStatus, CreateStatusUpdateRequest types
+- `src/types/index.ts`, `src/hooks/index.ts`, `src/services/index.ts` — Barrel exports
+- `src/components/client-hub-overview/ClientHubOverview.tsx` — Added StatusUpdateCard
+- `src/components/client-hub-overview/index.ts` — Export StatusUpdateCard
+- `src/components/ClientHubOverviewSection.tsx` — Added "Add Status Update" button
+- `src/components/OverviewSection.tsx` — Extracted ClientHubOverviewPage
+
+**Review:** 3 rounds internal (senior-reviewer agent) + 2 rounds external review. All findings addressed.
+
 ---
 
 ## Complete Roadmap
 
 | Phase | Name | Status | Summary |
 |-------|------|--------|---------|
-| MVP | Cloud Run + Supabase | **Deploying** | First client deployment on Google Cloud Run + Supabase PostgreSQL. Near-zero cost. Forward-compatible with full Azure plan. |
+| MVP | Cloud Run + Supabase | **LIVE** | First client deployment on Google Cloud Run + Supabase PostgreSQL. Near-zero cost. Forward-compatible with full Azure plan. |
 | 0a | Azure Infrastructure | **Deferred** | Resource group created (UK South). MVP deployed on Cloud Run + Supabase in the interim. Full Azure services created when scaling beyond MVP. |
 | 0b | Codebase Refactor | **Complete** | Prisma migration, AUTH_MODE/DATA_BACKEND config, TenantRepository, route migration. All 4 sub-phases approved. |
 | 1 | File Storage | Not started | Document, proposal, and video upload to Azure Blob Storage with AV scanning. 3 stubs. |
-| 2 | Members & Access | Not started | Magic link auth for client contacts, invite system, dual-run with password portal. 11 stubs. |
+| 1.5 | Portal Email Verification | **Complete** | Public + staff endpoints, Resend email, device tokens, EmailGate UI. |
+| 2a | Portal Invite Endpoints | **Complete** | POST/GET/DELETE invites with email, domain validation, cascade revoke. |
+| 2b | Status Updates | **Complete** | Append-only fortnightly updates. Staff POST/GET + portal GET. Raw SQL migration with triggers. |
+| 2 | Members & Access | Not started | Magic link auth for client contacts, invite system, dual-run with password portal. 8 stubs remaining. |
 | 3 | Questionnaires | Not started | Staff-created forms, client submission, response aggregation. 7 stubs. |
 | 4 | Engagement Analytics | Not started | Document/video view tracking, leadership at-risk/expansion views. 6 stubs. |
 | 5 | OBO Token Flow | Not started | On-Behalf-Of exchange enabling Graph API calls (email, calendar). 0 stubs (infrastructure). |
@@ -143,7 +179,7 @@ Migrated all route handlers from Supabase adapter to injected Prisma repository 
 | 9 | Relationship Intelligence | Not started | Health dashboard, expansion radar — frontend integration of Phase 8 endpoints. 0 stubs. |
 | 10 | Polish + E2E | Not started | Zero 501 stubs, Playwright E2E tests, conversion rollback. 2 stubs. |
 
-**Total stubs remaining:** 67 of 113 endpoints (59%).
+**Total stubs remaining:** 63 of 115 endpoints (55%).
 
 **Timeline:** ~15-16 weeks sequential, ~11-12 weeks with parallelisation. Phases 1-5 can run in parallel after Phase 0a (Azure infrastructure).
 
@@ -163,6 +199,7 @@ Migrated all route handlers from Supabase adapter to injected Prisma repository 
 | Tenant isolation | TenantRepository (app layer) + DB constraints (defence in depth) | All hub-linked queries go through tenant-scoped wrapper. `tenant_id NOT NULL` + FK constraints in schema. |
 | Client auth (future) | Magic link with session JWT in httpOnly cookie | Simple UX for external clients — no Microsoft account required. |
 | Graph API scoping | Explicit linkage tables (not email/domain heuristics) | Prevents accidental data leakage between hubs sharing contacts. |
+| Status updates | Append-only (DB triggers block UPDATE/DELETE) | Preserves full audit trail. Raw SQL migration for constraints outside Prisma schema. Two input methods: staff UI + direct SQL. |
 
 ---
 
@@ -194,7 +231,7 @@ pnpm run dev             # Starts on http://localhost:3001
 ### Running Tests
 ```sh
 cd middleware
-pnpm test               # 89 tests across 6 files
+pnpm test               # 159 tests across 11 files
 ```
 
 ---

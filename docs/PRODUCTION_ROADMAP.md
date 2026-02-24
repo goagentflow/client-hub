@@ -2,7 +2,7 @@
 
 **Date:** 23 Feb 2026
 **Author:** Hamish Nicklin / Claude Code
-**Status:** v5.1 — Portal invite endpoints implemented, reviewed, deployed. 3 of 11 Phase 2 stubs resolved (POST/GET/DELETE invites). `hub_invite` table created in Supabase. Both services live on Cloud Run.
+**Status:** v5.2 — Phase 2b (status updates) implemented, reviewed, deployed. Append-only fortnightly status updates with staff UI + portal view. 3 new endpoints (POST + GET staff, GET portal). `hub_status_update` table created with composite FK, CHECK constraints, and append-only triggers. 159 tests across 11 files. Both services live on Cloud Run.
 **Audience:** Senior developer reviewing for feasibility and sequencing
 
 ---
@@ -271,7 +271,8 @@ Audited by reading every handler registration in `middleware/src/routes/*.ts` �
 | proposals.route.ts | 3 | 2 | 5 | Upload + engagement stubbed |
 | videos.route.ts | 6 | 2 | 8 | Upload + engagement stubbed |
 | projects.route.ts | 8 | 0 | 8 | Fully implemented (incl. milestones) |
-| portal.route.ts | 3 | 7 | 10 | GET videos/documents/proposal real; comment, messages, meetings, members, invite, questionnaires stubbed |
+| portal.route.ts | 4 | 6 | 10 | GET videos/documents/proposal/status-updates real; comment, messages, meetings, members, invite, questionnaires stubbed |
+| status-updates.route.ts | 2 | 0 | 2 | POST + GET (staff-only, append-only) |
 | portal-config.route.ts | 2 | 0 | 2 | Fully implemented |
 | events.route.ts | 3 | 0 | 3 | Fully implemented (incl. leadership event) |
 | public.route.ts | 3 | 1 | 4 | Invite accept stubbed |
@@ -283,9 +284,11 @@ Audited by reading every handler registration in `middleware/src/routes/*.ts` �
 | intelligence.route.ts | 0 | 3 | 3 | All 501 (relationship health + expansion) |
 | leadership.route.ts | 2 | 3 | 5 | Portfolio/clients real; at-risk/expansion/refresh stubbed |
 | conversion.route.ts | 1 | 1 | 2 | POST convert real; POST rollback stubbed |
-| **TOTAL** | **49** | **64** | **113** | **43% real, 57% stubbed** |
+| **TOTAL** | **52** | **63** | **115** | **45% real, 55% stubbed** |
 
 **Corrections from v3:** projects (8 not 9), documents (5/2/7 not 5/3/8), videos (6/2/8 not 6/3/9), portal (3/7/10 not 3/5/8), meetings (0/9/9 not 0/10/10), members (0/8/8 not 0/11/11 — dead `acceptInviteRouter` deleted, live version in public.route.ts), questionnaires (0/6/6 not 0/7/7). Net: 67 stubs to implement (was 72 in v3).
+
+**v5.2 changes:** Added status-updates.route.ts (2 new real endpoints). Portal status-updates endpoint moved from stub to real (portal.route.ts: 4 real / 6 stub). Total: 115 endpoints (52 real, 63 stubs).
 
 **Stub-to-phase assignment** (every stub accounted for):
 
@@ -300,7 +303,7 @@ Audited by reading every handler registration in `middleware/src/routes/*.ts` �
 | Phase 8 (AI) | client-intelligence:all 18, intelligence:all 3 | 21 |
 | Phase 9 (Intelligence) | (uses intelligence.route.ts endpoints — counted in Phase 8) | 0 |
 | Phase 10 (Polish) | conversion:rollback, portal:proposal/comment | 2 |
-| **TOTAL** | | **64** |
+| **TOTAL** | | **63** |
 
 ---
 
@@ -1039,6 +1042,30 @@ gcloud builds submit --config=cloudbuild.yaml --project=agentflow-456021
 | `src/types/member.ts` | Frontend HubInvite type (no token, has message) |
 | `cloudbuild-middleware.yaml` | RESEND_API_KEY added to deploy config |
 
+### Key files for status updates (Phase 2b)
+
+| File | Purpose |
+|------|---------|
+| `middleware/prisma/schema.prisma` | HubStatusUpdate model (lines 233-256) |
+| `middleware/prisma/sql/001_hub_status_update.sql` | Raw SQL: table, composite FK, CHECK constraints, append-only triggers |
+| `middleware/src/routes/status-updates.route.ts` | Staff-only POST + GET with validation |
+| `middleware/src/services/status-update-queries.ts` | Shared query helper + portal field mapper |
+| `middleware/src/routes/portal.route.ts` | Portal GET /status-updates (strips tenantId + createdSource) |
+| `middleware/src/__tests__/status-updates.test.ts` | 15 tests (validation, auth, portal redaction) |
+| `src/components/status-updates/CreateStatusUpdateDialog.tsx` | Staff creation form |
+| `src/components/client-hub-overview/StatusUpdateCard.tsx` | Portal card with load-more pagination |
+| `src/hooks/use-status-updates.ts` | React Query hooks (staff + portal + create mutation) |
+| `src/services/status-update.service.ts` | API service (staff + portal + mock) |
+
+### Claude Code direct SQL write method
+
+```sql
+INSERT INTO hub_status_update (hub_id, tenant_id, period, completed, in_progress, next_period, needed_from_client, on_track, created_by, created_source)
+VALUES ('<hub-id>', '<tenant-id>', 'Week X (w/c DD Mon)', 'Item 1\nItem 2', 'Item 3', 'Item 4', 'Approval needed', 'on_track', 'Claude Code', 'claude_sql');
+```
+
+Note: `created_source` must be `'claude_sql'` (not default `'staff_ui'`). Composite FK, CHECK constraints, and append-only triggers all apply.
+
 ### Hamish's remaining manual tasks
 
 ### For full Azure deployment (Phase 0a, when scaling)
@@ -1082,4 +1109,5 @@ gcloud builds submit --config=cloudbuild.yaml --project=agentflow-456021
 | v4.7 | 23 Feb 2026 | Cloud Build pipelines, GCP secrets, and Azure AD complete: (1) assembler pipeline updated — new `build-clienthub` step in `cloudbuild.yaml` (AFv2 repo) clones client-hub, builds with VITE_BASE_PATH, MSAL env vars, and VITE_USE_MOCK_API=false, adds to nginx image; (2) nginx.conf updated with `/clienthub/` SPA routing; (3) `cloudbuild-middleware.yaml` created for separate `clienthub-api` Cloud Run service with all env vars from Secret Manager; (4) 8 GCP secrets created (Azure AD IDs, database URL, portal token, API base URL) with Cloud Build SA access; (5) Azure AD app registration complete (client ID, tenant ID, scope `access_as_user`, Staff role, Hamish assigned); (6) Vite base path configured (`vite.config.ts` + `BrowserRouter basename`); (7) smoke tests with bundle integrity checks (non-empty guards prevent false-pass); (8) middleware smoke test validates `/health` + auth rejection on `/api/v1/hubs`; (9) Dockerfile updated with `VITE_BASE_PATH` arg and standalone-use comment; (10) "What's Left to Deploy" pickup guide added for new developer onboarding. 3 rounds of senior dev review (2 internal + 1 external), all findings addressed. |
 | v5.0 | 23 Feb 2026 | Phase 1.5 smoke test complete + two bug fixes deployed: (1) Browser smoke test passed all 5 checks — staff setup, email verification flow, device remember-me auto-unlock, negative tests (unauthorised email uniform response, wrong code rejection, lockout after 3 failures), backwards compatibility; (2) Fixed portal-preview endpoint response shape (wrapped in `{data: ...}` to match public portal-meta); (3) Fixed UnauthorizedHandler redirecting portal routes to /login (now skips `/portal/` paths); (4) Seeded production tenant record for Azure AD tenant; (5) Both middleware and frontend redeployed to Cloud Run. |
 | v5.1 | 24 Feb 2026 | Phase 2a (Portal Invite Endpoints) implemented, reviewed, and deployed: (1) HubInvite model added to Prisma schema with unique(hubId, email) and composite index; (2) hub_invite table created in Supabase via raw SQL (prisma db push fails due to CRM cross-schema refs); (3) 3 invite endpoints in members.route.ts — POST (create/re-invite with zod validation, domain check, email normalisation, interactive transaction, fire-and-forget email), GET (pending non-expired), DELETE (revoke with cascade); (4) sendPortalInvite() added to email.service.ts with branded HTML; (5) INVITE_SELECT excludes token from responses; (6) RESEND_API_KEY added to cloudbuild-middleware.yaml; (7) Frontend type updated (token removed, message added); (8) 21 new tests across 2 files + shared fixtures (141 total, 10 files); (9) hubs.route.ts portal-preview bug fixed; (10) 3 rounds automated review + external senior dev review, all findings addressed (hub-scoped DELETE, frontend type drift, test coverage, pre-existing test failure); (11) Middleware redeployed to Cloud Run. Browser test of invite flow pending. |
+| v5.2 | 24 Feb 2026 | Phase 2b (Status Updates) implemented, reviewed, and deployed: (1) HubStatusUpdate model added to Prisma schema; (2) Raw SQL migration (`prisma/sql/001_hub_status_update.sql`) with composite FK `(hub_id, tenant_id)`, CHECK constraints (non-empty fields, length limits ≤200/≤5000, on_track enum), and append-only triggers (UPDATE/DELETE blocked); (3) `db:migrate:sql` and `db:migrate:all` scripts added to package.json with fail-fast error handling; (4) Staff-only POST + GET routes in `status-updates.route.ts` with `requireString()` type guard, length limits, strict onTrack validation, server-derived createdBy/createdSource; (5) Portal GET route added to `portal.route.ts` with `mapStatusUpdateForPortal()` stripping tenantId + createdSource; (6) Shared query service `status-update-queries.ts` (neutral module, no auth/HTTP); (7) Frontend: `CreateStatusUpdateDialog.tsx` (staff form), `StatusUpdateCard.tsx` (portal card with accumulative load-more pagination, stale-state reset on hub change), React Query hooks with broadened cache invalidation; (8) `QuickStatCard.tsx` and `ClientHubOverviewPage.tsx` extracted for file-length compliance; (9) 15 status-update tests (validation, auth, portal positive-path with field redaction assertion); (10) 159 total tests across 11 files; (11) 3 rounds internal review + 2 rounds external review, all findings addressed; (12) Both services redeployed to Cloud Run + SQL migration run against prod. |
 | v4.9 | 23 Feb 2026 | Phase 1.5 (Portal Email Verification) implemented and deployed: (1) 3 new Prisma models (PortalContact, PortalVerification, PortalDevice) + Hub.accessMethod field; (2) 4 public endpoints (access-method, request-code, verify-code, verify-device) with rate limiting and enumeration prevention; (3) 5 staff endpoints (portal contacts CRUD + access method management) with tenant isolation; (4) Email via Resend REST API (fire-and-forget, XSS-safe templates); (5) Frontend EmailGate + PortalContactsCard + PortalDetail access-method routing; (6) SHA-256 hashed codes, timing-safe comparison, per-code lockout; (7) Device token remember-me (90-day, localStorage); (8) Method-switch side-effects (clear passwordHash on open, revoke artifacts on method change); (9) 120 tests across 7 files; (10) 3 rounds automated review + 3 rounds external senior dev review; (11) CLIENTHUB_RESEND_API_KEY added to GCP Secret Manager; (12) Both services redeployed to Cloud Run. Browser smoke test pending. |

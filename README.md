@@ -7,7 +7,7 @@ A client relationship portal built on Microsoft 365. AgentFlow is building this 
 Two hub types, each with staff and client views:
 
 - **Pitch Hubs** — Managing new business pitches (proposals, videos, documents, meetings)
-- **Client Hubs** — Ongoing client relationships (projects, health scoring, expansion opportunities)
+- **Client Hubs** — Ongoing client relationships (projects, status updates, health scoring, expansion opportunities)
 
 The frontend wireframe is complete for both hub types. The middleware API layer (113 endpoints) is in active development, with Azure AD authentication code-complete.
 
@@ -65,7 +65,7 @@ pnpm run dev             # http://localhost:3001
 ### Tests
 ```sh
 cd middleware
-pnpm test                # 84 tests across 5 files
+pnpm test                # 159 tests across 11 files
 ```
 
 ## Project Structure
@@ -110,7 +110,7 @@ pnpm test                # 84 tests across 5 files
 
 ## Current Status
 
-Phase 0b (codebase refactor) is complete — migrated to Prisma 6 ORM, replaced DEMO_MODE with AUTH_MODE + DATA_BACKEND config, completed route migration from Supabase adapter. See `progress/STATUS.md` for full details.
+MVP LIVE on Cloud Run + Supabase PostgreSQL. Phase 0b (codebase refactor), Phase 1.5 (portal email verification), Phase 2a (invite endpoints), and Phase 2b (status updates) all complete and deployed. 52 real endpoints, 63 stubs remaining. See `progress/STATUS.md` for full details.
 
 ## Key Documents
 
