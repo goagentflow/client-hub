@@ -4,12 +4,13 @@ Read these files for full project context:
 - .cursorrules — Project context, scope, brand guidelines, code patterns
 - GOLDEN_RULES.md — Coding standards
 - AGENTS.md — Development canon: Simple, Clean, DRY, Secure
-- docs/Vision_and_Assumptions.md — Product vision and middleware assumptions
-- docs/PHASE_2_CLIENT_HUBS.md — Phase 2 Client Hubs specification
-- docs/API_SPECIFICATION.md — Complete API contract (113 endpoints)
+- docs/Vision_and_Assumptions.md — Product vision and middleware assumptions (historical/vision)
+- docs/PHASE_2_CLIENT_HUBS.md — Phase 2 Client Hubs specification (historical goal-state)
+- docs/API_SPECIFICATION.md — Historical aspirational API contract draft
+- docs/CURRENT_STATE.md — Canonical live vs aspirational status
 
 For middleware development:
-- docs/PRODUCTION_ROADMAP.md — **Current architecture and implementation plan** (v5.2, Phase 2b status updates deployed)
+- docs/PRODUCTION_ROADMAP.md — **Current architecture and implementation plan** (v5.3, docs synchronized post-Phase 2b)
 - docs/PHASE_1_5_EMAIL_VERIFICATION_PLAN.md — Email verification design (implemented, deployed, smoke-tested)
 - docs/middleware/MSAL_AUTH_IMPLEMENTATION_PLAN.md — Auth design (approved by senior dev)
 - ~~docs/middleware/ARCHITECTURE_V3_FINAL.md~~ — Moved to `docs/archive/`
@@ -40,6 +41,7 @@ Follow AGENTS.md canon: **Simple, Clean, DRY, Secure**.
 - Portal email verification (Phase 1.5) — public + staff endpoints, Resend email, device tokens
 - Portal invite endpoints (Phase 2a) — POST/GET/DELETE invites with email, domain validation, cascade revoke
 - Status updates (Phase 2b) — append-only fortnightly updates, staff POST + GET, portal GET with field redaction, raw SQL migration with triggers
+- Endpoint accounting note: roadmap contract inventory is 115 endpoints (52 real, 63 placeholders); 9 additional Phase 1.5 real endpoints are tracked separately for continuity with earlier planning docs
 
 **Hub Types:**
 - Pitch Hubs: Prospecting/new business (proposal, videos, questionnaire)
@@ -49,12 +51,15 @@ Follow AGENTS.md canon: **Simple, Clean, DRY, Secure**.
 - Hub conversion (pitch → client)
 - Projects with milestones
 - Fortnightly status updates (append-only, staff + portal views)
-- Relationship Health Dashboard (AI-powered)
-- Expansion Radar (upsell/cross-sell detection)
-- Client Intelligence (Instant Answers, Meeting Prep, Performance Narratives)
-- Decision Queue (state machine for client decisions)
-- History & Alerts (institutional memory)
-- Leadership Portfolio (admin-only aggregate views)
+- Portal access management (password/email/open modes)
+- Portal contacts + invite workflows
+- Leadership portfolio summary views (portfolio + clients)
+
+**Not yet implemented end-to-end (placeholder backend and/or "Coming Soon" portal UI):**
+- Relationship health and expansion intelligence
+- Client intelligence (instant answers, decision queue, performance, history, risk alerts)
+- Messages and meetings integrations
+- Most questionnaire operations
 
 **Architecture:**
 - React Query for data fetching with polling patterns

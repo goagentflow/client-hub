@@ -1,8 +1,8 @@
-# AgentFlow Client Hub — Production Roadmap v5.0
+# AgentFlow Client Hub — Production Roadmap v5.3
 
-**Date:** 23 Feb 2026
+**Date:** 24 Feb 2026
 **Author:** Hamish Nicklin / Claude Code
-**Status:** v5.2 — Phase 2b (status updates) implemented, reviewed, deployed. Append-only fortnightly status updates with staff UI + portal view. 3 new endpoints (POST + GET staff, GET portal). `hub_status_update` table created with composite FK, CHECK constraints, and append-only triggers. 159 tests across 11 files. Both services live on Cloud Run.
+**Status:** v5.3 — Documentation synchronization after Phase 2b. Canonical live-vs-aspirational status now in `docs/CURRENT_STATE.md`. Endpoint inventory remains 115 contract endpoints (52 real, 63 placeholder), with 9 Phase 1.5 real endpoints and one legacy placeholder endpoint excluded from contract totals (see inventory note).
 **Audience:** Senior developer reviewing for feasibility and sequencing
 
 ---
@@ -165,7 +165,7 @@ All secrets created in project `agentflow-456021` with Cloud Build SA access gra
 - Document links (OneDrive URLs, not file uploads)
 - Video sharing (external links)
 - Portal access for clients (password-protected)
-- All 46 currently-implemented endpoints
+- All 52 currently-implemented contract endpoints
 
 **What MVP does NOT include:**
 - File uploads (no Azure Blob Storage — Phase 1)
@@ -222,7 +222,7 @@ The MVP cannot go live until ALL of these pass:
 | Security headers | Helmet defaults: CSP, HSTS, X-Frame-Options, X-Content-Type-Options | Dev | **DONE** (middleware has Helmet) |
 | CORS locked | `CORS_ORIGIN` set to exact production domain (no wildcards) | Dev | **DONE** (`https://www.goagentflow.com` in pipeline) |
 | Rate limiting | Rate-limit on auth and public endpoints (already configured) | Dev | **DONE** |
-| All tests pass | `pnpm test` passes (141 tests across 10 files) | Dev | **DONE** |
+| All tests pass | `pnpm test` passes (159 tests across 11 files) | Dev | **DONE** |
 | Clean build | Fresh `pnpm build` with no stale dist artefacts | Dev | **DONE** (verified by senior dev) |
 
 **Not required for MVP** (required for full Azure deployment in Phase 0a):
@@ -239,7 +239,7 @@ Ship the AgentFlow Client Hub as a production application for use with real clie
 
 1. Deploy to a public URL with HTTPS (MVP: Google Cloud Run; Production: Azure App Service)
 2. Connect to PostgreSQL (MVP: Supabase; Production: Azure Database for PostgreSQL)
-3. Implement all 67 remaining 501-stubbed endpoints
+3. Implement all 63 remaining placeholder endpoints
 4. Integrate Microsoft Graph API for email and calendar features
 5. Add AI-powered client intelligence features
 
@@ -259,7 +259,12 @@ Ship the AgentFlow Client Hub as a production application for use with real clie
 
 ## Endpoint Inventory (Source of Truth)
 
-Audited by reading every handler registration in `middleware/src/routes/*.ts` — counting `router.get/post/patch/delete/put` calls and classifying each as real (has logic) or 501 stub (returns 501/send501).
+Audited by reading route registrations in `middleware/src/routes/*.ts` and classifying each as real (has logic) or placeholder (returns 501/send501).
+
+**Scope note:** This table tracks the 115-endpoint contract surface for planning continuity. It intentionally excludes:
+- 9 Phase 1.5 endpoints (`portal-contacts.route.ts` + `portal-verification.route.ts`)
+- legacy `POST /hubs/:hubId/portal/invite` placeholder in `portal.route.ts`
+- `/health` operational endpoints
 
 **Integrity rule:** This table MUST be re-verified before each phase ships. A CI check (`npm run verify-endpoints`) counts `send501`/`res.status(501)` in route files and fails if this table drifts from the codebase. The CI check is a Phase 0b deliverable (required before Phase 1 execution, not required for MVP go-live).
 
@@ -271,7 +276,7 @@ Audited by reading every handler registration in `middleware/src/routes/*.ts` �
 | proposals.route.ts | 3 | 2 | 5 | Upload + engagement stubbed |
 | videos.route.ts | 6 | 2 | 8 | Upload + engagement stubbed |
 | projects.route.ts | 8 | 0 | 8 | Fully implemented (incl. milestones) |
-| portal.route.ts | 4 | 6 | 10 | GET videos/documents/proposal/status-updates real; comment, messages, meetings, members, invite, questionnaires stubbed |
+| portal.route.ts | 4 | 6 | 10 | GET videos/documents/proposal/status-updates real; contract stubs: comment, messages, meetings, members, questionnaires. `POST /portal/invite` exists in file as a legacy 501 endpoint but is excluded from contract totals. |
 | status-updates.route.ts | 2 | 0 | 2 | POST + GET (staff-only, append-only) |
 | portal-config.route.ts | 2 | 0 | 2 | Fully implemented |
 | events.route.ts | 3 | 0 | 3 | Fully implemented (incl. leadership event) |
@@ -286,16 +291,18 @@ Audited by reading every handler registration in `middleware/src/routes/*.ts` �
 | conversion.route.ts | 1 | 1 | 2 | POST convert real; POST rollback stubbed |
 | **TOTAL** | **52** | **63** | **115** | **45% real, 55% stubbed** |
 
-**Corrections from v3:** projects (8 not 9), documents (5/2/7 not 5/3/8), videos (6/2/8 not 6/3/9), portal (3/7/10 not 3/5/8), meetings (0/9/9 not 0/10/10), members (0/8/8 not 0/11/11 — dead `acceptInviteRouter` deleted, live version in public.route.ts), questionnaires (0/6/6 not 0/7/7). Net: 67 stubs to implement (was 72 in v3).
+Including excluded routes, mounted `/api/v1` surface today is **125 endpoints** (**61 real**, **64 placeholders**). Adding `/health` yields 128 total route handlers.
 
-**v5.2 changes:** Added status-updates.route.ts (2 new real endpoints). Portal status-updates endpoint moved from stub to real (portal.route.ts: 4 real / 6 stub). Total: 115 endpoints (52 real, 63 stubs).
+**Corrections from v3:** projects (8 not 9), documents (5/2/7 not 5/3/8), videos (6/2/8 not 6/3/9), portal (3/7/10 not 3/5/8), meetings (0/9/9 not 0/10/10), members (0/8/8 not 0/11/11 — dead `acceptInviteRouter` deleted, live version in public.route.ts), questionnaires (0/6/6 not 0/7/7). Net at v4.1: 67 stubs (from 72 in v3). Current (v5.2+): 63 contract placeholders.
+
+**v5.2 changes:** Added status-updates.route.ts (2 new real endpoints). Portal status-updates endpoint moved from stub to real (portal contract counts: 4 real / 6 placeholder). Total contract inventory: 115 endpoints (52 real, 63 placeholders).
 
 **Stub-to-phase assignment** (every stub accounted for):
 
 | Phase | Route file stubs owned | Count |
 |-------|----------------------|-------|
 | Phase 1 (Files) | documents:upload, proposals:upload, videos:upload | 3 |
-| Phase 2 (Members) | members:4 member + 1 share-link (invite 3 done), portal:members+invite, public:invite-accept | 8 |
+| Phase 2 (Members) | members:4 member + 1 share-link (invite 3 done), portal:members, public:invite-accept | 7 |
 | Phase 3 (Questionnaires) | questionnaires:all 6, portal:questionnaires | 7 |
 | Phase 4 (Engagement) | documents:engagement, proposals:engagement, videos:engagement, leadership:at-risk+expansion+refresh | 6 |
 | Phase 6 (Messages) | messages:all 5, portal:messages(GET+POST) | 7 |
@@ -562,7 +569,7 @@ Security:
 - Contact existence required before JWT minting
 - Device tokens: 32 random bytes, SHA-256 hashed in DB, 90-day expiry
 
-Tests: 141 tests across 10 files (33 for Phase 1.5, 21 for invite endpoints)
+Tests: 159 tests across 11 files (includes Phase 2b status update coverage)
 
 **Dependencies:** Resend API key (configured in GCP Secret Manager). No dependency on Phase 0a or Phase 5.
 
@@ -649,7 +656,7 @@ Cloud Build:
 **What's to be built:**
 - New tables: `hub_member`, `hub_session` (all with `tenant_id`) — `hub_invite` already exists
 - 5 remaining endpoints in members.route.ts: list, activity, update, delete members; share link
-- Plus 2 portal stubs: portal:members, portal:invite
+- Plus 1 contract portal stub: portal:members (`portal:invite` remains a legacy/deprecated 501 route)
 - Plus 1 public stub: public:invite-accept (the live invite-accept handler)
 - Hub access middleware updated to check member session (alongside existing password check)
 
@@ -662,7 +669,7 @@ Cloud Build:
 - Cross-hub member access denied (negative test)
 - Replayed magic link tokens rejected (negative test)
 
-**Stub endpoints resolved:** members:4 member + 1 share-link (5), portal:members+invite (2), public:invite-accept (1) = **8 stubs**
+**Stub endpoints resolved (contract inventory):** members:4 member + 1 share-link (5), portal:members (1), public:invite-accept (1) = **7 stubs**
 
 **Dependencies:** Phase 0a. Soft dependency on Phase 5 (OBO) or transactional email API key (already configured for Resend).
 
@@ -965,7 +972,7 @@ Cloud Build:
 
 ### Current state (as of 24 Feb 2026)
 
-**Both services are LIVE on Cloud Run.** The MVP is deployed and working. Portal invite endpoints (Phase 2a) are the most recent addition — deployed 24 Feb 2026.
+**Both services are LIVE on Cloud Run.** The MVP is deployed and working. Status updates (Phase 2b) are the most recent addition — deployed 24 Feb 2026.
 
 **Repos:**
 - Frontend assembler: `goagentflow/AFv2` (builds the unified nginx image)
@@ -976,11 +983,11 @@ Cloud Build:
 - Frontend: `https://www.goagentflow.com/clienthub/`
 - Middleware: `https://clienthub-api-axiw2ydgeq-uc.a.run.app`
 
-**Test status:** 141 tests across 10 files, all passing.
+**Test status:** 159 tests across 11 files, all passing.
 
-### IMMEDIATE NEXT STEP: Browser test the invite flow
+### IMMEDIATE NEXT STEP: Browser test invite + status-update flows
 
-The invite endpoints are deployed but have not been browser-tested end-to-end yet. This is the critical next task.
+Invite endpoints and status-update workflows are deployed; run an end-to-end browser pass to verify happy-path UX and regressions in production.
 
 **Test plan:**
 1. Log in at `https://www.goagentflow.com/clienthub/` via Azure AD (Microsoft login)
@@ -1110,4 +1117,5 @@ Note: `created_source` must be `'claude_sql'` (not default `'staff_ui'`). Compos
 | v5.0 | 23 Feb 2026 | Phase 1.5 smoke test complete + two bug fixes deployed: (1) Browser smoke test passed all 5 checks — staff setup, email verification flow, device remember-me auto-unlock, negative tests (unauthorised email uniform response, wrong code rejection, lockout after 3 failures), backwards compatibility; (2) Fixed portal-preview endpoint response shape (wrapped in `{data: ...}` to match public portal-meta); (3) Fixed UnauthorizedHandler redirecting portal routes to /login (now skips `/portal/` paths); (4) Seeded production tenant record for Azure AD tenant; (5) Both middleware and frontend redeployed to Cloud Run. |
 | v5.1 | 24 Feb 2026 | Phase 2a (Portal Invite Endpoints) implemented, reviewed, and deployed: (1) HubInvite model added to Prisma schema with unique(hubId, email) and composite index; (2) hub_invite table created in Supabase via raw SQL (prisma db push fails due to CRM cross-schema refs); (3) 3 invite endpoints in members.route.ts — POST (create/re-invite with zod validation, domain check, email normalisation, interactive transaction, fire-and-forget email), GET (pending non-expired), DELETE (revoke with cascade); (4) sendPortalInvite() added to email.service.ts with branded HTML; (5) INVITE_SELECT excludes token from responses; (6) RESEND_API_KEY added to cloudbuild-middleware.yaml; (7) Frontend type updated (token removed, message added); (8) 21 new tests across 2 files + shared fixtures (141 total, 10 files); (9) hubs.route.ts portal-preview bug fixed; (10) 3 rounds automated review + external senior dev review, all findings addressed (hub-scoped DELETE, frontend type drift, test coverage, pre-existing test failure); (11) Middleware redeployed to Cloud Run. Browser test of invite flow pending. |
 | v5.2 | 24 Feb 2026 | Phase 2b (Status Updates) implemented, reviewed, and deployed: (1) HubStatusUpdate model added to Prisma schema; (2) Raw SQL migration (`prisma/sql/001_hub_status_update.sql`) with composite FK `(hub_id, tenant_id)`, CHECK constraints (non-empty fields, length limits ≤200/≤5000, on_track enum), and append-only triggers (UPDATE/DELETE blocked); (3) `db:migrate:sql` and `db:migrate:all` scripts added to package.json with fail-fast error handling; (4) Staff-only POST + GET routes in `status-updates.route.ts` with `requireString()` type guard, length limits, strict onTrack validation, server-derived createdBy/createdSource; (5) Portal GET route added to `portal.route.ts` with `mapStatusUpdateForPortal()` stripping tenantId + createdSource; (6) Shared query service `status-update-queries.ts` (neutral module, no auth/HTTP); (7) Frontend: `CreateStatusUpdateDialog.tsx` (staff form), `StatusUpdateCard.tsx` (portal card with accumulative load-more pagination, stale-state reset on hub change), React Query hooks with broadened cache invalidation; (8) `QuickStatCard.tsx` and `ClientHubOverviewPage.tsx` extracted for file-length compliance; (9) 15 status-update tests (validation, auth, portal positive-path with field redaction assertion); (10) 159 total tests across 11 files; (11) 3 rounds internal review + 2 rounds external review, all findings addressed; (12) Both services redeployed to Cloud Run + SQL migration run against prod. |
+| v5.3 | 24 Feb 2026 | Documentation sync pass: (1) added `docs/CURRENT_STATE.md` as canonical live-vs-aspirational source; (2) aligned README + STATUS + roadmap references; (3) corrected stale counts/phrasing (tests, latest phase wording, remaining placeholder count); (4) added historical banners on outdated planning docs to prevent cold-dev confusion. |
 | v4.9 | 23 Feb 2026 | Phase 1.5 (Portal Email Verification) implemented and deployed: (1) 3 new Prisma models (PortalContact, PortalVerification, PortalDevice) + Hub.accessMethod field; (2) 4 public endpoints (access-method, request-code, verify-code, verify-device) with rate limiting and enumeration prevention; (3) 5 staff endpoints (portal contacts CRUD + access method management) with tenant isolation; (4) Email via Resend REST API (fire-and-forget, XSS-safe templates); (5) Frontend EmailGate + PortalContactsCard + PortalDetail access-method routing; (6) SHA-256 hashed codes, timing-safe comparison, per-code lockout; (7) Device token remember-me (90-day, localStorage); (8) Method-switch side-effects (clear passwordHash on open, revoke artifacts on method change); (9) 120 tests across 7 files; (10) 3 rounds automated review + 3 rounds external senior dev review; (11) CLIENTHUB_RESEND_API_KEY added to GCP Secret Manager; (12) Both services redeployed to Cloud Run. Browser smoke test pending. |

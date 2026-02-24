@@ -2,6 +2,9 @@
 
 **Last Updated:** 24 February 2026
 
+> **Note:** This file is an implementation log.  
+> For canonical "what is live vs aspirational" status, read `docs/CURRENT_STATE.md` first.
+
 ---
 
 ## What is AgentFlow Client Hub?
@@ -15,10 +18,11 @@ AgentFlow Client Hub is a client relationship portal built on Microsoft 365. It 
 ```
 Frontend (React/Vite/TypeScript)
   ├── Azure AD login via MSAL.js (code-complete)
-  ├── Portal access via password-protected JWT tokens
+  ├── Portal access via JWT tokens (password, email verification, or open mode)
   └── All data fetched through middleware API
 
-Middleware (Express/TypeScript) — 115 endpoints (52 real, 63 stubbed)
+Middleware (Express/TypeScript) — contract inventory 115 endpoints (52 real, 63 stubbed)
+  ├── Additional live non-contract endpoints: 9 (portal contacts/access-method + public email verification)
   ├── Auth: Azure AD JWT (RS256 via jose) + portal JWT (HS256) + demo headers
   ├── Config: AUTH_MODE (azure_ad | demo) + DATA_BACKEND (azure_pg)
   ├── Database: Prisma 6 ORM (PostgreSQL via DATABASE_URL)
@@ -206,7 +210,7 @@ Append-only fortnightly status updates for client hubs. Staff create updates via
 ## Developer Setup
 
 ### Prerequisites
-- Node.js 18+ (install with [nvm](https://github.com/nvm-sh/nvm))
+- Node.js 20+ (install with [nvm](https://github.com/nvm-sh/nvm))
 - pnpm (`npm install -g pnpm`)
 
 ### Frontend
@@ -238,10 +242,10 @@ pnpm test               # 159 tests across 11 files
 
 ## Next Actions
 
-1. **Deploy MVP to Cloud Run** — Frontend added to existing goagentflow.com deployment, middleware as separate Cloud Run service
-2. **Connect Supabase PostgreSQL** — Set `DATABASE_URL` to Supabase PG, run `prisma db push` to create schema
-3. **Build `npm run verify-endpoints` CI check** — Automated stub count verification
-4. **Phase 0a infrastructure (when scaling)** — Create full Azure services when ready to move beyond MVP
+1. **Implement remaining placeholder endpoint families** — Start with Phase 1 uploads and Phase 3+ business-critical flows
+2. **Add `npm run verify-endpoints` script + CI enforcement** — Keep inventory counts aligned with code
+3. **Keep docs in lockstep** — Update `docs/CURRENT_STATE.md` + `docs/PRODUCTION_ROADMAP.md` whenever endpoint status changes
+4. **Phase 0a infrastructure (when scaling)** — Execute Azure cutover when moving beyond MVP constraints
 
 ---
 
@@ -250,10 +254,11 @@ pnpm test               # 159 tests across 11 files
 | Document | Purpose |
 |----------|---------|
 | `README.md` | Project overview and setup |
+| `docs/CURRENT_STATE.md` | Canonical live vs aspirational state |
 | `AGENTS.md` | Architecture canon and coding standards |
 | `GOLDEN_RULES.md` | Coding standards |
 | `docs/PRODUCTION_ROADMAP.md` | Detailed phase plan with endpoint inventory |
-| `docs/API_SPECIFICATION.md` | Complete 113-endpoint API contract |
-| `docs/middleware/MSAL_AUTH_IMPLEMENTATION_PLAN.md` | Auth design (approved by senior dev) |
-| `docs/PHASE_2_CLIENT_HUBS.md` | Phase 2 specification |
-| `docs/Vision_and_Assumptions.md` | Product vision |
+| `docs/API_SPECIFICATION.md` | Historical aspirational API contract draft |
+| `docs/middleware/MSAL_AUTH_IMPLEMENTATION_PLAN.md` | Historical auth transition plan (pre-`AUTH_MODE`) |
+| `docs/PHASE_2_CLIENT_HUBS.md` | Historical Phase 2 goal-state specification |
+| `docs/Vision_and_Assumptions.md` | Product vision and long-horizon assumptions |

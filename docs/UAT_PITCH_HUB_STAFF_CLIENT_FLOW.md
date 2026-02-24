@@ -1,5 +1,9 @@
 # UAT Plan: Pitch Hub — Staff-to-Client Flow
 
+> **HISTORICAL DOCUMENT (pre-Phase 0b/2b).**
+> This plan references `DEMO_MODE` and SharePoint-adapter assumptions that are no longer the active architecture.
+> Use `docs/CURRENT_STATE.md` for live-vs-aspirational behavior and `docs/PRODUCTION_ROADMAP.md` for current sequencing.
+
 ## Context
 
 We've just completed Phase 1 (Azure AD app registrations) and Phases 2+3 (MSAL auth code) are committed. This UAT plan covers the end-to-end pitch-to-client journey — what works today and what's still to come.

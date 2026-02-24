@@ -9,16 +9,16 @@ Two hub types, each with staff and client views:
 - **Pitch Hubs** — Managing new business pitches (proposals, videos, documents, meetings)
 - **Client Hubs** — Ongoing client relationships (projects, status updates, health scoring, expansion opportunities)
 
-The frontend wireframe is complete for both hub types. The middleware API layer (113 endpoints) is in active development, with Azure AD authentication code-complete.
+The frontend wireframe is largely complete for both hub types. Some client-portal routes intentionally show "Coming Soon" placeholders where backend capabilities are still in development. The middleware API layer is in active development, with production deployment live for the implemented subset.
 
 ## New Developer? Start Here
 
 1. **`README.md`** — You're here. Setup instructions and project overview.
-2. **`progress/STATUS.md`** — Where the project is now, full roadmap, key decisions.
-3. **`AGENTS.md`** — Architecture canon and coding standards.
-4. **`docs/PRODUCTION_ROADMAP.md`** — Detailed phase plan with endpoint inventory.
-5. **`docs/API_SPECIFICATION.md`** — Complete API contract (113 endpoints).
-6. **`docs/middleware/MSAL_AUTH_IMPLEMENTATION_PLAN.md`** — Auth design (if working on auth).
+2. **`docs/CURRENT_STATE.md`** — Canonical live-vs-aspirational status.
+3. **`docs/PRODUCTION_ROADMAP.md`** — Detailed phase plan and endpoint inventory.
+4. **`progress/STATUS.md`** — Implementation log and decisions history.
+5. **`AGENTS.md`** — Architecture canon and coding standards.
+6. **`docs/API_SPECIFICATION.md`** — Historical aspirational API contract draft (not source of truth for live behavior).
 
 ## Tech Stack
 
@@ -41,13 +41,13 @@ The frontend wireframe is complete for both hub types. The middleware API layer 
 ## Development
 
 ### Prerequisites
-- Node.js 18+ — [install with nvm](https://github.com/nvm-sh/nvm)
+- Node.js 20+ — [install with nvm](https://github.com/nvm-sh/nvm)
 - pnpm — `npm install -g pnpm`
 
 ### Frontend
 ```sh
 git clone <REPO_URL>
-cd agentflow-pitch-hub-wireframe
+cd client-hub
 npm install
 npm run dev              # http://localhost:5173
 ```
@@ -80,7 +80,7 @@ pnpm test                # 159 tests across 11 files
   /src
     /config                 # Environment config (AUTH_MODE, DATA_BACKEND)
     /middleware              # Auth, hub-access, inject-repository
-    /routes                 # 113 API endpoints
+    /routes                 # API route modules (real + placeholder endpoints)
     /adapters               # Data layer adapters
     /db                     # Prisma client, TenantRepository, AdminRepository
   /prisma
@@ -110,13 +110,14 @@ pnpm test                # 159 tests across 11 files
 
 ## Current Status
 
-MVP LIVE on Cloud Run + Supabase PostgreSQL. Phase 0b (codebase refactor), Phase 1.5 (portal email verification), Phase 2a (invite endpoints), and Phase 2b (status updates) all complete and deployed. 52 real endpoints, 63 stubs remaining. See `progress/STATUS.md` for full details.
+MVP is live on Cloud Run + Supabase PostgreSQL. Phase 0b (codebase refactor), Phase 1.5 (portal email verification), Phase 2a (invite endpoints), and Phase 2b (status updates) are complete and deployed. For exact live-vs-aspirational behavior, read `docs/CURRENT_STATE.md`.
 
 ## Key Documents
 
+- [docs/CURRENT_STATE.md](./docs/CURRENT_STATE.md) — Canonical live vs aspirational state
 - [progress/STATUS.md](./progress/STATUS.md) — Master project status and roadmap
 - [AGENTS.md](./AGENTS.md) — Architecture canon and coding standards
 - [docs/PRODUCTION_ROADMAP.md](./docs/PRODUCTION_ROADMAP.md) — Detailed phase plan
-- [docs/API_SPECIFICATION.md](./docs/API_SPECIFICATION.md) — Complete API contract
-- [docs/PHASE_2_CLIENT_HUBS.md](./docs/PHASE_2_CLIENT_HUBS.md) — Phase 2 specification
-- [docs/Vision_and_Assumptions.md](./docs/Vision_and_Assumptions.md) — Product vision
+- [docs/API_SPECIFICATION.md](./docs/API_SPECIFICATION.md) — Historical aspirational API contract draft
+- [docs/PHASE_2_CLIENT_HUBS.md](./docs/PHASE_2_CLIENT_HUBS.md) — Historical Phase 2 product spec (goal-state)
+- [docs/Vision_and_Assumptions.md](./docs/Vision_and_Assumptions.md) — Product vision and long-horizon assumptions

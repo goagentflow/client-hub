@@ -1,5 +1,9 @@
 # Phase 2: Client Hub Expansion
 
+> **HISTORICAL PRODUCT SPEC (wireframe goal-state).**
+> This document captures Phase 2 design intent and should not be used as the source of truth for what is currently wired in middleware.
+> Use `docs/CURRENT_STATE.md` for live behavior and `docs/PRODUCTION_ROADMAP.md` for implementation status.
+
 **Document Version:** 1.3
 **Last Updated:** November 2025
 **Status:** Planning Complete — Ready for Implementation

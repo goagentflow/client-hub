@@ -2,6 +2,10 @@
 
 ## Product Vision & Technical Assumptions
 
+> **VISION DOCUMENT, NOT IMPLEMENTATION STATUS.**
+> This file contains long-horizon product assumptions and historical architecture context.
+> For current live-vs-aspirational implementation state, use `docs/CURRENT_STATE.md`.
+
 **November 2025** (Updated: Phase 2 Complete)
 
 *This document outlines the full product vision for AgentFlow Hubs, explains the current implementation status, and documents the technical assumptions for middleware development.*

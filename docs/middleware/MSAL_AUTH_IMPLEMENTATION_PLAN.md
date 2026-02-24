@@ -1,5 +1,9 @@
 # MSAL JWT Authentication — Implementation Plan
 
+> **HISTORICAL PLANNING DOCUMENT.**
+> This file describes an earlier transition plan using `DEMO_MODE` and SharePoint-adapter assumptions.
+> Current implementation uses `AUTH_MODE` + Prisma/PostgreSQL. For present-day behavior, use `docs/CURRENT_STATE.md` and `docs/PRODUCTION_ROADMAP.md`.
+
 **Status:** Proposed (v4 — addresses 12 findings from three rounds of senior dev review)
 **Prerequisite:** P1 plan complete (all 13 priorities shipped, reviewed, approved)
 **Removes:** DEMO_MODE deployment gate in `middleware/src/config/env.ts`

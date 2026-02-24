@@ -1,5 +1,9 @@
 # AgentFlow Pitch Hub - API Specification v1.2
 
+> **HISTORICAL API CONTRACT DRAFT.**
+> This file contains aspirational and partially outdated endpoint contracts and should not be treated as the source of truth for live behavior.
+> Use `docs/CURRENT_STATE.md` for live-vs-aspirational status and `docs/PRODUCTION_ROADMAP.md` for tracked endpoint inventory.
+
 This document defines the complete API contract between the AgentFlow front-end and Stephen's Microsoft 365 middleware. The front-end is fully wired up to call these endpoints — middleware just needs to implement them.
 
 ---
