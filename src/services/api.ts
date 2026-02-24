@@ -75,7 +75,9 @@ function buildUrl(endpoint: string, params?: Record<string, string>): string {
 // and PortalDetail.tsx route config.
 const PORTAL_ENDPOINT_PATTERNS = [
   /^\/public\//,                                    // public endpoints (portal-meta, verify-password)
-  /^\/hubs\/[^/]+\/portal(?:\/|$)/,                 // portal sub-routes
+  /^\/hubs\/[^/]+$/,                                // hub detail
+  /^\/hubs\/[^/]+\/portal(?:-config|\/|$)/,          // portal sub-routes + portal-config
+  /^\/hubs\/[^/]+\/activity(?:\/|$)/,                // activity feed
   /^\/hubs\/[^/]+\/instant-answer(?:\/|$)/,          // client intelligence: instant answers
   /^\/hubs\/[^/]+\/decision-queue(?:\/|$)/,          // client intelligence: decision queue
   /^\/hubs\/[^/]+\/performance(?:\/|$)/,             // client intelligence: performance narratives
@@ -101,46 +103,48 @@ async function apiFetch<T>(
     ...(options.headers as Record<string, string>),
   };
 
-  // --- Token injection (strict order) ---
+  // --- Token injection ---
+  // Portal routes: portal token takes priority (staff dev headers would be ignored
+  // by middleware in production and would block portal token injection).
+  // Staff routes: MSAL token or dev header as before.
   let usedPortalToken = false;
   let portalHubIdForCleanup: string | null = null;
 
-  // Step 1: Resolve staff token (MSAL or dev header)
-  if (getAccessToken) {
-    const token = await getAccessToken();
-    if (token) {
-      headers["Authorization"] = `Bearer ${token}`;
+  // Step 1: If on a portal route with a valid portal token, use it first
+  const portalMatch = window.location.pathname.match(PORTAL_PATH_RE);
+  if (portalMatch) {
+    const portalHubId = portalMatch[1];
+    const portalToken = sessionStorage.getItem(`portal_token_${portalHubId}`);
+    if (portalToken) {
+      const method = (options.method || 'GET').toUpperCase();
+      const isPortalEndpoint = PORTAL_ENDPOINT_PATTERNS.some(p => p.test(endpoint))
+        || (method === 'POST' && PORTAL_EVENTS_PATTERN.test(endpoint));
+      // Verify endpoint hubId matches page hubId (no cross-hub token sends)
+      const endpointHubMatch = endpoint.match(/^\/hubs\/([^/]+)(\/|$)/);
+      const endpointHubId = endpointHubMatch?.[1];
+      const hubIdMatches = !endpointHubId || endpointHubId === portalHubId;
+
+      if (isPortalEndpoint && hubIdMatches) {
+        headers["Authorization"] = `Bearer ${portalToken}`;
+        usedPortalToken = true;
+        portalHubIdForCleanup = portalHubId;
+      }
+    }
+  }
+
+  // Step 2: If no portal token was used, try staff auth (MSAL or dev header)
+  if (!usedPortalToken) {
+    if (getAccessToken) {
+      const token = await getAccessToken();
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      } else {
+        const email = localStorage.getItem('userEmail');
+        if (email) headers['X-Dev-User-Email'] = email;
+      }
     } else {
       const email = localStorage.getItem('userEmail');
       if (email) headers['X-Dev-User-Email'] = email;
-    }
-  } else {
-    const email = localStorage.getItem('userEmail');
-    if (email) headers['X-Dev-User-Email'] = email;
-  }
-
-  // Step 2: Portal token — only if NO staff auth was set above (Bearer OR dev header)
-  const hasStaffAuth = !!headers["Authorization"] || !!headers["X-Dev-User-Email"];
-  if (!hasStaffAuth) {
-    const portalMatch = window.location.pathname.match(PORTAL_PATH_RE);
-    if (portalMatch) {
-      const portalHubId = portalMatch[1];
-      const portalToken = sessionStorage.getItem(`portal_token_${portalHubId}`);
-      if (portalToken) {
-        const method = (options.method || 'GET').toUpperCase();
-        const isPortalEndpoint = PORTAL_ENDPOINT_PATTERNS.some(p => p.test(endpoint))
-          || (method === 'POST' && PORTAL_EVENTS_PATTERN.test(endpoint));
-        // Verify endpoint hubId matches page hubId (no cross-hub token sends)
-        const endpointHubMatch = endpoint.match(/^\/hubs\/([^/]+)\//);
-        const endpointHubId = endpointHubMatch?.[1];
-        const hubIdMatches = !endpointHubId || endpointHubId === portalHubId;
-
-        if (isPortalEndpoint && hubIdMatches) {
-          headers["Authorization"] = `Bearer ${portalToken}`;
-          usedPortalToken = true;
-          portalHubIdForCleanup = portalHubId;
-        }
-      }
     }
   }
 
