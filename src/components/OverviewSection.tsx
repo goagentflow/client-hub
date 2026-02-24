@@ -177,7 +177,7 @@ export function OverviewSection() {
       <div className="text-center">
         <button
           className="text-sm text-[hsl(var(--medium-grey))] hover:text-[hsl(var(--gradient-blue))] inline-flex items-center gap-2"
-          onClick={() => window.open(`/portal/${hubId}/overview`, "_blank")}
+          onClick={() => window.open(`${import.meta.env.BASE_URL}portal/${hubId}/overview`, "_blank")}
         >
           See what {hub.contactName.split(" ")[0]} sees
           <ArrowRight className="w-4 h-4" />
