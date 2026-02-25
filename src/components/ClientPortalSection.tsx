@@ -26,6 +26,8 @@ import {
   useMembers,
   useInvites,
   useCreateInvite,
+  useRevokeInvite,
+  useRemoveMember,
   useProposal,
   useQuestionnaires,
   useTrackEngagement,
@@ -47,6 +49,8 @@ export function ClientPortalSection() {
   const hubId = useHubId();
   const { toast } = useToast();
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
+  const [removingMemberId, setRemovingMemberId] = useState<string | null>(null);
+  const [revokingInviteId, setRevokingInviteId] = useState<string | null>(null);
 
   // Data hooks
   const { data: overview, isLoading: loadingOverview } = useHubOverview(hubId);
@@ -62,6 +66,8 @@ export function ClientPortalSection() {
   const { mutate: unpublishPortal, isPending: isUnpublishing } = useUnpublishPortal(hubId);
   const { mutate: deleteHub, isPending: isDeletingHub } = useDeleteHub();
   const { mutate: createInvite, isPending: isInviting } = useCreateInvite(hubId);
+  const { mutate: revokeInvite } = useRevokeInvite(hubId);
+  const { mutate: removeMember } = useRemoveMember(hubId);
 
   // Engagement tracking
   const { trackHubViewed } = useTrackEngagement(hubId);
@@ -134,6 +140,46 @@ export function ClientPortalSection() {
       onError: (err) => {
         toast({ title: "Could not delete hub", description: err.message, variant: "destructive" });
       },
+    });
+  };
+
+  const handleRevokeInvite = (inviteId: string, email: string) => {
+    setRevokingInviteId(inviteId);
+    revokeInvite(inviteId, {
+      onSuccess: () => {
+        toast({
+          title: "Invite revoked",
+          description: `${email} no longer has pending access.`,
+        });
+      },
+      onError: (err) => {
+        toast({
+          title: "Could not revoke invite",
+          description: err.message,
+          variant: "destructive",
+        });
+      },
+      onSettled: () => setRevokingInviteId(null),
+    });
+  };
+
+  const handleRemoveClient = (memberId: string, email: string) => {
+    setRemovingMemberId(memberId);
+    removeMember(memberId, {
+      onSuccess: () => {
+        toast({
+          title: "Client access removed",
+          description: `${email} has been removed from this hub.`,
+        });
+      },
+      onError: (err) => {
+        toast({
+          title: "Could not remove client",
+          description: err.message,
+          variant: "destructive",
+        });
+      },
+      onSettled: () => setRemovingMemberId(null),
     });
   };
 
@@ -268,6 +314,10 @@ export function ClientPortalSection() {
               portalUrl={portalUrl}
               onInviteClient={() => setInviteDialogOpen(true)}
               onCopyLink={handleCopyLink}
+              onRevokeInvite={handleRevokeInvite}
+              onRemoveClient={handleRemoveClient}
+              revokingInviteId={revokingInviteId}
+              removingMemberId={removingMemberId}
             />
 
             <Card>

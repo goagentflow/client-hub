@@ -1,4 +1,4 @@
-import { Send, Copy } from "lucide-react";
+import { Send, Copy, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -12,6 +12,10 @@ interface ClientAccessCardProps {
   portalUrl: string;
   onInviteClient: () => void;
   onCopyLink: () => void;
+  onRemoveClient?: (memberId: string, email: string) => void;
+  onRevokeInvite?: (inviteId: string, email: string) => void;
+  removingMemberId?: string | null;
+  revokingInviteId?: string | null;
 }
 
 const formatDate = (isoDate: string) => {
@@ -32,7 +36,17 @@ const formatRelativeTime = (isoDate: string | null) => {
   return `${diffDays} days ago`;
 };
 
-export function ClientAccessCard({ members, invites, portalUrl, onInviteClient, onCopyLink }: ClientAccessCardProps) {
+export function ClientAccessCard({
+  members,
+  invites,
+  portalUrl,
+  onInviteClient,
+  onCopyLink,
+  onRemoveClient,
+  onRevokeInvite,
+  removingMemberId,
+  revokingInviteId,
+}: ClientAccessCardProps) {
   const clientMembers = members.filter((m) => m.role === "client");
   const pendingInvites = invites.filter((i) => i.status === "pending");
 
@@ -53,7 +67,25 @@ export function ClientAccessCard({ members, invites, portalUrl, onInviteClient, 
                   Joined {formatDate(client.joinedAt)} • Last active: {formatRelativeTime(client.lastActiveAt)}
                 </div>
               </div>
-              <Badge className="bg-[hsl(var(--sage-green))]">Active</Badge>
+              <div className="flex items-center gap-2">
+                <Badge className="bg-[hsl(var(--sage-green))]">Active</Badge>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-destructive border-destructive/40 hover:bg-destructive/10"
+                  onClick={() => onRemoveClient?.(client.id, client.email)}
+                  disabled={!onRemoveClient || removingMemberId === client.id}
+                >
+                  {removingMemberId === client.id ? (
+                    <span className="inline-flex items-center gap-1">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      Removing...
+                    </span>
+                  ) : (
+                    "Remove"
+                  )}
+                </Button>
+              </div>
             </div>
           ))}
 
@@ -65,7 +97,25 @@ export function ClientAccessCard({ members, invites, portalUrl, onInviteClient, 
                   Invited {formatDate(invite.invitedAt)} • Not yet logged in
                 </div>
               </div>
-              <Badge className="bg-amber-500">Pending</Badge>
+              <div className="flex items-center gap-2">
+                <Badge className="bg-amber-500">Pending</Badge>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-destructive border-destructive/40 hover:bg-destructive/10"
+                  onClick={() => onRevokeInvite?.(invite.id, invite.email)}
+                  disabled={!onRevokeInvite || revokingInviteId === invite.id}
+                >
+                  {revokingInviteId === invite.id ? (
+                    <span className="inline-flex items-center gap-1">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      Revoking...
+                    </span>
+                  ) : (
+                    "Revoke"
+                  )}
+                </Button>
+              </div>
             </div>
           ))}
 

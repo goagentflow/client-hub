@@ -37,6 +37,7 @@ const pitchNavItems = [
 // Order: only live sections shown in the staff UI.
 const clientNavItems = [
   { title: "Overview", path: "overview", icon: Home },
+  { title: "Client Portal", path: "client-portal", icon: Globe },
   { title: "Projects", path: "projects", icon: FolderKanban },
   { title: "Documents", path: "documents", icon: Folder },
   { title: "Messages", path: "messages", icon: Mail },
