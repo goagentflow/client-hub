@@ -3,7 +3,7 @@
  *
  * - PDF: rendered via <iframe>
  * - Image (JPEG, PNG, GIF, WebP): rendered via <img>
- * - Office docs: Google Docs Viewer behind VITE_ENABLE_GVIEW_PREVIEW flag (disabled by default)
+ * - Office docs (Word, Excel, PowerPoint): Microsoft Office Online embed viewer (same as pitch hub proposals)
  * - Other: fallback panel with Download + Open in new tab actions
  *
  * Fetches a preview URL from the /preview endpoint (does NOT increment downloads).
@@ -15,7 +15,8 @@ import { FileText, Download, ExternalLink, RefreshCw, Loader2 } from "lucide-rea
 import { Button } from "@/components/ui/button";
 import { getDocumentPreviewUrl } from "@/services/document.service";
 
-const GVIEW_ENABLED = import.meta.env.VITE_ENABLE_GVIEW_PREVIEW === "true";
+/** Office Online embed viewer — same service used by ProposalSlideViewer in pitch hubs. */
+const OFFICE_VIEWER_BASE = "https://view.officeapps.live.com/op/embed.aspx?src=";
 
 interface DocumentPreviewRendererProps {
   hubId: string;
@@ -153,14 +154,16 @@ export function DocumentPreviewRenderer({
     );
   }
 
-  // Office docs — feature-flagged Google Docs Viewer
-  if (previewType === "office" && GVIEW_ENABLED) {
-    const gviewUrl = `https://docs.google.com/gview?url=${encodeURIComponent(url)}&embedded=true`;
+  // Office docs — Microsoft Office Online embed (same viewer as pitch hub proposals)
+  if (previewType === "office") {
+    const embedUrl = `${OFFICE_VIEWER_BASE}${encodeURIComponent(url)}`;
     return (
       <iframe
-        src={gviewUrl}
+        src={embedUrl}
         className="w-full aspect-[4/3] rounded-lg border"
         title="Document preview"
+        sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+        allowFullScreen
       />
     );
   }
