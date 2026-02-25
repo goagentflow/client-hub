@@ -121,6 +121,31 @@ export async function sendClientReplyNotification(
   );
 }
 
+export async function sendPortalAccessRequestNotification(
+  to: string,
+  details: {
+    requesterName: string;
+    requesterEmail: string;
+    requestedEmail: string;
+    hubName: string;
+    hubUrl: string;
+    requestNote?: string;
+  },
+): Promise<void> {
+  await sendEmail(
+    to,
+    `Portal access request for ${escapeHtml(details.hubName)}`,
+    buildPortalAccessRequestHtml({
+      requesterName: escapeHtml(details.requesterName),
+      requesterEmail: escapeHtml(details.requesterEmail),
+      requestedEmail: escapeHtml(details.requestedEmail),
+      hubName: escapeHtml(details.hubName),
+      hubUrl: escapeHtml(details.hubUrl),
+      requestNote: details.requestNote ? escapeHtml(details.requestNote) : undefined,
+    }),
+  );
+}
+
 function buildInviteHtml(hubName: string, inviterName: string, portalUrl: string, message?: string): string {
   const messageBlock = message
     ? `<p style="color: #555; margin-bottom: 24px; padding: 16px; background: #f9f9fb; border-radius: 8px; border-left: 3px solid #6366f1;"><em>"${message}"</em></p>`
@@ -183,6 +208,47 @@ function buildMessageNotificationHtml({
       <div style="text-align: center; margin-bottom: 24px;">
         <a href="${ctaUrl}" style="display: inline-block; padding: 14px 32px; background: #6366f1; color: #fff; text-decoration: none; border-radius: 8px; font-weight: bold;">${ctaLabel}</a>
       </div>
+      <hr style="border: none; border-top: 1px solid #eee; margin: 24px 0;" />
+      <p style="color: #aaa; font-size: 12px;">AgentFlow</p>
+    </div>
+  `.trim();
+}
+
+function buildPortalAccessRequestHtml({
+  requesterName,
+  requesterEmail,
+  requestedEmail,
+  hubName,
+  hubUrl,
+  requestNote,
+}: {
+  requesterName: string;
+  requesterEmail: string;
+  requestedEmail: string;
+  hubName: string;
+  hubUrl: string;
+  requestNote?: string;
+}): string {
+  const noteBlock = requestNote
+    ? `<p style="margin: 0; color: #444;"><strong>Note:</strong> ${requestNote}</p>`
+    : '';
+
+  return `
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 560px; margin: 0 auto; padding: 32px;">
+      <h2 style="color: #1a1a2e; margin-bottom: 8px;">Portal teammate access request</h2>
+      <p style="color: #555; margin-bottom: 16px;">
+        <strong>${requesterName}</strong> (${requesterEmail}) requested access for
+        <strong>${requestedEmail}</strong> in <strong>${hubName}</strong>.
+      </p>
+      ${noteBlock}
+      <div style="text-align: center; margin: 24px 0;">
+        <a href="${hubUrl}" style="display: inline-block; padding: 14px 32px; background: #6366f1; color: #fff; text-decoration: none; border-radius: 8px; font-weight: bold;">
+          Review In Hub
+        </a>
+      </div>
+      <p style="color: #888; font-size: 14px; margin: 0;">
+        Add the teammate from Members/Invites to grant portal message access.
+      </p>
       <hr style="border: none; border-top: 1px solid #eee; margin: 24px 0;" />
       <p style="color: #aaa; font-size: 12px;">AgentFlow</p>
     </div>

@@ -136,3 +136,41 @@ export interface FeedMessage {
 export interface SendFeedMessageRequest {
   body: string;
 }
+
+export type HubAccessMethod = "email" | "password" | "open";
+
+export interface MessageAudienceContact {
+  email: string;
+  name: string | null;
+  source: "portal_contact" | "hub_contact";
+}
+
+export interface MessageAudience {
+  hubId: EntityId;
+  companyName: string;
+  accessMethod: HubAccessMethod;
+  staffAudience: {
+    scope: "staff_role_global";
+    label: string;
+    note: string;
+  };
+  clientAudience: {
+    knownReaders: MessageAudienceContact[];
+    totalKnownReaders: number;
+    isExact: boolean;
+    note: string;
+  };
+}
+
+export interface RequestMessageAccessRequest {
+  email: string;
+  name?: string;
+  note?: string;
+}
+
+export interface RequestMessageAccessResponse {
+  requested: boolean;
+  alreadyHasAccess: boolean;
+  email: string;
+  message: string;
+}

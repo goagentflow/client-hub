@@ -12,6 +12,9 @@ import type {
   SendMessageRequest,
   FeedMessage,
   SendFeedMessageRequest,
+  MessageAudience,
+  RequestMessageAccessRequest,
+  RequestMessageAccessResponse,
   PaginatedList,
   PaginationParams,
   MessageFilterParams,
@@ -70,6 +73,26 @@ const mockFeedMessages: FeedMessage[] = [
     createdAt: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
   },
 ];
+
+const mockAudience: MessageAudience = {
+  hubId: "hub-1",
+  companyName: "Test Co",
+  accessMethod: "email",
+  staffAudience: {
+    scope: "staff_role_global",
+    label: "All AgentFlow staff users with the Staff role",
+    note: "Staff access is role-based today, not a per-hub membership list.",
+  },
+  clientAudience: {
+    knownReaders: [
+      { email: "sarah@whitmorelaw.co.uk", name: "Sarah Mitchell", source: "portal_contact" },
+      { email: "alex@whitmorelaw.co.uk", name: "Alex Carter", source: "portal_contact" },
+    ],
+    totalKnownReaders: 2,
+    isExact: true,
+    note: "Only approved client contacts listed here can access and read this message feed.",
+  },
+};
 
 function sortFeedNewestFirst(a: FeedMessage, b: FeedMessage): number {
   return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
@@ -442,4 +465,43 @@ export async function sendPortalFeedMessage(
   }
 
   return api.post<FeedMessage>(`/hubs/${hubId}/portal/messages`, data);
+}
+
+/**
+ * Get visibility/audience for hub message feed
+ */
+export async function getMessageAudience(
+  hubId: string,
+  opts?: { portal?: boolean }
+): Promise<MessageAudience> {
+  if (isMockApiEnabled()) {
+    await simulateDelay(200);
+    return { ...mockAudience, hubId };
+  }
+
+  const endpoint = opts?.portal
+    ? `/hubs/${hubId}/portal/messages/audience`
+    : `/hubs/${hubId}/messages/audience`;
+
+  return api.get<MessageAudience>(endpoint);
+}
+
+/**
+ * Portal: request access for an additional teammate
+ */
+export async function requestPortalMessageAccess(
+  hubId: string,
+  data: RequestMessageAccessRequest
+): Promise<RequestMessageAccessResponse> {
+  if (isMockApiEnabled()) {
+    await simulateDelay(350);
+    return {
+      requested: true,
+      alreadyHasAccess: false,
+      email: data.email.trim().toLowerCase(),
+      message: "Access request sent to your AgentFlow team.",
+    };
+  }
+
+  return api.post<RequestMessageAccessResponse>(`/hubs/${hubId}/portal/messages/request-access`, data);
 }

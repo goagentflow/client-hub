@@ -18,6 +18,7 @@ import {
 
 const mockSendNewMessageNotification = vi.fn().mockResolvedValue(undefined);
 const mockSendClientReplyNotification = vi.fn().mockResolvedValue(undefined);
+const mockSendPortalAccessRequestNotification = vi.fn().mockResolvedValue(undefined);
 
 vi.mock('../services/email.service.js', async (importOriginal) => {
   const orig = await importOriginal() as Record<string, unknown>;
@@ -25,6 +26,7 @@ vi.mock('../services/email.service.js', async (importOriginal) => {
     ...orig,
     sendNewMessageNotification: (...args: unknown[]) => mockSendNewMessageNotification(...args),
     sendClientReplyNotification: (...args: unknown[]) => mockSendClientReplyNotification(...args),
+    sendPortalAccessRequestNotification: (...args: unknown[]) => mockSendPortalAccessRequestNotification(...args),
   };
 });
 
@@ -48,7 +50,10 @@ beforeEach(() => {
 
   function setRepoDefaults(repo: Record<string, unknown>): void {
     const hub = repo.hub as { findFirst: ReturnType<typeof vi.fn>; update: ReturnType<typeof vi.fn> };
-    const portalContact = repo.portalContact as { findMany: ReturnType<typeof vi.fn> };
+    const portalContact = repo.portalContact as {
+      findMany: ReturnType<typeof vi.fn>;
+      findFirst: ReturnType<typeof vi.fn>;
+    };
     const msg = repo.hubMessage as {
       create: ReturnType<typeof vi.fn>;
       findMany: ReturnType<typeof vi.fn>;
@@ -59,12 +64,15 @@ beforeEach(() => {
       id: 'hub-1',
       companyName: 'Test Co',
       contactEmail: 'owner@test.com',
+      clientDomain: 'test.com',
+      accessMethod: 'email',
     });
     hub.update.mockResolvedValue({ id: 'hub-1' });
     portalContact.findMany.mockResolvedValue([
       { email: 'client1@test.com' },
       { email: 'client2@test.com' },
     ]);
+    portalContact.findFirst.mockResolvedValue(null);
 
     msg.create.mockImplementation(async (args: Record<string, unknown>) => {
       const data = args.data as Record<string, unknown>;
@@ -116,6 +124,22 @@ afterEach(() => {
 });
 
 describe('Staff message feed endpoints', () => {
+  it('GET /hubs/:hubId/messages/audience returns visibility details', async () => {
+    const res = await request(app)
+      .get('/api/v1/hubs/hub-1/messages/audience')
+      .set(STAFF_HEADERS);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      hubId: 'hub-1',
+      accessMethod: 'email',
+      clientAudience: {
+        isExact: true,
+      },
+    });
+    expect(res.body.clientAudience.knownReaders.length).toBeGreaterThan(0);
+  });
+
   it('POST /hubs/:hubId/messages creates message with server-derived sender fields', async () => {
     const res = await request(app)
       .post('/api/v1/hubs/hub-1/messages')
@@ -281,6 +305,24 @@ describe('Portal message feed endpoints', () => {
     expect(res.body.items[0]).not.toHaveProperty('tenantId');
   });
 
+  it('GET /hubs/:hubId/portal/messages/audience returns visibility details', async () => {
+    setPublishedHub();
+
+    const headers = await portalToken({ email: 'client@test.com', name: 'Client User' });
+    const res = await request(app)
+      .get('/api/v1/hubs/hub-1/portal/messages/audience')
+      .set(headers);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      hubId: 'hub-1',
+      accessMethod: 'email',
+      clientAudience: {
+        isExact: true,
+      },
+    });
+  });
+
   it('POST /hubs/:hubId/portal/messages creates message with senderType portal_client', async () => {
     setPublishedHub();
 
@@ -324,6 +366,41 @@ describe('Portal message feed endpoints', () => {
 
     expect(res.status).toBe(403);
     expect(res.body.code).toBe('FORBIDDEN');
+  });
+
+  it('POST /hubs/:hubId/portal/messages/request-access sends email notification to staff', async () => {
+    setPublishedHub();
+
+    const headers = await portalToken({ email: 'client@test.com', name: 'Client User' });
+    const res = await request(app)
+      .post('/api/v1/hubs/hub-1/portal/messages/request-access')
+      .set(headers)
+      .send({ email: 'teammate@test.com', note: 'Please add to this hub.' });
+
+    expect(res.status).toBe(201);
+    expect(res.body).toMatchObject({
+      requested: true,
+      email: 'teammate@test.com',
+    });
+    expect(mockSendPortalAccessRequestNotification).toHaveBeenCalledTimes(1);
+  });
+
+  it('POST /hubs/:hubId/portal/messages/request-access returns alreadyHasAccess for known contact', async () => {
+    setPublishedHub();
+    const portalContact = portalRepo.portalContact as { findFirst: ReturnType<typeof vi.fn> };
+    portalContact.findFirst.mockResolvedValueOnce({ id: 'pc-1' });
+
+    const headers = await portalToken({ email: 'client@test.com', name: 'Client User' });
+    const res = await request(app)
+      .post('/api/v1/hubs/hub-1/portal/messages/request-access')
+      .set(headers)
+      .send({ email: 'client1@test.com' });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      requested: false,
+      alreadyHasAccess: true,
+    });
   });
 
   it('portal token cannot access a different hub', async () => {

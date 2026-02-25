@@ -12,6 +12,9 @@ import type {
   SendMessageRequest,
   FeedMessage,
   SendFeedMessageRequest,
+  MessageAudience,
+  RequestMessageAccessRequest,
+  RequestMessageAccessResponse,
   PaginatedList,
   PaginationParams,
   MessageFilterParams,
@@ -28,6 +31,8 @@ import {
   sendFeedMessage,
   getPortalFeedMessages,
   sendPortalFeedMessage,
+  getMessageAudience,
+  requestPortalMessageAccess,
 } from "@/services";
 import { serializeParams } from "@/lib/query-keys";
 
@@ -42,6 +47,7 @@ export const messageKeys = {
   detail: (hubId: string, threadId: string) => [...messageKeys.all, hubId, threadId] as const,
   portal: (hubId: string, params?: PaginationParams) => [...messageKeys.all, "portal", hubId, serializeParams(params)] as const,
   portalFeed: (hubId: string, params?: PaginationParams) => [...messageKeys.all, "portal-feed", hubId, serializeParams(params)] as const,
+  audience: (hubId: string, portal?: boolean) => [...messageKeys.all, "audience", hubId, portal ? "portal" : "staff"] as const,
 };
 
 /**
@@ -181,6 +187,31 @@ export function useSendPortalFeedMessage(hubId: string) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: messageKeys.portalFeed(hubId) });
       queryClient.invalidateQueries({ queryKey: messageKeys.feedList(hubId) });
+    },
+  });
+}
+
+/**
+ * Hook to get current message audience visibility
+ */
+export function useMessageAudience(hubId: string, opts?: { portal?: boolean }) {
+  return useQuery<MessageAudience>({
+    queryKey: messageKeys.audience(hubId, opts?.portal),
+    queryFn: () => getMessageAudience(hubId, opts),
+    enabled: !!hubId,
+  });
+}
+
+/**
+ * Hook for portal users to request teammate access
+ */
+export function useRequestPortalMessageAccess(hubId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation<RequestMessageAccessResponse, Error, RequestMessageAccessRequest>({
+    mutationFn: (data) => requestPortalMessageAccess(hubId, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: messageKeys.audience(hubId, true) });
     },
   });
 }

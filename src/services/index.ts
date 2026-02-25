@@ -88,6 +88,8 @@ export {
   sendFeedMessage,
   getPortalFeedMessages,
   sendPortalFeedMessage,
+  getMessageAudience,
+  requestPortalMessageAccess,
 } from "./message.service";
 
 // Meeting service

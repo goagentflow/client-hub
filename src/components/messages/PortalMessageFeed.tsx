@@ -1,9 +1,12 @@
 import { useEffect } from "react";
 import { useHubId } from "@/contexts/hub-context";
 import { MessageFeed } from "./MessageFeed";
+import { MessageAudienceCard } from "./MessageAudienceCard";
 import {
   useCurrentUser,
+  useMessageAudience,
   usePortalFeedMessages,
+  useRequestPortalMessageAccess,
   useSendPortalFeedMessage,
   useTrackEngagement,
   useToast,
@@ -15,6 +18,8 @@ export function PortalMessageFeed() {
 
   const { data: authData } = useCurrentUser();
   const { data, isLoading, error } = usePortalFeedMessages(hubId);
+  const { data: audience, isLoading: isAudienceLoading, error: audienceError } = useMessageAudience(hubId, { portal: true });
+  const { mutate: requestAccess, isPending: isRequestingAccess } = useRequestPortalMessageAccess(hubId);
   const { mutate: sendMessage, isPending: isSending } = useSendPortalFeedMessage(hubId);
   const { trackHubViewed } = useTrackEngagement(hubId);
 
@@ -30,6 +35,31 @@ export function PortalMessageFeed() {
           Ask questions and keep communication in one place.
         </p>
       </div>
+
+      <MessageAudienceCard
+        audience={audience}
+        isLoading={isAudienceLoading}
+        errorMessage={audienceError ? "Unable to load message audience" : undefined}
+        showPortalRequestForm
+        isRequesting={isRequestingAccess}
+        onRequestAccess={(payload) =>
+          requestAccess(payload, {
+            onSuccess: (result) => {
+              toast({
+                title: result.requested ? "Access request sent" : "Already has access",
+                description: result.message,
+              });
+            },
+            onError: (err) => {
+              toast({
+                title: "Could not send access request",
+                description: err.message,
+                variant: "destructive",
+              });
+            },
+          })
+        }
+      />
 
       <MessageFeed
         messages={data?.items || []}

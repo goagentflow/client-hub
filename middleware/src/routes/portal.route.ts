@@ -6,15 +6,17 @@
 import { Router } from 'express';
 import { URL } from 'node:url';
 import rateLimit from 'express-rate-limit';
+import { z } from 'zod';
 import { mapVideo } from '../db/video.mapper.js';
 import { mapProposal, mapDocumentForPortal } from '../db/document.mapper.js';
 import { hubAccessMiddleware } from '../middleware/hub-access.js';
 import { createDownloadUrl, DEFAULT_SIGNED_URL_EXPIRY } from '../services/storage.service.js';
-import { sendClientReplyNotification } from '../services/email.service.js';
+import { sendClientReplyNotification, sendPortalAccessRequestNotification } from '../services/email.service.js';
 import { sendItem, sendList, send501 } from '../utils/response.js';
 import { parsePagination } from '../utils/pagination.js';
 import { queryStatusUpdates, mapStatusUpdateForPortal } from '../services/status-update-queries.js';
 import { queryMessages, mapMessageForPortal } from '../services/message-queries.js';
+import { getMessageAudience } from '../services/message-audience.service.js';
 import { logger } from '../utils/logger.js';
 import { Errors } from '../middleware/error-handler.js';
 import { env } from '../config/env.js';
@@ -26,6 +28,7 @@ portalRouter.use(hubAccessMiddleware);
 
 const MAX_MESSAGE_LENGTH = 10000;
 const PREVIEW_LENGTH = 200;
+const INTERNAL_BYPASS_DOMAIN = 'goagentflow.com';
 
 const portalPostLimiter = rateLimit({
   windowMs: 60_000,
@@ -35,6 +38,22 @@ const portalPostLimiter = rateLimit({
   validate: { keyGeneratorIpFallback: false },
   keyGenerator: (req: Request) => `${req.user.portalHubId || req.params.hubId}:${(req.user.email || '').toLowerCase()}`,
   message: { code: 'RATE_LIMITED', message: 'Too many messages, please try again shortly' },
+});
+
+const portalAccessRequestLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  validate: { keyGeneratorIpFallback: false },
+  keyGenerator: (req: Request) => `${req.user.portalHubId || req.params.hubId}:${(req.user.email || '').toLowerCase()}`,
+  message: { code: 'RATE_LIMITED', message: 'Too many access requests, please try again later' },
+});
+
+const accessRequestSchema = z.object({
+  email: z.string().email().transform((v) => v.trim().toLowerCase()),
+  name: z.string().trim().max(120).optional(),
+  note: z.string().trim().max(500).optional(),
 });
 
 function validateMessageBody(value: unknown): string {
@@ -190,6 +209,17 @@ portalRouter.post('/proposal/comment', (_req: Request, res: Response) => {
 });
 
 // GET /hubs/:hubId/portal/messages
+portalRouter.get('/messages/audience', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const hubId = req.params.hubId as string;
+    const audience = await getMessageAudience(req.repo!, hubId);
+    sendItem(res, audience);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /hubs/:hubId/portal/messages
 portalRouter.get('/messages', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const result = await queryMessages(req.repo!, req.params.hubId as string, req.query as Record<string, unknown>);
@@ -199,6 +229,86 @@ portalRouter.get('/messages', async (req: Request, res: Response, next: NextFunc
       totalItems: result.totalItems,
       totalPages: result.totalPages,
     });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /hubs/:hubId/portal/messages/request-access
+portalRouter.post('/messages/request-access', portalAccessRequestLimiter, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    if (!req.user.portalHubId) {
+      throw Errors.forbidden('Portal token required');
+    }
+
+    const requesterEmail = req.user.email?.trim().toLowerCase();
+    if (!requesterEmail) {
+      throw Errors.forbidden('Access request requires a verified email session');
+    }
+
+    const parsed = accessRequestSchema.safeParse(req.body);
+    if (!parsed.success) {
+      throw Errors.badRequest(parsed.error.issues.map((i) => i.message).join(', '));
+    }
+
+    const hubId = req.params.hubId as string;
+    const requestedEmail = parsed.data.email;
+
+    const hub = await req.repo!.hub.findFirst({
+      where: { id: hubId },
+      select: { companyName: true, contactEmail: true, clientDomain: true },
+    }) as {
+      companyName: string;
+      contactEmail: string | null;
+      clientDomain: string | null;
+    } | null;
+    if (!hub) throw Errors.notFound('Hub', hubId);
+
+    if (hub.clientDomain) {
+      const requestedDomain = requestedEmail.split('@')[1]?.toLowerCase();
+      const hubDomain = hub.clientDomain.trim().toLowerCase();
+      if (requestedDomain !== hubDomain && requestedDomain !== INTERNAL_BYPASS_DOMAIN) {
+        throw Errors.badRequest(`Requested email domain must match ${hubDomain}`);
+      }
+    }
+
+    const existing = await req.repo!.portalContact.findFirst({
+      where: { hubId, email: requestedEmail },
+      select: { id: true },
+    }) as { id: string } | null;
+    if (existing) {
+      sendItem(res, {
+        requested: false,
+        alreadyHasAccess: true,
+        email: requestedEmail,
+        message: 'This teammate already has hub access.',
+      });
+      return;
+    }
+
+    const staffEmail = hub.contactEmail?.trim().toLowerCase();
+    if (!staffEmail) {
+      throw Errors.badRequest('Hub contact email is not configured');
+    }
+
+    const requesterName = req.user.name?.trim() || requesterEmail.split('@')[0] || 'Portal User';
+    const hubUrl = new URL(`/clienthub/hub/${hubId}/members`, env.CORS_ORIGIN).toString();
+
+    await sendPortalAccessRequestNotification(staffEmail, {
+      requesterName,
+      requesterEmail,
+      requestedEmail,
+      hubName: hub.companyName,
+      hubUrl,
+      requestNote: parsed.data.note,
+    });
+
+    sendItem(res, {
+      requested: true,
+      alreadyHasAccess: false,
+      email: requestedEmail,
+      message: 'Access request sent to your AgentFlow team.',
+    }, 201);
   } catch (err) {
     next(err);
   }

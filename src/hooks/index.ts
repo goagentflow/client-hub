@@ -88,6 +88,8 @@ export {
   useSendFeedMessage,
   usePortalFeedMessages,
   useSendPortalFeedMessage,
+  useMessageAudience,
+  useRequestPortalMessageAccess,
 } from "./use-messages";
 
 // Meeting hooks

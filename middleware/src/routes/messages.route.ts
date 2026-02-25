@@ -13,6 +13,7 @@ import { Errors } from '../middleware/error-handler.js';
 import { logger } from '../utils/logger.js';
 import { env } from '../config/env.js';
 import { queryMessages } from '../services/message-queries.js';
+import { getMessageAudience } from '../services/message-audience.service.js';
 import { sendNewMessageNotification } from '../services/email.service.js';
 import type { Request, Response, NextFunction } from 'express';
 
@@ -173,6 +174,17 @@ messagesRouter.post('/', staffPostLimiter, async (req: Request, res: Response, n
       body: created.body,
       createdAt: created.createdAt.toISOString(),
     }, 201);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /hubs/:hubId/messages/audience
+messagesRouter.get('/audience', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const hubId = req.params.hubId as string;
+    const audience = await getMessageAudience(req.repo!, hubId);
+    sendItem(res, audience);
   } catch (err) {
     next(err);
   }

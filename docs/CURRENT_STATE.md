@@ -46,6 +46,7 @@ If this file conflicts with older planning docs, trust this file and `docs/PRODU
 | Portal invites (staff flow) | `/api/v1/hubs/:hubId/invites` (POST/GET/DELETE) |
 | Status updates (append-only) | `/api/v1/hubs/:hubId/status-updates` (staff POST/GET), `/api/v1/hubs/:hubId/portal/status-updates` (portal GET) |
 | Message feed (flat, non-threaded) | `/api/v1/hubs/:hubId/messages` (staff GET/POST), `/api/v1/hubs/:hubId/portal/messages` (portal GET/POST) |
+| Message audience visibility | `/api/v1/hubs/:hubId/messages/audience` (staff GET), `/api/v1/hubs/:hubId/portal/messages/audience` (portal GET), `/api/v1/hubs/:hubId/portal/messages/request-access` (portal POST) |
 | Document upload (Supabase Storage) | `POST /api/v1/hubs/:hubId/documents` (multipart upload, 50MB limit, MIME + extension allowlist) |
 | Document download (signed URLs) | `GET /api/v1/hubs/:hubId/documents/:docId/download` (staff), `GET /api/v1/hubs/:hubId/portal/documents/:docId/download` (portal) |
 | Document preview (signed URLs, no download increment) | `GET /api/v1/hubs/:hubId/documents/:docId/preview` (staff), `GET /api/v1/hubs/:hubId/portal/documents/:docId/preview` (portal) |
@@ -63,7 +64,7 @@ The following route families still return placeholders (mostly HTTP 501), or min
 |---|---|
 | File uploads (proposals + videos) | Proposal and video upload endpoints are still placeholders |
 | Document engagement analytics | `GET /hubs/:hubId/documents/:docId/engagement` is 501 |
-| Messages | Feed endpoints are live (`GET/POST /hubs/:hubId/messages`, `GET/POST /hubs/:hubId/portal/messages`); legacy thread endpoints remain 501 |
+| Messages | Feed endpoints and audience endpoints are live (`GET/POST /hubs/:hubId/messages`, `GET /hubs/:hubId/messages/audience`, `GET/POST /hubs/:hubId/portal/messages`, `GET /hubs/:hubId/portal/messages/audience`, `POST /hubs/:hubId/portal/messages/request-access`); legacy thread endpoints remain 501 |
 | Meetings | All hub meeting endpoints are 501 |
 | Relationship intelligence | Hub relationship-health / expansion endpoints are 501 |
 | Client intelligence | Instant answers, decision queue, performance, history, risk alerts are 501 |
