@@ -58,7 +58,7 @@ export function MessageAudienceCard({
       <CardHeader className="pb-3">
         <CardTitle className="text-base flex items-center gap-2">
           <Users className="h-4 w-4 text-[hsl(var(--bold-royal-blue))]" />
-          Who Can Read This Feed
+          Members of messaging group
         </CardTitle>
         <CardDescription>
           Visibility is shared at hub level, not per individual message.
@@ -77,18 +77,10 @@ export function MessageAudienceCard({
         ) : null}
 
         {!isLoading && !errorMessage && audience ? (
-          <>
-            <div className="rounded-md border p-3 space-y-2">
-              <div className="flex items-center gap-2">
-                <Shield className="h-4 w-4 text-[hsl(var(--bold-royal-blue))]" />
-                <p className="text-sm font-medium">Agent Flow staff</p>
-              </div>
-              <p className="text-sm text-[hsl(var(--dark-grey))]">Can read this message feed.</p>
-            </div>
-
-            <div className="rounded-md border p-3 space-y-3">
+          <div className="rounded-md border p-3 space-y-4">
+            <div className="space-y-3">
               <div className="flex items-center justify-between gap-2">
-                <p className="text-sm font-medium">Client readers</p>
+                <p className="text-sm font-medium">Client</p>
                 <Badge variant="secondary">Access: {audience.accessMethod}</Badge>
               </div>
 
@@ -117,7 +109,15 @@ export function MessageAudienceCard({
                 </div>
               )}
             </div>
-          </>
+
+            <div className="border-t pt-3 space-y-2">
+              <div className="flex items-center gap-2">
+                <Shield className="h-4 w-4 text-[hsl(var(--bold-royal-blue))]" />
+                <p className="text-sm font-medium">Agent Flow staff</p>
+              </div>
+              <p className="text-sm text-[hsl(var(--dark-grey))]">Can read this message feed.</p>
+            </div>
+          </div>
         ) : null}
 
         {showPortalRequestForm ? (

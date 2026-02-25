@@ -34,12 +34,6 @@ export function StaffMessageFeed() {
         </p>
       </div>
 
-      <MessageAudienceCard
-        audience={audience}
-        isLoading={isAudienceLoading}
-        errorMessage={audienceError ? "Unable to load message audience" : undefined}
-      />
-
       <MessageFeed
         messages={data?.items || []}
         currentUserEmail={authData?.user?.email}
@@ -65,6 +59,12 @@ export function StaffMessageFeed() {
             },
           )
         }
+      />
+
+      <MessageAudienceCard
+        audience={audience}
+        isLoading={isAudienceLoading}
+        errorMessage={audienceError ? "Unable to load message audience" : undefined}
       />
     </div>
   );

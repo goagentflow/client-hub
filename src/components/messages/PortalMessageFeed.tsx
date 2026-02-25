@@ -36,31 +36,6 @@ export function PortalMessageFeed() {
         </p>
       </div>
 
-      <MessageAudienceCard
-        audience={audience}
-        isLoading={isAudienceLoading}
-        errorMessage={audienceError ? "Unable to load message audience" : undefined}
-        showPortalRequestForm
-        isRequesting={isRequestingAccess}
-        onRequestAccess={(payload) =>
-          requestAccess(payload, {
-            onSuccess: (result) => {
-              toast({
-                title: result.requested ? "Access request sent" : "Already has access",
-                description: result.message,
-              });
-            },
-            onError: (err) => {
-              toast({
-                title: "Could not send access request",
-                description: err.message,
-                variant: "destructive",
-              });
-            },
-          })
-        }
-      />
-
       <MessageFeed
         messages={data?.items || []}
         currentUserEmail={authData?.user?.email}
@@ -89,6 +64,31 @@ export function PortalMessageFeed() {
               },
             },
           )
+        }
+      />
+
+      <MessageAudienceCard
+        audience={audience}
+        isLoading={isAudienceLoading}
+        errorMessage={audienceError ? "Unable to load message audience" : undefined}
+        showPortalRequestForm
+        isRequesting={isRequestingAccess}
+        onRequestAccess={(payload) =>
+          requestAccess(payload, {
+            onSuccess: (result) => {
+              toast({
+                title: result.requested ? "Access request sent" : "Already has access",
+                description: result.message,
+              });
+            },
+            onError: (err) => {
+              toast({
+                title: "Could not send access request",
+                description: err.message,
+                variant: "destructive",
+              });
+            },
+          })
         }
       />
     </div>
