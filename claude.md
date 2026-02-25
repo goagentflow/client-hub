@@ -126,3 +126,43 @@ When you invoke senior-reviewer:
 2. WAIT for my instruction before taking any action
 3. Do not automatically start fixing issues - I need to review the feedback first
 This review loop is non-negotiable. Every phase must pass review before the next begins.
+
+## Supabase RLS — Security Hardening (applied 2026-02-25)
+
+All Client Hub tables now have Row Level Security (RLS) enabled. This was applied from the `agentflow-insight-pulse` repo via migration `041_client_hub_rls.sql`. The full plan is at `~/Desktop/agentflow-insight-pulse/docs/supabase-security-hardening-plan.md`.
+
+### Impact on this repo
+
+- **Prisma middleware is unaffected** — it connects directly to Postgres, bypassing RLS entirely.
+- **Frontend reads via anon key** work for `hub`, `hub_video`, `hub_document` (they have explicit anon SELECT policies).
+- **All other tables are blocked for anon** — `hub_invite`, `hub_status_update`, `portal_contact`, `portal_verification`, `portal_device`, `tenant`, `hub_event`, `hub_project`, `hub_milestone` only allow `service_role` access via PostgREST.
+
+### If you add a new table
+
+1. Always enable RLS: `ALTER TABLE public.new_table ENABLE ROW LEVEL SECURITY;`
+2. Add a service_role policy: `CREATE POLICY "service_all_new_table" ON public.new_table FOR ALL TO service_role USING (true) WITH CHECK (true);`
+3. If the frontend needs to read it via anon key, add an anon SELECT policy too.
+4. Add the migration to `~/Desktop/agentflow-insight-pulse/supabase/migrations/` (that repo owns all Supabase migrations).
+
+### If something breaks
+
+- **Middleware returns data but frontend doesn't** → The table is missing an anon SELECT policy.
+- **`verify_hub_password` RPC fails** → Function was recreated with `SET search_path = public`. Canonical version is in `agentflow-insight-pulse/supabase/migrations/041_client_hub_rls.sql`.
+- **`prevent_status_update_mutation` behaves differently** → Function was recreated with `SET search_path = public`. Body and trigger behaviour are unchanged.
+
+### Tables and RLS status
+
+| Table | Anon SELECT | Service Role ALL | Access Path |
+|-------|------------|-----------------|-------------|
+| `hub` | Yes | Yes | Frontend + Middleware |
+| `hub_video` | Yes | Yes | Frontend + Middleware |
+| `hub_document` | Yes | Yes | Frontend + Middleware |
+| `hub_event` | No | Yes | Middleware only |
+| `hub_project` | No | Yes | Middleware only |
+| `hub_milestone` | No | Yes | Middleware only |
+| `hub_invite` | No | Yes | Middleware only |
+| `hub_status_update` | No | Yes | Middleware only |
+| `portal_contact` | No | Yes | Middleware only |
+| `portal_verification` | No | Yes | Middleware only |
+| `portal_device` | No | Yes | Middleware only |
+| `tenant` | No | Yes | Middleware only |
