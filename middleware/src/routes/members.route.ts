@@ -26,6 +26,7 @@ import {
   mapHubMember,
   revokeClientMember,
   upsertClientMember,
+  upsertStaffMember,
 } from '../services/membership.service.js';
 import { revokePortalAccess } from '../services/access-revocation.service.js';
 import { syncMemberActivityToCrm } from '../services/crm-sync.service.js';
@@ -481,6 +482,16 @@ invitesRouter.post('/', async (req: Request, res: Response, next: NextFunction) 
         invitedBy: req.user.userId,
         invitedByName: req.user.name,
         source: 'invite',
+      });
+
+      await upsertStaffMember(tx, {
+        hubId,
+        tenantId: req.user.tenantId,
+        userId: req.user.userId,
+        email: req.user.email,
+        displayName: req.user.name,
+        source: 'staff_manual',
+        lastActiveAt: new Date(),
       });
 
       // Increment clientsInvited only for new invites

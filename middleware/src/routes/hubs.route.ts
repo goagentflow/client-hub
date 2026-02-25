@@ -13,6 +13,7 @@ import { parsePagination } from '../utils/pagination.js';
 import { Errors } from '../middleware/error-handler.js';
 import { revokePortalAccess } from '../services/access-revocation.service.js';
 import { syncMemberActivityToCrm } from '../services/crm-sync.service.js';
+import { upsertStaffMember } from '../services/membership.service.js';
 import type { Request, Response, NextFunction } from 'express';
 
 export const hubsRouter = Router();
@@ -105,6 +106,16 @@ hubsRouter.post('/', requireStaffAccess, async (req: Request, res: Response, nex
         accessMethod: 'email',
       },
       select: HUB_SELECT,
+    });
+
+    await upsertStaffMember({ hubMember: req.repo!.hubMember } as Parameters<typeof upsertStaffMember>[0], {
+      hubId: hub.id,
+      tenantId: req.user.tenantId,
+      userId: req.user.userId,
+      email: req.user.email,
+      displayName: req.user.name,
+      source: 'staff_manual',
+      lastActiveAt: new Date(),
     });
 
     sendItem(res, mapHub(hub), 201);

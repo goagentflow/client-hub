@@ -4,8 +4,11 @@
  * Builds a normalized view of who can currently read hub messages.
  */
 
+import { getPrisma } from '../db/prisma.js';
 import type { TenantRepository } from '../db/tenant-repository.js';
 import { Errors } from '../middleware/error-handler.js';
+import { upsertStaffMember } from './membership.service.js';
+import { logger } from '../utils/logger.js';
 
 type HubAccessMethod = 'email' | 'password' | 'open';
 
@@ -66,6 +69,125 @@ function clientAudienceNote(method: HubAccessMethod): string {
   return 'Access is open link-based. Listed contacts are known client contacts, but anyone with the link can read messages.';
 }
 
+const inviteStaffBackfillDone = new Set<string>();
+
+async function backfillStaffMembersFromLegacyInvites(
+  repo: TenantRepository,
+  hubId: string,
+): Promise<void> {
+  const key = `${repo.tenantId}:${hubId}`;
+  if (inviteStaffBackfillDone.has(key)) return;
+  inviteStaffBackfillDone.add(key);
+
+  try {
+    const prisma = getPrisma() as {
+      hubInvite?: { findMany?: CallableFunction };
+      hubMember?: { findMany?: CallableFunction };
+      hubEvent?: { findMany?: CallableFunction };
+    };
+    if (
+      typeof prisma.hubInvite?.findMany !== 'function'
+      || typeof prisma.hubMember?.findMany !== 'function'
+    ) {
+      return;
+    }
+
+    const [inviteActors, tenantStaffMembers, tenantEvents, existingHubStaff] = await Promise.all([
+      prisma.hubInvite.findMany({
+        where: {
+          hubId,
+          tenantId: repo.tenantId,
+          invitedBy: { not: null },
+        },
+        select: { invitedBy: true, invitedByName: true, invitedAt: true },
+        orderBy: { invitedAt: 'desc' },
+        take: 250,
+      }) as Promise<Array<{ invitedBy: string | null; invitedByName: string | null; invitedAt: Date }>>,
+      prisma.hubMember.findMany({
+        where: {
+          tenantId: repo.tenantId,
+          role: 'staff',
+          status: 'active',
+          userId: { not: null },
+        },
+        select: { userId: true, email: true, displayName: true, joinedAt: true },
+        orderBy: { joinedAt: 'desc' },
+        take: 1000,
+      }) as Promise<Array<{ userId: string | null; email: string; displayName: string | null; joinedAt: Date }>>,
+      typeof prisma.hubEvent?.findMany === 'function'
+        ? prisma.hubEvent.findMany({
+          where: {
+            tenantId: repo.tenantId,
+            userId: { not: null },
+            userEmail: { not: null },
+          },
+          select: { userId: true, userEmail: true, userName: true, createdAt: true },
+          orderBy: { createdAt: 'desc' },
+          take: 1000,
+        }) as Promise<Array<{ userId: string | null; userEmail: string | null; userName: string | null; createdAt: Date }>>
+        : Promise.resolve([]),
+      repo.hubMember.findMany({
+        where: { hubId, role: 'staff', status: 'active' },
+        select: { email: true },
+        take: 500,
+      }) as Promise<Array<{ email: string }>>,
+    ]);
+
+    const existingEmails = new Set(
+      existingHubStaff.map((row) => normaliseEmail(row.email)).filter(Boolean),
+    );
+
+    const userIdToProfile = new Map<string, { email: string; displayName: string | null }>();
+
+    for (const row of tenantStaffMembers) {
+      const userId = (row.userId || '').trim();
+      const email = normaliseEmail(row.email);
+      if (!userId || !email || userIdToProfile.has(userId)) continue;
+      userIdToProfile.set(userId, {
+        email,
+        displayName: normaliseName(row.displayName),
+      });
+    }
+
+    for (const row of tenantEvents) {
+      const userId = (row.userId || '').trim();
+      const email = normaliseEmail(row.userEmail);
+      if (!userId || !email || userIdToProfile.has(userId)) continue;
+      userIdToProfile.set(userId, {
+        email,
+        displayName: normaliseName(row.userName),
+      });
+    }
+
+    for (const actor of inviteActors) {
+      const userId = (actor.invitedBy || '').trim();
+      if (!userId) continue;
+
+      const profile = userIdToProfile.get(userId);
+      if (!profile) continue;
+
+      const email = normaliseEmail(profile.email);
+      if (!email || existingEmails.has(email)) continue;
+
+      await upsertStaffMember({ hubMember: repo.hubMember } as Parameters<typeof upsertStaffMember>[0], {
+        hubId,
+        tenantId: repo.tenantId,
+        userId,
+        email,
+        displayName: normaliseName(actor.invitedByName) || profile.displayName || null,
+        source: 'staff_manual',
+      });
+
+      existingEmails.add(email);
+    }
+  } catch (err) {
+    logger.warn(
+      { err, hubId, tenantId: repo.tenantId },
+      'Failed to backfill legacy invite staff members for message audience',
+    );
+  }
+}
+
 export async function getMessageAudience(repo: TenantRepository, hubId: string): Promise<MessageAudience> {
   const hub = await repo.hub.findFirst({
     where: { id: hubId },
@@ -87,6 +209,8 @@ export async function getMessageAudience(repo: TenantRepository, hubId: string):
   if (!hub) {
     throw Errors.notFound('Hub', hubId);
   }
+
+  await backfillStaffMembersFromLegacyInvites(repo, hubId);
 
   const [contacts, clientMembers, staffMembers, staffMessages, staffEvents] = await Promise.all([
     repo.portalContact.findMany({

@@ -73,7 +73,12 @@ describe('POST /hubs/:hubId/invites', () => {
     expect(res.body.email).toBe('test@example.com');
     expect(mockInviteCreate).toHaveBeenCalledOnce();
     expect(mockContactUpsert).toHaveBeenCalledOnce();
-    expect(mockHubMemberUpsert).toHaveBeenCalledOnce();
+    expect(mockHubMemberUpsert).toHaveBeenCalledTimes(2);
+    const roles = mockHubMemberUpsert.mock.calls
+      .map((c) => (c[0] as { where?: { hubId_email_role?: { role?: string } } }).where?.hubId_email_role?.role)
+      .filter(Boolean);
+    expect(roles).toContain('client');
+    expect(roles).toContain('staff');
     expect(mockHubUpdate).toHaveBeenCalledOnce();
     expect(mockSendPortalInvite).toHaveBeenCalledOnce();
   });
