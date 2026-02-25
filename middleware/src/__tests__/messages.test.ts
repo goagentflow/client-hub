@@ -168,6 +168,16 @@ describe('Staff message feed endpoints', () => {
     expect(res.body.message).toMatch(/string/i);
   });
 
+  it('POST /hubs/:hubId/messages accepts legacy bodyHtml payload', async () => {
+    const res = await request(app)
+      .post('/api/v1/hubs/hub-1/messages')
+      .set(STAFF_HEADERS)
+      .send({ bodyHtml: '<p>Hello <strong>from legacy client</strong></p>' });
+
+    expect(res.status).toBe(201);
+    expect(res.body.body).toBe('Hello from legacy client');
+  });
+
   it('GET /hubs/:hubId/messages returns paginated list shape', async () => {
     const res = await request(app)
       .get('/api/v1/hubs/hub-1/messages?page=1&pageSize=10')
@@ -288,6 +298,19 @@ describe('Portal message feed endpoints', () => {
       body: 'Hello from portal',
     });
     expect(mockSendClientReplyNotification).toHaveBeenCalledTimes(1);
+  });
+
+  it('POST /hubs/:hubId/portal/messages accepts legacy bodyHtml payload', async () => {
+    setPublishedHub();
+
+    const headers = await portalToken({ email: 'client@test.com', name: 'Client User' });
+    const res = await request(app)
+      .post('/api/v1/hubs/hub-1/portal/messages')
+      .set(headers)
+      .send({ bodyHtml: '<p>Portal <em>legacy</em> payload</p>' });
+
+    expect(res.status).toBe(201);
+    expect(res.body.body).toBe('Portal legacy payload');
   });
 
   it('POST /hubs/:hubId/portal/messages rejects token without verified email claim', async () => {

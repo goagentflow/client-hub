@@ -47,6 +47,22 @@ function validateMessageBody(value: unknown): string {
   return trimmed;
 }
 
+function extractMessageBody(payload: unknown): unknown {
+  if (typeof payload === 'string') return payload;
+  if (!payload || typeof payload !== 'object') return undefined;
+
+  const body = (payload as Record<string, unknown>).body;
+  if (typeof body === 'string') return body;
+
+  const bodyHtml = (payload as Record<string, unknown>).bodyHtml;
+  if (typeof bodyHtml === 'string') {
+    // Backward compatibility for older clients that still send bodyHtml.
+    return bodyHtml.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+  }
+
+  return body;
+}
+
 function previewFromBody(body: string): string {
   return body.replace(/\s+/g, ' ').trim().slice(0, PREVIEW_LENGTH);
 }
@@ -200,7 +216,7 @@ portalRouter.post('/messages', portalPostLimiter, async (req: Request, res: Resp
       throw Errors.forbidden('Posting requires a verified email session');
     }
     const senderName = req.user.name?.trim() || senderEmail.split('@')[0] || 'Portal User';
-    const body = validateMessageBody(req.body?.body);
+    const body = validateMessageBody(extractMessageBody(req.body));
     const hubId = req.params.hubId as string;
 
     const created = await req.repo!.hubMessage.create({

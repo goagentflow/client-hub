@@ -48,6 +48,22 @@ function validateBody(value: unknown): string {
   return trimmed;
 }
 
+function extractMessageBody(payload: unknown): unknown {
+  if (typeof payload === 'string') return payload;
+  if (!payload || typeof payload !== 'object') return undefined;
+
+  const body = (payload as Record<string, unknown>).body;
+  if (typeof body === 'string') return body;
+
+  const bodyHtml = (payload as Record<string, unknown>).bodyHtml;
+  if (typeof bodyHtml === 'string') {
+    // Backward compatibility for older clients that still send bodyHtml.
+    return bodyHtml.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+  }
+
+  return body;
+}
+
 function messagePreview(body: string): string {
   return body.replace(/\s+/g, ' ').trim().slice(0, PREVIEW_LENGTH);
 }
@@ -112,7 +128,7 @@ messagesRouter.get('/', async (req: Request, res: Response, next: NextFunction) 
 messagesRouter.post('/', staffPostLimiter, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const hubId = req.params.hubId as string;
-    const body = validateBody(req.body?.body);
+    const body = validateBody(extractMessageBody(req.body));
     const senderEmail = req.user.email?.trim();
     const senderName = req.user.name?.trim() || senderEmail;
 

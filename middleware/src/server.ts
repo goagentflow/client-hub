@@ -6,25 +6,35 @@
 import { app } from './app.js';
 import { env } from './config/env.js';
 import { logger } from './utils/logger.js';
+import { ensureHubMessageSchema } from './services/message-schema.service.js';
 
-const server = app.listen(env.PORT, () => {
-  logger.info({ port: env.PORT, env: env.NODE_ENV, authMode: env.AUTH_MODE, dataBackend: env.DATA_BACKEND }, 'AgentFlow middleware started');
-});
+async function startServer(): Promise<void> {
+  await ensureHubMessageSchema();
 
-// Graceful shutdown
-const shutdown = (signal: string): void => {
-  logger.info({ signal }, 'Shutdown signal received');
-  server.close(() => {
-    logger.info('Server closed');
-    process.exit(0);
+  const server = app.listen(env.PORT, () => {
+    logger.info({ port: env.PORT, env: env.NODE_ENV, authMode: env.AUTH_MODE, dataBackend: env.DATA_BACKEND }, 'AgentFlow middleware started');
   });
 
-  // Force shutdown after 10s
-  setTimeout(() => {
-    logger.error('Forced shutdown after timeout');
-    process.exit(1);
-  }, 10000);
-};
+  // Graceful shutdown
+  const shutdown = (signal: string): void => {
+    logger.info({ signal }, 'Shutdown signal received');
+    server.close(() => {
+      logger.info('Server closed');
+      process.exit(0);
+    });
 
-process.on('SIGTERM', () => shutdown('SIGTERM'));
-process.on('SIGINT', () => shutdown('SIGINT'));
+    // Force shutdown after 10s
+    setTimeout(() => {
+      logger.error('Forced shutdown after timeout');
+      process.exit(1);
+    }, 10000);
+  };
+
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
+}
+
+startServer().catch((err) => {
+  logger.error({ err }, 'Failed to start middleware');
+  process.exit(1);
+});
