@@ -10,6 +10,8 @@ import type {
   MessageThreadDetail,
   Message,
   SendMessageRequest,
+  FeedMessage,
+  SendFeedMessageRequest,
   PaginatedList,
   PaginationParams,
   MessageFilterParams,
@@ -46,6 +48,77 @@ const mockMessages: Message[] = [
     attachments: [],
   },
 ];
+
+// Mock feed messages for live feed endpoints
+const mockFeedMessages: FeedMessage[] = [
+  {
+    id: "feed-1",
+    hubId: "hub-1",
+    senderType: "staff",
+    senderEmail: "hamish@goagentflow.com",
+    senderName: "Hamish Nicklin",
+    body: "Hi Sarah, sharing the latest update on next steps for your onboarding.",
+    createdAt: new Date(Date.now() - 90 * 60 * 1000).toISOString(),
+  },
+  {
+    id: "feed-2",
+    hubId: "hub-1",
+    senderType: "portal_client",
+    senderEmail: "sarah@whitmorelaw.co.uk",
+    senderName: "Sarah Mitchell",
+    body: "Thanks. Could you confirm expected turnaround on the first deliverable?",
+    createdAt: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
+  },
+];
+
+function sortFeedNewestFirst(a: FeedMessage, b: FeedMessage): number {
+  return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+}
+
+function pageFeed(items: FeedMessage[], page = 1, pageSize = 20): FeedMessage[] {
+  return items.slice((page - 1) * pageSize, page * pageSize);
+}
+
+function stripHtml(html: string): string {
+  return html.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function mapFeedToThreadSummary(item: FeedMessage): MessageThreadSummary {
+  return {
+    id: item.id,
+    hubId: item.hubId,
+    subject: `Message from ${item.senderName}`,
+    participants: [
+      {
+        email: item.senderEmail,
+        name: item.senderName,
+        isClient: item.senderType === "portal_client",
+      },
+    ],
+    lastMessageAt: item.createdAt,
+    lastMessagePreview: item.body.slice(0, 120),
+    messageCount: 1,
+    isRead: true,
+    isArchived: false,
+    hasTeamNotes: false,
+  };
+}
+
+function mapFeedToLegacyMessage(item: FeedMessage): Message {
+  return {
+    id: item.id,
+    threadId: item.id,
+    from: { email: item.senderEmail, name: item.senderName },
+    to: [],
+    cc: [],
+    subject: `Message from ${item.senderName}`,
+    bodyPreview: item.body.slice(0, 120),
+    bodyHtml: `<p>${item.body}</p>`,
+    sentAt: item.createdAt,
+    isRead: true,
+    attachments: [],
+  };
+}
 
 /**
  * Get message threads for a hub
@@ -91,8 +164,13 @@ export async function getMessageThreads(
   if (params?.projectId) queryParams.projectId = params.projectId;
   if (params?.isArchived !== undefined) queryParams.isArchived = String(params.isArchived);
   if (params?.isRead !== undefined) queryParams.isRead = String(params.isRead);
+  if (params?.pageSize) queryParams.pageSize = String(params.pageSize);
 
-  return api.get<PaginatedList<MessageThreadSummary>>(`/hubs/${hubId}/messages`, queryParams);
+  const feed = await api.get<PaginatedList<FeedMessage>>(`/hubs/${hubId}/messages`, queryParams);
+  return {
+    items: feed.items.map(mapFeedToThreadSummary),
+    pagination: feed.pagination,
+  };
 }
 
 /**
@@ -115,7 +193,15 @@ export async function getMessageThread(
     };
   }
 
-  return api.get<MessageThreadDetail>(`/hubs/${hubId}/messages/${threadId}`);
+  const feed = await getFeedMessages(hubId, { page: 1, pageSize: 100 });
+  const item = feed.items.find((m) => m.id === threadId);
+  if (!item) throw new Error("Thread not found");
+  const summary = mapFeedToThreadSummary(item);
+  return {
+    ...summary,
+    teamNotes: null,
+    messages: [mapFeedToLegacyMessage(item)],
+  };
 }
 
 /**
@@ -146,7 +232,8 @@ export async function sendMessage(
     return newMessage;
   }
 
-  return api.post<Message>(`/hubs/${hubId}/messages`, data);
+  const created = await sendFeedMessage(hubId, { body: stripHtml(data.bodyHtml) });
+  return mapFeedToLegacyMessage(created);
 }
 
 /**
@@ -200,7 +287,15 @@ export async function getPortalMessages(
     };
   }
 
-  return api.get<PaginatedList<MessageThreadSummary>>(`/hubs/${hubId}/portal/messages`);
+  const queryParams: Record<string, string> = {};
+  if (params?.page) queryParams.page = String(params.page);
+  if (params?.pageSize) queryParams.pageSize = String(params.pageSize);
+
+  const feed = await api.get<PaginatedList<FeedMessage>>(`/hubs/${hubId}/portal/messages`, queryParams);
+  return {
+    items: feed.items.map(mapFeedToThreadSummary),
+    pagination: feed.pagination,
+  };
 }
 
 /**
@@ -230,5 +325,121 @@ export async function sendPortalMessage(
     return newMessage;
   }
 
-  return api.post<Message>(`/hubs/${hubId}/portal/messages`, data);
+  const created = await sendPortalFeedMessage(hubId, { body: stripHtml(data.bodyHtml) });
+  return mapFeedToLegacyMessage(created);
+}
+
+/**
+ * Get non-threaded message feed (staff view)
+ */
+export async function getFeedMessages(
+  hubId: string,
+  params?: PaginationParams
+): Promise<PaginatedList<FeedMessage>> {
+  if (isMockApiEnabled()) {
+    await simulateDelay(300);
+    const page = params?.page || 1;
+    const pageSize = params?.pageSize || 20;
+    const filtered = mockFeedMessages
+      .filter((m) => m.hubId === hubId)
+      .sort(sortFeedNewestFirst);
+
+    return {
+      items: pageFeed(filtered, page, pageSize),
+      pagination: {
+        page,
+        pageSize,
+        totalItems: filtered.length,
+        totalPages: Math.ceil(filtered.length / pageSize),
+      },
+    };
+  }
+
+  const queryParams: Record<string, string> = {};
+  if (params?.page) queryParams.page = String(params.page);
+  if (params?.pageSize) queryParams.pageSize = String(params.pageSize);
+
+  return api.get<PaginatedList<FeedMessage>>(`/hubs/${hubId}/messages`, queryParams);
+}
+
+/**
+ * Send non-threaded feed message (staff view)
+ */
+export async function sendFeedMessage(
+  hubId: string,
+  data: SendFeedMessageRequest
+): Promise<FeedMessage> {
+  if (isMockApiEnabled()) {
+    await simulateDelay(500);
+    const newMessage: FeedMessage = {
+      id: `feed-${Date.now()}`,
+      hubId,
+      senderType: "staff",
+      senderEmail: "hamish@goagentflow.com",
+      senderName: "Hamish Nicklin",
+      body: data.body.trim(),
+      createdAt: new Date().toISOString(),
+    };
+    mockFeedMessages.unshift(newMessage);
+    return newMessage;
+  }
+
+  return api.post<FeedMessage>(`/hubs/${hubId}/messages`, data);
+}
+
+/**
+ * Get non-threaded message feed (portal view)
+ */
+export async function getPortalFeedMessages(
+  hubId: string,
+  params?: PaginationParams
+): Promise<PaginatedList<FeedMessage>> {
+  if (isMockApiEnabled()) {
+    await simulateDelay(300);
+    const page = params?.page || 1;
+    const pageSize = params?.pageSize || 20;
+    const filtered = mockFeedMessages
+      .filter((m) => m.hubId === hubId)
+      .sort(sortFeedNewestFirst);
+    return {
+      items: pageFeed(filtered, page, pageSize),
+      pagination: {
+        page,
+        pageSize,
+        totalItems: filtered.length,
+        totalPages: Math.ceil(filtered.length / pageSize),
+      },
+    };
+  }
+
+  const queryParams: Record<string, string> = {};
+  if (params?.page) queryParams.page = String(params.page);
+  if (params?.pageSize) queryParams.pageSize = String(params.pageSize);
+
+  return api.get<PaginatedList<FeedMessage>>(`/hubs/${hubId}/portal/messages`, queryParams);
+}
+
+/**
+ * Send non-threaded feed message (portal view)
+ */
+export async function sendPortalFeedMessage(
+  hubId: string,
+  data: SendFeedMessageRequest
+): Promise<FeedMessage> {
+  if (isMockApiEnabled()) {
+    await simulateDelay(500);
+    const newMessage: FeedMessage = {
+      id: `feed-${Date.now()}`,
+      hubId,
+      senderType: "portal_client",
+      senderEmail: "sarah@whitmorelaw.co.uk",
+      senderName: "Sarah Mitchell",
+      body: data.body.trim(),
+      createdAt: new Date().toISOString(),
+    };
+    mockFeedMessages.unshift(newMessage);
+    return newMessage;
+  }
+
+  return api.post<FeedMessage>(`/hubs/${hubId}/portal/messages`, data);
 }

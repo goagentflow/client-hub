@@ -6,7 +6,7 @@ import {
   usePortalProposal,
   usePortalVideos,
   usePortalDocuments,
-  usePortalMessages,
+  usePortalFeedMessages,
   usePortalMeetings,
   usePortalQuestionnaires,
   useHubActivity,
@@ -73,7 +73,7 @@ function StaffOverviewSection() {
   const { data: proposal, isLoading: loadingProposal } = usePortalProposal(hubId);
   const { data: videosData, isLoading: loadingVideos } = usePortalVideos(hubId);
   const { data: docsData, isLoading: loadingDocs } = usePortalDocuments(hubId);
-  const { data: messagesData, isLoading: loadingMessages } = usePortalMessages(hubId);
+  const { data: feedMessagesData, isLoading: loadingMessages } = usePortalFeedMessages(hubId);
   const { data: meetingsData, isLoading: loadingMeetings } = usePortalMeetings(hubId);
   const { data: questionnairesData } = usePortalQuestionnaires(hubId);
   const { data: activityData, isLoading: loadingActivity } = useHubActivity(hubId, { pageSize: 5 });
@@ -130,7 +130,7 @@ function StaffOverviewSection() {
       welcomeVideoUrl={config?.welcomeVideoUrl}
       videoCount={videosData?.items?.length || 0}
       documentCount={docsData?.items?.length || 0}
-      unreadMessages={messagesData?.items?.filter((t) => !t.isRead)?.length || 0}
+      messageCount={feedMessagesData?.items?.length || 0}
       nextMeetingDate={computeMeetingCounts(meetingsData)}
       pendingQuestionnaires={questionnairesData?.items?.filter((q) => q.status !== "completed")?.length || 0}
       activities={activityData?.items || []}
@@ -168,7 +168,7 @@ function PortalOverviewSection({ hubMeta }: { hubMeta?: PortalMeta | null }) {
   const { data: proposal, isLoading: loadingProposal } = usePortalProposal(hubId);
   const { data: videosData, isLoading: loadingVideos } = usePortalVideos(hubId);
   const { data: docsData, isLoading: loadingDocs } = usePortalDocuments(hubId);
-  const { data: messagesData, isLoading: loadingMessages } = usePortalMessages(hubId);
+  const { data: feedMessagesData, isLoading: loadingMessages } = usePortalFeedMessages(hubId);
   const { data: meetingsData, isLoading: loadingMeetings } = usePortalMeetings(hubId);
   const { data: questionnairesData } = usePortalQuestionnaires(hubId);
 
@@ -223,7 +223,7 @@ function PortalOverviewSection({ hubMeta }: { hubMeta?: PortalMeta | null }) {
       proposalTitle={proposal?.fileName?.replace(/\.[^/.]+$/, "")}
       videoCount={videosData?.items?.length || 0}
       documentCount={docsData?.items?.length || 0}
-      unreadMessages={messagesData?.items?.filter((t) => !t.isRead)?.length || 0}
+      messageCount={feedMessagesData?.items?.length || 0}
       nextMeetingDate={computeMeetingCounts(meetingsData)}
       pendingQuestionnaires={questionnairesData?.items?.filter((q) => q.status !== "completed")?.length || 0}
       showWelcomeModal={showWelcomeModal}

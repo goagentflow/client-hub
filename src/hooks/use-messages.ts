@@ -10,6 +10,8 @@ import type {
   MessageThreadDetail,
   Message,
   SendMessageRequest,
+  FeedMessage,
+  SendFeedMessageRequest,
   PaginatedList,
   PaginationParams,
   MessageFilterParams,
@@ -22,6 +24,10 @@ import {
   archiveThread,
   getPortalMessages,
   sendPortalMessage,
+  getFeedMessages,
+  sendFeedMessage,
+  getPortalFeedMessages,
+  sendPortalFeedMessage,
 } from "@/services";
 import { serializeParams } from "@/lib/query-keys";
 
@@ -31,8 +37,11 @@ export const messageKeys = {
   lists: () => [...messageKeys.all, "list"] as const,
   list: (hubId: string, params?: PaginationParams & MessageFilterParams) =>
     [...messageKeys.lists(), hubId, serializeParams(params)] as const,
+  feedList: (hubId: string, params?: PaginationParams) =>
+    [...messageKeys.all, "feed", hubId, serializeParams(params)] as const,
   detail: (hubId: string, threadId: string) => [...messageKeys.all, hubId, threadId] as const,
   portal: (hubId: string, params?: PaginationParams) => [...messageKeys.all, "portal", hubId, serializeParams(params)] as const,
+  portalFeed: (hubId: string, params?: PaginationParams) => [...messageKeys.all, "portal-feed", hubId, serializeParams(params)] as const,
 };
 
 /**
@@ -120,6 +129,58 @@ export function useArchiveThread(hubId: string) {
     mutationFn: ({ threadId, archive }) => archiveThread(hubId, threadId, archive),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: messageKeys.lists() });
+    },
+  });
+}
+
+/**
+ * Hook to get non-threaded feed messages for staff view
+ */
+export function useFeedMessages(hubId: string, params?: PaginationParams) {
+  return useQuery<PaginatedList<FeedMessage>>({
+    queryKey: messageKeys.feedList(hubId, params),
+    queryFn: () => getFeedMessages(hubId, params),
+    enabled: !!hubId,
+  });
+}
+
+/**
+ * Hook to send non-threaded staff feed message
+ */
+export function useSendFeedMessage(hubId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation<FeedMessage, Error, SendFeedMessageRequest>({
+    mutationFn: (data) => sendFeedMessage(hubId, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: messageKeys.feedList(hubId) });
+      queryClient.invalidateQueries({ queryKey: messageKeys.portalFeed(hubId) });
+    },
+  });
+}
+
+/**
+ * Hook to get non-threaded portal feed messages
+ */
+export function usePortalFeedMessages(hubId: string, params?: PaginationParams) {
+  return useQuery<PaginatedList<FeedMessage>>({
+    queryKey: messageKeys.portalFeed(hubId, params),
+    queryFn: () => getPortalFeedMessages(hubId, params),
+    enabled: !!hubId,
+  });
+}
+
+/**
+ * Hook to send non-threaded portal feed message
+ */
+export function useSendPortalFeedMessage(hubId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation<FeedMessage, Error, SendFeedMessageRequest>({
+    mutationFn: (data) => sendPortalFeedMessage(hubId, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: messageKeys.portalFeed(hubId) });
+      queryClient.invalidateQueries({ queryKey: messageKeys.feedList(hubId) });
     },
   });
 }

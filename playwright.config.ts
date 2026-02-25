@@ -32,6 +32,10 @@ export default defineConfig({
   // Start dev server before running tests
   webServer: {
     command: process.env.CI ? "npm run build && npm run preview" : "npm run dev",
+    env: {
+      ...process.env,
+      VITE_USE_MOCK_API: process.env.VITE_USE_MOCK_API ?? "true",
+    },
     url: process.env.CI ? "http://localhost:4173" : "http://localhost:8080",
     reuseExistingServer: !process.env.CI,
     timeout: 180 * 1000,

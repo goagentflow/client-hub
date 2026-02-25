@@ -67,7 +67,7 @@ const pitchHubNavItems: NavItem[] = [
 // Client hub nav items — coming soon features flagged for subtle styling
 const clientHubNavItems: NavItem[] = [
   { title: "Overview", path: "overview", icon: Home },
-  { title: "Messages", path: "messages", icon: MessageSquare, comingSoon: true },
+  { title: "Messages", path: "messages", icon: MessageSquare },
   { title: "Meetings", path: "meetings", icon: Calendar, comingSoon: true },
   { title: "Documents", path: "documents", icon: FolderOpen },
   { title: "Decisions", path: "decisions", icon: ClipboardCheck, comingSoon: true },

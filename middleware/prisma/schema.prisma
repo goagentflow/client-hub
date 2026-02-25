@@ -57,6 +57,7 @@ model Hub {
   portalContacts PortalContact[]
   invites        HubInvite[]
   statusUpdates  HubStatusUpdate[]
+  messages       HubMessage[]
 
   @@map("hub")
 }
@@ -253,4 +254,22 @@ model HubStatusUpdate {
 
   @@index([tenantId, hubId, createdAt(sort: Desc), id(sort: Desc)])
   @@map("hub_status_update")
+}
+
+/// Message feed records (non-threaded).
+/// Raw SQL migration enforces composite FK (hub_id, tenant_id) and body constraints.
+model HubMessage {
+  id          String   @id @default(uuid())
+  hubId       String   @map("hub_id")
+  tenantId    String   @map("tenant_id")
+  senderType  String   @map("sender_type")
+  senderEmail String   @map("sender_email")
+  senderName  String   @map("sender_name")
+  body        String
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  hub Hub @relation(fields: [hubId], references: [id])
+
+  @@index([tenantId, hubId, createdAt(sort: Desc), id(sort: Desc)])
+  @@map("hub_message")
 }

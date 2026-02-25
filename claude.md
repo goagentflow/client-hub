@@ -1,4 +1,4 @@
-# AgentFlow Client Hub v0.1 (Phase 1 — Document Upload)
+# AgentFlow Client Hub v0.1 (Phase 6 — Messages MVP Feed)
 
 Read these files for full project context:
 - .cursorrules — Project context, scope, brand guidelines, code patterns
@@ -10,7 +10,7 @@ Read these files for full project context:
 - docs/CURRENT_STATE.md — Canonical live vs aspirational status
 
 For middleware development:
-- docs/PRODUCTION_ROADMAP.md — **Current architecture and implementation plan** (v5.3, docs synchronized post-Phase 2b)
+- docs/PRODUCTION_ROADMAP.md — **Current architecture and implementation plan** (v5.5, includes messages feed)
 - docs/PHASE_1_DOCUMENT_UPLOAD_SUPABASE_PLAN.md — Phase 1 MVP file upload/download plan (Supabase Storage fast path) — **IMPLEMENTED**
 - docs/PHASE_1_5_EMAIL_VERIFICATION_PLAN.md — Email verification design (implemented, deployed, smoke-tested)
 - docs/middleware/MSAL_AUTH_IMPLEMENTATION_PLAN.md — Auth design (approved by senior dev)
@@ -45,7 +45,8 @@ Follow AGENTS.md canon: **Simple, Clean, DRY, Secure**.
 - Portal invite endpoints (Phase 2a) — POST/GET/DELETE invites with email, domain validation, cascade revoke
 - Status updates (Phase 2b) — append-only fortnightly updates, staff POST + GET, portal GET with field redaction, raw SQL migration with triggers
 - Document upload/download (Phase 1) — Supabase Storage private bucket, multer upload, signed URL download, storage cleanup on delete
-- Endpoint accounting note: roadmap contract inventory is 115 endpoints (53 real, 62 placeholders); 11 additional non-contract real endpoints tracked separately
+- Messages (Phase 6 MVP) — flat feed, staff GET/POST + portal GET/POST, Resend notifications, verified-email requirement for portal posting
+- Endpoint accounting note: roadmap contract inventory is 115 endpoints (56 real, 59 placeholders); 11 additional non-contract real endpoints tracked separately
 
 **Hub Types:**
 - Pitch Hubs: Prospecting/new business (proposal, videos, questionnaire)
@@ -63,7 +64,8 @@ Follow AGENTS.md canon: **Simple, Clean, DRY, Secure**.
 **Not yet implemented end-to-end (placeholder backend and/or "Coming Soon" portal UI):**
 - Relationship health and expansion intelligence
 - Client intelligence (instant answers, decision queue, performance, history, risk alerts)
-- Messages and meetings integrations
+- Meetings integrations
+- Threaded message features (thread detail/notes/update endpoints)
 - Most questionnaire operations
 
 **Architecture:**
@@ -76,7 +78,7 @@ Follow AGENTS.md canon: **Simple, Clean, DRY, Secure**.
 
 **Middleware config & data:**
 - `middleware/src/config/env.ts` — AUTH_MODE, DATA_BACKEND, RESEND_API_KEY, SUPABASE_URL/KEY, production guards
-- `middleware/prisma/schema.prisma` — Database schema (Hub, HubEvent, HubNote, HubInvite, HubStatusUpdate, PortalContact, PortalVerification, PortalDevice)
+- `middleware/prisma/schema.prisma` — Database schema (Hub, HubEvent, HubInvite, HubStatusUpdate, HubMessage, PortalContact, PortalVerification, PortalDevice)
 - `middleware/src/db/` — Prisma client, TenantRepository, AdminRepository, hub mapper, portal-verification-queries
 
 **Middleware auth:**
@@ -88,12 +90,16 @@ Follow AGENTS.md canon: **Simple, Clean, DRY, Secure**.
 - `middleware/src/routes/portal-verification.route.ts` — Public endpoints (access-method, request-code, verify-code, verify-device)
 - `middleware/src/routes/portal-contacts.route.ts` — Staff endpoints (contacts CRUD, access method management)
 - `middleware/src/routes/members.route.ts` — Staff invite endpoints (POST/GET/DELETE) + 5 remaining 501 stubs
+- `middleware/src/routes/messages.route.ts` — Staff message feed (GET/POST live) + thread endpoints still 501
+- `middleware/src/routes/portal.route.ts` — Portal message feed (GET/POST live) + other portal placeholders
 - `middleware/src/routes/status-updates.route.ts` — Staff-only POST + GET for fortnightly status updates
+- `middleware/src/services/message-queries.ts` — Shared message feed query helper/mappers
 - `middleware/src/services/status-update-queries.ts` — Shared query helper + portal field mapper
-- `middleware/src/services/email.service.ts` — Resend transactional email (verification codes + portal invites)
+- `middleware/src/services/email.service.ts` — Resend transactional email (verification codes, invites, message notifications)
 - `middleware/src/services/storage.service.ts` — Supabase Storage wrapper (upload, signed URL download, delete)
 - `middleware/src/middleware/upload.ts` — Multer upload config (50MB, MIME + extension allowlist)
 - `middleware/prisma/sql/001_hub_status_update.sql` — Raw SQL migration (table, composite FK, CHECK constraints, append-only triggers)
+- `middleware/prisma/sql/002_hub_message.sql` — Raw SQL migration (message feed table + composite FK + body constraints)
 
 **Docker (Cloud Run deployment):**
 - `middleware/Dockerfile` — Multi-stage middleware build (Node 20, pnpm, Prisma, tsup, non-root)
@@ -104,6 +110,9 @@ Follow AGENTS.md canon: **Simple, Clean, DRY, Secure**.
 **Frontend:**
 - `src/services/api.ts` — API client (has setTokenGetter pattern)
 - `src/services/auth.service.ts` — MSAL login, token acquisition
+- `src/services/message.service.ts` — Legacy thread compatibility + live feed service calls
+- `src/hooks/use-messages.ts` — Feed hooks (`useFeedMessages`, `usePortalFeedMessages`, send mutations)
+- `src/components/messages/MessageFeed.tsx` — Shared feed UI (loading/error/empty/send states)
 - `src/components/EmailGate.tsx` — Client email verification UI
 - `src/components/client-portal/PortalContactsCard.tsx` — Staff contact management UI
 - `src/pages/PortalDetail.tsx` — Portal landing page (routes to correct gate based on access method)

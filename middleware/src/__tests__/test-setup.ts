@@ -57,10 +57,12 @@ const _hoisted = vi.hoisted(() => {
       hub: makeMockScopedModel({ findFirst: STUB_HUB }),
       hubVideo: makeMockScopedModel(),
       hubDocument: makeMockScopedModel(),
+      portalContact: makeMockScopedModel(),
       hubProject: makeMockScopedModel(),
       hubMilestone: makeMockScopedModel(),
       hubEvent: makeMockScopedModel(),
       hubStatusUpdate: makeMockScopedModel(),
+      hubMessage: makeMockScopedModel(),
     };
   }
 
@@ -199,9 +201,16 @@ export async function loadApp(): Promise<Express> {
 }
 
 // Helper: generate a portal JWT for testing
-export async function makePortalToken(hubId: string, overrides?: { type?: string; exp?: string }): Promise<string> {
+export async function makePortalToken(
+  hubId: string,
+  overrides?: { type?: string; exp?: string; email?: string; name?: string },
+): Promise<string> {
   const secret = new TextEncoder().encode(TEST_PORTAL_SECRET);
-  const builder = new SignJWT({ type: overrides?.type ?? 'portal' })
+  const builder = new SignJWT({
+    type: overrides?.type ?? 'portal',
+    ...(overrides?.email ? { email: overrides.email } : {}),
+    ...(overrides?.name ? { name: overrides.name } : {}),
+  })
     .setProtectedHeader({ alg: 'HS256' })
     .setSubject(hubId)
     .setIssuer('agentflow')

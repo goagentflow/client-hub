@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Routes, Route, Navigate, useParams } from "react-router-dom";
-import { Loader2, AlertCircle, MessageSquare, Calendar, ClipboardCheck, BarChart3, Sparkles, History } from "lucide-react";
+import { Loader2, AlertCircle, Calendar, ClipboardCheck, BarChart3, Sparkles, History } from "lucide-react";
 import { ClientHubLayout } from "@/components/ClientHubLayout";
 import { ClientOverviewSection } from "@/components/ClientOverviewSection";
 import { ClientProposalSection } from "@/components/ClientProposalSection";
@@ -11,6 +11,7 @@ import { ClientPeopleSection } from "@/components/ClientPeopleSection";
 import { PasswordGate } from "@/components/PasswordGate";
 import { ComingSoonPlaceholder } from "@/components/ui/ComingSoonPlaceholder";
 import { EmailGate } from "@/components/EmailGate";
+import { PortalMessageFeed } from "@/components/messages/PortalMessageFeed";
 import { HubProvider } from "@/contexts/hub-context";
 import { useCurrentUser } from "@/hooks";
 import { isMockApiEnabled, api } from "@/services/api";
@@ -117,7 +118,7 @@ const PortalDetail = () => {
           <Routes>
             <Route path="overview" element={<ClientOverviewSection hubMeta={hubMeta} isStaff={!!isStaff} />} />
             <Route path="documents" element={<ClientDocumentsSection />} />
-            <Route path="messages" element={<ComingSoonPlaceholder icon={MessageSquare} title="Messages" description="Direct messaging with your agency team." />} />
+            <Route path="messages" element={<PortalMessageFeed />} />
             <Route path="proposal" element={<ClientProposalSection />} />
             <Route path="videos" element={<ClientVideosSection />} />
             <Route path="meetings" element={<ComingSoonPlaceholder icon={Calendar} title="Meetings" description="Your upcoming meetings and key milestones, all in one place." />} />
@@ -167,7 +168,7 @@ const PortalDetail = () => {
           {/* Shared routes */}
           <Route path="overview" element={<ClientOverviewSection hubMeta={hubMeta} isStaff={!!isStaff} />} />
           <Route path="documents" element={<ClientDocumentsSection />} />
-          <Route path="messages" element={<ComingSoonPlaceholder icon={MessageSquare} title="Messages" description="Direct messaging with your agency team." />} />
+          <Route path="messages" element={<PortalMessageFeed />} />
 
           {/* Pitch hub routes */}
           <Route path="proposal" element={<ClientProposalSection />} />

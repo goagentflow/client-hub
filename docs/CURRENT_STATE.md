@@ -1,7 +1,7 @@
 # AgentFlow Client Hub - Current State (Live vs Aspirational)
 
 **Last verified:** 25 February 2026
-**Verification basis:** route-level code audit (`middleware/src/routes`), test run (`180/180`), frontend build, production smoke test (upload + download).
+**Verification basis:** route-level code audit (`middleware/src/routes`), test run (`195/195`), frontend build, production smoke test (upload + download).
 
 ---
 
@@ -45,6 +45,7 @@ If this file conflicts with older planning docs, trust this file and `docs/PRODU
 | Public portal verification | `/api/v1/public/hubs/:hubId/access-method|request-code|verify-code|verify-device` |
 | Portal invites (staff flow) | `/api/v1/hubs/:hubId/invites` (POST/GET/DELETE) |
 | Status updates (append-only) | `/api/v1/hubs/:hubId/status-updates` (staff POST/GET), `/api/v1/hubs/:hubId/portal/status-updates` (portal GET) |
+| Message feed (flat, non-threaded) | `/api/v1/hubs/:hubId/messages` (staff GET/POST), `/api/v1/hubs/:hubId/portal/messages` (portal GET/POST) |
 | Document upload (Supabase Storage) | `POST /api/v1/hubs/:hubId/documents` (multipart upload, 50MB limit, MIME + extension allowlist) |
 | Document download (signed URLs) | `GET /api/v1/hubs/:hubId/documents/:docId/download` (staff), `GET /api/v1/hubs/:hubId/portal/documents/:docId/download` (portal) |
 | Document preview (signed URLs, no download increment) | `GET /api/v1/hubs/:hubId/documents/:docId/preview` (staff), `GET /api/v1/hubs/:hubId/portal/documents/:docId/preview` (portal) |
@@ -62,12 +63,12 @@ The following route families still return placeholders (mostly HTTP 501), or min
 |---|---|
 | File uploads (proposals + videos) | Proposal and video upload endpoints are still placeholders |
 | Document engagement analytics | `GET /hubs/:hubId/documents/:docId/engagement` is 501 |
-| Messages | All hub message endpoints are 501 |
+| Messages | Feed endpoints are live (`GET/POST /hubs/:hubId/messages`, `GET/POST /hubs/:hubId/portal/messages`); legacy thread endpoints remain 501 |
 | Meetings | All hub meeting endpoints are 501 |
 | Relationship intelligence | Hub relationship-health / expansion endpoints are 501 |
 | Client intelligence | Instant answers, decision queue, performance, history, risk alerts are 501 |
 | Portal proposal comments | 501 |
-| Portal messages/meetings/members/questionnaires | 501 |
+| Portal meetings/members/questionnaires | 501 |
 | Invite acceptance (`/public/invites/:token/accept`) | 501 |
 | Conversion rollback | 501 |
 | Members activity/update/delete + share-link | Placeholder (501/empty list behavior) |
@@ -80,8 +81,8 @@ The following route families still return placeholders (mostly HTTP 501), or min
 For planning/roadmap continuity, we track a **contract surface** of:
 
 - **115 contract endpoints**
-- **52 real**
-- **63 placeholders**
+- **56 real**
+- **59 placeholders**
 
 Important nuance:
 
@@ -90,7 +91,7 @@ Important nuance:
   - Public: `GET /public/hubs/:hubId/access-method`, `POST /public/hubs/:hubId/request-code`, `POST /public/hubs/:hubId/verify-code`, `POST /public/hubs/:hubId/verify-device`
 - Code also contains one legacy placeholder endpoint:
   `POST /hubs/:hubId/portal/invite` in `middleware/src/routes/portal.route.ts`
-- Actual mounted API surface today (excluding `/health`) is **129 endpoints** (**66 real**, **63 placeholders**)
+- Actual mounted API surface today (excluding `/health`) is **129 endpoints** (**70 real**, **59 placeholders**)
 
 ---
 
@@ -98,7 +99,7 @@ Important nuance:
 
 - Source code defaults `VITE_USE_MOCK_API` to enabled unless explicitly set to `"false"`
 - Production Cloud Run builds set mock API off and call real middleware endpoints
-- Client portal currently shows explicit "Coming Soon" placeholders for several not-yet-implemented areas (messages, meetings, instant answers, decisions, performance, history)
+- Client portal currently shows explicit "Coming Soon" placeholders for several not-yet-implemented areas (meetings, instant answers, decisions, performance, history)
 - Remaining non-placeholder screens in aspirational areas still rely on mock data or placeholder backend endpoints when mock mode is disabled
 
 ---

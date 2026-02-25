@@ -25,7 +25,7 @@ interface PitchOverviewLayoutProps {
   welcomeVideoUrl?: string;
   videoCount: number;
   documentCount: number;
-  unreadMessages: number;
+  messageCount: number;
   nextMeetingDate?: string;
   pendingQuestionnaires: number;
   activities?: ActivityFeedItem[];
@@ -46,7 +46,7 @@ export function PitchOverviewLayout({
   welcomeVideoUrl,
   videoCount,
   documentCount,
-  unreadMessages,
+  messageCount,
   nextMeetingDate,
   pendingQuestionnaires,
   activities,
@@ -95,7 +95,7 @@ export function PitchOverviewLayout({
           proposalCount={hasProposal ? 1 : 0}
           videoCount={videoCount}
           documentCount={documentCount}
-          unreadMessages={unreadMessages}
+          messageCount={messageCount}
           nextMeetingDate={nextMeetingDate}
           pendingQuestionnaires={pendingQuestionnaires}
         />

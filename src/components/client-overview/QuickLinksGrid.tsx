@@ -26,7 +26,7 @@ interface QuickLinksGridProps {
   proposalCount: number;
   videoCount: number;
   documentCount: number;
-  unreadMessages: number;
+  messageCount: number;
   nextMeetingDate?: string;
   pendingQuestionnaires: number;
 }
@@ -35,7 +35,7 @@ export function QuickLinksGrid({
   proposalCount,
   videoCount,
   documentCount,
-  unreadMessages,
+  messageCount,
   nextMeetingDate,
   pendingQuestionnaires,
 }: QuickLinksGridProps) {
@@ -74,9 +74,9 @@ export function QuickLinksGrid({
       id: "messages",
       icon: Mail,
       title: "Messages",
-      description: unreadMessages > 0 ? `${unreadMessages} unread` : "No new messages",
+      description: messageCount > 0 ? `${messageCount} message${messageCount !== 1 ? "s" : ""}` : "No messages yet",
       accent: "gradient-blue",
-      badge: unreadMessages > 0 ? unreadMessages : undefined,
+      badge: messageCount > 0 ? messageCount : undefined,
       hasContent: true,
       route: `/portal/${hubId}/messages`,
     },

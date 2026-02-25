@@ -108,6 +108,8 @@ export type {
   MessageRecipient,
   MessageAttachment,
   SendMessageRequest,
+  FeedMessage,
+  SendFeedMessageRequest,
   UpdateTeamNotesRequest,
   ArchiveThreadRequest,
   MessageFilterParams,

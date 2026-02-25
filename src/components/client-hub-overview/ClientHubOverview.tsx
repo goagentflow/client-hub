@@ -12,9 +12,9 @@
  */
 
 import { Link } from "react-router-dom";
-import { FolderOpen, Calendar, BarChart3, History, Sparkles, MessageSquare, FileText, ChevronRight } from "lucide-react";
+import { FolderOpen, Calendar, BarChart3, History, Sparkles, FileText, ChevronRight } from "lucide-react";
 import { useCurrentUser, usePortalDocuments } from "@/hooks";
-import { StatusUpdateCard } from "./index";
+import { StatusUpdateCard, RecentMessagesCard } from "./index";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -155,16 +155,8 @@ export function ClientHubOverview({ hubId, hubName }: ClientHubOverviewProps) {
                 </CardContent>
               </Card>
             </section>
-            <section aria-label="Messages — coming soon">
-              <Card>
-                <CardContent className="pt-6">
-                  <ComingSoonPlaceholder
-                    icon={MessageSquare}
-                    title="Messages"
-                    description="Direct messaging with your agency team."
-                  />
-                </CardContent>
-              </Card>
+            <section aria-label="Recent messages">
+              <RecentMessagesCard hubId={hubId} />
             </section>
           </div>
         </div>

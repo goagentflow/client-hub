@@ -2,7 +2,7 @@
 
 **Date:** 25 Feb 2026
 **Author:** Hamish Nicklin / Claude Code
-**Status:** v5.4 — Document UX improvements (preview endpoints, upload summary enforcement, portal card enrichment, overview recent docs, inline preview renderer). Endpoint inventory: 115 contract endpoints (52 real, 63 placeholder), plus 11 non-contract real endpoints (9 Phase 1.5 + 2 preview). Actual mounted surface: 129 endpoints (66 real, 63 placeholders). See `docs/CURRENT_STATE.md`.
+**Status:** v5.5 — Messages MVP feed implemented (staff + portal GET/POST feed endpoints with notifications). Endpoint inventory: 115 contract endpoints (56 real, 59 placeholder), plus 11 non-contract real endpoints (9 Phase 1.5 + 2 preview). Actual mounted surface: 129 endpoints (70 real, 59 placeholders). See `docs/CURRENT_STATE.md`.
 **Audience:** Senior developer reviewing for feasibility and sequencing
 
 ---
@@ -276,12 +276,12 @@ Audited by reading route registrations in `middleware/src/routes/*.ts` and class
 | proposals.route.ts | 3 | 2 | 5 | Upload + engagement stubbed |
 | videos.route.ts | 6 | 2 | 8 | Upload + engagement stubbed |
 | projects.route.ts | 8 | 0 | 8 | Fully implemented (incl. milestones) |
-| portal.route.ts | 4 | 6 | 10 | GET videos/documents/proposal/status-updates real; contract stubs: comment, messages, meetings, members, questionnaires. `POST /portal/invite` exists in file as a legacy 501 endpoint but is excluded from contract totals. |
+| portal.route.ts | 6 | 4 | 10 | GET videos/documents/proposal/messages/status-updates real; contract stubs: comment, meetings, members, questionnaires. `POST /portal/invite` exists in file as a legacy 501 endpoint but is excluded from contract totals. |
 | status-updates.route.ts | 2 | 0 | 2 | POST + GET (staff-only, append-only) |
 | portal-config.route.ts | 2 | 0 | 2 | Fully implemented |
 | events.route.ts | 3 | 0 | 3 | Fully implemented (incl. leadership event) |
 | public.route.ts | 3 | 1 | 4 | Invite accept stubbed |
-| messages.route.ts | 0 | 5 | 5 | All 501 (Graph Mail) |
+| messages.route.ts | 2 | 3 | 5 | Feed list/create real; thread detail/notes/update remain 501 (threading deferred) |
 | meetings.route.ts | 0 | 9 | 9 | All 501 (Graph Calendar + Teams) |
 | members.route.ts | 3 | 5 | 8 | 3 invite endpoints real (POST/GET/DELETE); 4 member + 1 share-link still 501. Invite-accept lives in public.route.ts. |
 | questionnaires.route.ts | 0 | 6 | 6 | All 501 |
@@ -289,11 +289,11 @@ Audited by reading route registrations in `middleware/src/routes/*.ts` and class
 | intelligence.route.ts | 0 | 3 | 3 | All 501 (relationship health + expansion) |
 | leadership.route.ts | 2 | 3 | 5 | Portfolio/clients real; at-risk/expansion/refresh stubbed |
 | conversion.route.ts | 1 | 1 | 2 | POST convert real; POST rollback stubbed |
-| **TOTAL** | **52** | **63** | **115** | **45% real, 55% stubbed** |
+| **TOTAL** | **56** | **59** | **115** | **49% real, 51% stubbed** |
 
-Including excluded routes, mounted `/api/v1` surface today is **125 endpoints** (**61 real**, **64 placeholders**). Adding `/health` yields 128 total route handlers.
+Including excluded routes, mounted `/api/v1` surface today is **129 endpoints** (**70 real**, **59 placeholders**). Adding `/health` yields 132 total route handlers.
 
-**Corrections from v3:** projects (8 not 9), documents (5/2/7 not 5/3/8), videos (6/2/8 not 6/3/9), portal (3/7/10 not 3/5/8), meetings (0/9/9 not 0/10/10), members (0/8/8 not 0/11/11 — dead `acceptInviteRouter` deleted, live version in public.route.ts), questionnaires (0/6/6 not 0/7/7). Net at v4.1: 67 stubs (from 72 in v3). Current (v5.2+): 63 contract placeholders.
+**Corrections from v3:** projects (8 not 9), documents (5/2/7 not 5/3/8), videos (6/2/8 not 6/3/9), portal (3/7/10 not 3/5/8), meetings (0/9/9 not 0/10/10), members (0/8/8 not 0/11/11 — dead `acceptInviteRouter` deleted, live version in public.route.ts), questionnaires (0/6/6 not 0/7/7). Net at v4.1: 67 stubs (from 72 in v3). Current (v5.5): 59 contract placeholders.
 
 **v5.2 changes:** Added status-updates.route.ts (2 new real endpoints). Portal status-updates endpoint moved from stub to real (portal contract counts: 4 real / 6 placeholder). Total contract inventory: 115 endpoints (52 real, 63 placeholders).
 
@@ -305,12 +305,12 @@ Including excluded routes, mounted `/api/v1` surface today is **125 endpoints** 
 | Phase 2 (Members) | members:4 member + 1 share-link (invite 3 done), portal:members, public:invite-accept | 7 |
 | Phase 3 (Questionnaires) | questionnaires:all 6, portal:questionnaires | 7 |
 | Phase 4 (Engagement) | documents:engagement, proposals:engagement, videos:engagement, leadership:at-risk+expansion+refresh | 6 |
-| Phase 6 (Messages) | messages:all 5, portal:messages(GET+POST) | 7 |
+| Phase 6 (Messages) | messages:thread detail + notes + update | 3 |
 | Phase 7 (Meetings) | meetings:all 9, portal:meetings | 10 |
 | Phase 8 (AI) | client-intelligence:all 18, intelligence:all 3 | 21 |
 | Phase 9 (Intelligence) | (uses intelligence.route.ts endpoints — counted in Phase 8) | 0 |
 | Phase 10 (Polish) | conversion:rollback, portal:proposal/comment | 2 |
-| **TOTAL** | | **63** |
+| **TOTAL** | | **59** |
 
 ---
 
@@ -760,35 +760,31 @@ Cloud Build:
 
 ---
 
-### Phase 6: Messages (Graph Mail)
+### Phase 6: Messages (MVP Feed)
 
-**Objective:** Staff can view and send hub-related emails through the app.
-
-**Hub scoping — explicit linkage, not heuristics:**
-- New table: `hub_message_thread` (`id`, `hub_id`, `graph_conversation_id`, `linked_by`, `linked_at`, `tenant_id`)
-- Messages are scoped to a hub via explicit linked thread IDs, NOT by email/domain matching
-- Staff explicitly links a conversation to a hub (or the system auto-links when sending from within a hub context)
-- Listing messages: `SELECT graph_conversation_id FROM hub_message_thread WHERE hub_id = :hubId AND tenant_id = :tenantId`
-- This eliminates the risk of data leakage between hubs that share contacts or domains
+**Objective:** Ship a production-safe, non-threaded message feed in-app for staff and portal clients.
 
 **What's built:**
-- 5 endpoints in messages.route.ts: list threads, get thread, send message, notes, status update
-- 2 endpoints in portal.route.ts: portal messages GET + POST
-- Explicit hub-to-thread linkage table
-- Internal notes stored in database (never sent to clients)
-- Emails sent FROM the user's own mailbox via OBO
+- New `hub_message` table (tenant-scoped, hub-scoped, ordered by `created_at DESC`)
+- Staff endpoints: `GET/POST /hubs/:hubId/messages`
+- Portal endpoints: `GET/POST /hubs/:hubId/portal/messages`
+- Sender identity is server-derived from auth context
+- Email notifications via Resend (staff post → portal contacts; portal post → hub contact email)
+- Frontend feed UI replaces portal Messages “Coming Soon” state
 
 **Success criteria:**
-- Staff views only explicitly linked email threads for a hub
-- Staff sends emails from the app (appears in their Sent folder, auto-linked to hub)
-- Internal notes attached to threads
-- Cross-hub thread access denied (negative test: thread linked to Hub A not visible in Hub B)
+- Staff can post and list messages for a hub
+- Portal clients can post and list messages for their hub
+- Messages are tenant-isolated and hub-scoped
+- Portal POST requires verified-email portal session
+- Notifications are sent best-effort without blocking message creation
 
-**Stub endpoints resolved:** messages:all 5, portal:messages GET+POST (2) = **7 stubs**
+**Stub endpoints resolved:** staff feed GET+POST (2), portal feed GET+POST (2) = **4 stubs**  
+**Remaining in messages.route.ts:** thread detail, thread notes, thread update (3 stubs)
 
-**Dependencies:** Phase 5 (OBO), Azure AD `Mail.Read` + `Mail.Send` permissions
+**Dependencies:** none beyond existing auth + database + Resend integration
 
-**Complexity:** Medium-high (~5-6 days)
+**Complexity:** Medium (~3-4 days)
 
 ---
 
@@ -937,7 +933,7 @@ Cloud Build:
 | 3 | Questionnaires | 4-5 days | Phase 0a | Azure cutover |
 | 4 | Engagement Analytics | 3-4 days | Phase 0a | Azure cutover |
 | 5 | OBO Token Flow | 3-4 days | Phase 0a | Azure cutover |
-| 6 | Messages (Explicit Linkage) | 5-6 days | Phase 5 | Azure cutover |
+| 6 | Messages (MVP Feed) | 3-4 days | None | MVP — **COMPLETE** (v5.5) |
 | 7 | Meetings (Explicit Linkage) | 6-7 days | Phase 5 | Azure cutover |
 | 8 | Client Intelligence (AI + Governance) | 8-10 days | Phase 4, 7 | Azure cutover |
 | 9 | Relationship Intelligence (Frontend) | 4-5 days | Phase 8 | Azure cutover |
@@ -1120,4 +1116,5 @@ Note: `created_source` must be `'claude_sql'` (not default `'staff_ui'`). Compos
 | v5.1 | 24 Feb 2026 | Phase 2a (Portal Invite Endpoints) implemented, reviewed, and deployed: (1) HubInvite model added to Prisma schema with unique(hubId, email) and composite index; (2) hub_invite table created in Supabase via raw SQL (prisma db push fails due to CRM cross-schema refs); (3) 3 invite endpoints in members.route.ts — POST (create/re-invite with zod validation, domain check, email normalisation, interactive transaction, fire-and-forget email), GET (pending non-expired), DELETE (revoke with cascade); (4) sendPortalInvite() added to email.service.ts with branded HTML; (5) INVITE_SELECT excludes token from responses; (6) RESEND_API_KEY added to cloudbuild-middleware.yaml; (7) Frontend type updated (token removed, message added); (8) 21 new tests across 2 files + shared fixtures (141 total, 10 files); (9) hubs.route.ts portal-preview bug fixed; (10) 3 rounds automated review + external senior dev review, all findings addressed (hub-scoped DELETE, frontend type drift, test coverage, pre-existing test failure); (11) Middleware redeployed to Cloud Run. Browser test of invite flow pending. |
 | v5.2 | 24 Feb 2026 | Phase 2b (Status Updates) implemented, reviewed, and deployed: (1) HubStatusUpdate model added to Prisma schema; (2) Raw SQL migration (`prisma/sql/001_hub_status_update.sql`) with composite FK `(hub_id, tenant_id)`, CHECK constraints (non-empty fields, length limits ≤200/≤5000, on_track enum), and append-only triggers (UPDATE/DELETE blocked); (3) `db:migrate:sql` and `db:migrate:all` scripts added to package.json with fail-fast error handling; (4) Staff-only POST + GET routes in `status-updates.route.ts` with `requireString()` type guard, length limits, strict onTrack validation, server-derived createdBy/createdSource; (5) Portal GET route added to `portal.route.ts` with `mapStatusUpdateForPortal()` stripping tenantId + createdSource; (6) Shared query service `status-update-queries.ts` (neutral module, no auth/HTTP); (7) Frontend: `CreateStatusUpdateDialog.tsx` (staff form), `StatusUpdateCard.tsx` (portal card with accumulative load-more pagination, stale-state reset on hub change), React Query hooks with broadened cache invalidation; (8) `QuickStatCard.tsx` and `ClientHubOverviewPage.tsx` extracted for file-length compliance; (9) 15 status-update tests (validation, auth, portal positive-path with field redaction assertion); (10) 159 total tests across 11 files; (11) 3 rounds internal review + 2 rounds external review, all findings addressed; (12) Both services redeployed to Cloud Run + SQL migration run against prod. |
 | v5.3 | 24 Feb 2026 | Documentation sync pass: (1) added `docs/CURRENT_STATE.md` as canonical live-vs-aspirational source; (2) aligned README + STATUS + roadmap references; (3) corrected stale counts/phrasing (tests, latest phase wording, remaining placeholder count); (4) added historical banners on outdated planning docs to prevent cold-dev confusion. |
+| v5.5 | 25 Feb 2026 | Messages MVP feed implemented: (1) new `hub_message` raw SQL migration + Prisma model + TenantRepository scope; (2) staff `GET/POST /hubs/:hubId/messages` with strict body validation and non-blocking notifications; (3) portal `GET/POST /hubs/:hubId/portal/messages` with verified-email posting requirement; (4) new message query service and Resend notification templates/functions; (5) 15 message tests added + contract stub assertions updated; (6) frontend message feed components/hooks/services wired for staff + portal routes; (7) portal Messages “Soon” placeholder removed; (8) docs inventory updated to 56 real / 59 placeholder contract endpoints. |
 | v4.9 | 23 Feb 2026 | Phase 1.5 (Portal Email Verification) implemented and deployed: (1) 3 new Prisma models (PortalContact, PortalVerification, PortalDevice) + Hub.accessMethod field; (2) 4 public endpoints (access-method, request-code, verify-code, verify-device) with rate limiting and enumeration prevention; (3) 5 staff endpoints (portal contacts CRUD + access method management) with tenant isolation; (4) Email via Resend REST API (fire-and-forget, XSS-safe templates); (5) Frontend EmailGate + PortalContactsCard + PortalDetail access-method routing; (6) SHA-256 hashed codes, timing-safe comparison, per-code lockout; (7) Device token remember-me (90-day, localStorage); (8) Method-switch side-effects (clear passwordHash on open, revoke artifacts on method change); (9) 120 tests across 7 files; (10) 3 rounds automated review + 3 rounds external senior dev review; (11) CLIENTHUB_RESEND_API_KEY added to GCP Secret Manager; (12) Both services redeployed to Cloud Run. Browser smoke test pending. |

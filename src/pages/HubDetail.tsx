@@ -4,7 +4,7 @@ import { ProposalSection } from "@/components/ProposalSection";
 import { ClientPortalSection } from "@/components/ClientPortalSection";
 import { VideosSection } from "@/components/VideosSection";
 import { DocumentsSection } from "@/components/DocumentsSection";
-import { MessagesSection } from "@/components/MessagesSection";
+import { StaffMessageFeed } from "@/components/messages/StaffMessageFeed";
 import { MeetingsSection } from "@/components/MeetingsSection";
 import { QuestionnaireSection } from "@/components/QuestionnaireSection";
 // Client hub components
@@ -36,7 +36,7 @@ export default function HubDetail() {
     if (path.includes('/intelligence')) return <IntelligenceSection />;
     // Shared sections (both hub types)
     if (path.includes('/documents')) return <DocumentsSection />;
-    if (path.includes('/messages')) return <MessagesSection />;
+    if (path.includes('/messages')) return <StaffMessageFeed />;
     if (path.includes('/meetings')) return <MeetingsSection />;
     return <OverviewSection />;
   };

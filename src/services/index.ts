@@ -84,6 +84,10 @@ export {
   archiveThread,
   getPortalMessages,
   sendPortalMessage,
+  getFeedMessages,
+  sendFeedMessage,
+  getPortalFeedMessages,
+  sendPortalFeedMessage,
 } from "./message.service";
 
 // Meeting service

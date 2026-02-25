@@ -72,10 +72,12 @@ export interface TenantRepository {
   hub: ScopedModel;
   hubVideo: ScopedModel;
   hubDocument: ScopedModel;
+  portalContact: ScopedModel;
   hubProject: ScopedModel;
   hubMilestone: ScopedModel;
   hubEvent: ScopedModel;
   hubStatusUpdate: ScopedModel;
+  hubMessage: ScopedModel;
 }
 
 export function createTenantRepository(
@@ -87,9 +89,11 @@ export function createTenantRepository(
     hub: scopeModel(prisma.hub, tenantId),
     hubVideo: scopeModel(prisma.hubVideo, tenantId),
     hubDocument: scopeModel(prisma.hubDocument, tenantId),
+    portalContact: scopeModel(prisma.portalContact, tenantId),
     hubProject: scopeModel(prisma.hubProject, tenantId),
     hubMilestone: scopeModel(prisma.hubMilestone, tenantId),
     hubEvent: scopeModel(prisma.hubEvent, tenantId),
     hubStatusUpdate: scopeModel(prisma.hubStatusUpdate, tenantId),
+    hubMessage: scopeModel(prisma.hubMessage, tenantId),
   };
 }

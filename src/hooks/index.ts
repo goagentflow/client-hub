@@ -84,6 +84,10 @@ export {
   useSendPortalMessage,
   useUpdateTeamNotes,
   useArchiveThread,
+  useFeedMessages,
+  useSendFeedMessage,
+  usePortalFeedMessages,
+  useSendPortalFeedMessage,
 } from "./use-messages";
 
 // Meeting hooks

@@ -8,209 +8,139 @@ import {
   waitForLoading,
 } from "./test-utils";
 
-test.describe("Messages Section", () => {
-  test.describe("Staff Messages", () => {
+function makeMessageText(prefix: string): string {
+  return `${prefix} ${Date.now()}`;
+}
+
+test.describe("Messages Feed", () => {
+  test.describe("Staff", () => {
     test.beforeEach(async ({ page }) => {
       await loginAsStaff(page);
     });
 
-    test("thread list displays correctly", async ({ page }) => {
+    test("renders feed and composer", async ({ page }) => {
       const errors = await setupConsoleErrorGate(page);
 
       await page.goto(`/hub/${MOCK_HUB_ID}/messages`);
       await waitForLoading(page);
 
-      // Should show messages heading
       await expect(page.getByRole("heading", { name: /messages/i })).toBeVisible();
+      await expect(page.getByTestId("message-feed")).toBeVisible();
+      await expect(page.getByTestId("message-input")).toBeVisible();
+      await expect(page.getByTestId("message-send-button")).toBeVisible();
 
-      // Should show thread list or empty state
-      const hasThreads = await page.locator('[class*="thread"], [class*="message"]').first().isVisible().catch(() => false);
-      const hasEmptyState = await page.getByText(/no messages/i).isVisible().catch(() => false);
+      const messageCount = await page.getByTestId("message-item").count();
+      const emptyVisible = await page.getByTestId("message-feed-empty").isVisible().catch(() => false);
+      expect(messageCount > 0 || emptyVisible).toBeTruthy();
 
-      expect(hasThreads || hasEmptyState).toBeTruthy();
       expectNoConsoleErrors(errors);
     });
 
-    test("thread shows lastMessagePreview in list", async ({ page }) => {
+    test("sends a new staff message", async ({ page }) => {
       const errors = await setupConsoleErrorGate(page);
 
       await page.goto(`/hub/${MOCK_HUB_ID}/messages`);
       await waitForLoading(page);
 
-      // Look for thread items with preview text
-      const threadItems = page.locator('[class*="cursor-pointer"]').filter({
-        has: page.locator("p, span"),
-      });
+      const initialCount = await page.getByTestId("message-item").count();
+      const draft = makeMessageText("Staff e2e message");
 
-      const count = await threadItems.count();
-      if (count > 0) {
-        // First thread should have some preview text
-        const firstThread = threadItems.first();
-        const text = await firstThread.textContent();
-        expect(text?.length).toBeGreaterThan(0);
-      }
+      await page.getByTestId("message-input").fill(draft);
+      await page.getByTestId("message-send-button").click();
+
+      await expect(page.getByTestId("message-item").filter({ hasText: draft })).toHaveCount(1);
+      await expect(page.getByTestId("message-item")).toHaveCount(initialCount + 1);
 
       expectNoConsoleErrors(errors);
     });
 
-    test("clicking thread shows full messages", async ({ page }) => {
+    test("disables send for whitespace-only input", async ({ page }) => {
       const errors = await setupConsoleErrorGate(page);
 
       await page.goto(`/hub/${MOCK_HUB_ID}/messages`);
       await waitForLoading(page);
 
-      // Click on a thread if available
-      const threadItem = page.locator('[class*="cursor-pointer"]').first();
-      if (await threadItem.isVisible().catch(() => false)) {
-        await threadItem.click();
-        await waitForLoading(page);
+      const sendButton = page.getByTestId("message-send-button");
+      await expect(sendButton).toBeDisabled();
 
-        // Should show message content area
-        const messageArea = page.locator('[class*="thread"], [class*="message-content"]');
-        expect(await messageArea.isVisible().catch(() => true)).toBeTruthy();
-      }
+      await page.getByTestId("message-input").fill("   ");
+      await expect(sendButton).toBeDisabled();
 
-      expectNoConsoleErrors(errors);
-    });
-
-    test("compose new message dialog opens", async ({ page }) => {
-      const errors = await setupConsoleErrorGate(page);
-
-      await page.goto(`/hub/${MOCK_HUB_ID}/messages`);
-      await waitForLoading(page);
-
-      // Find compose button
-      const composeBtn = page.getByRole("button", { name: /compose|new message/i });
-      if (await composeBtn.isVisible().catch(() => false)) {
-        await composeBtn.click();
-
-        // Dialog should open with subject and body fields
-        await expect(page.getByRole("dialog")).toBeVisible();
-        await expect(page.getByLabel(/subject/i)).toBeVisible();
-      }
-
-      expectNoConsoleErrors(errors);
-    });
-
-    test("sending message uses bodyHtml format", async ({ page }) => {
-      const errors = await setupConsoleErrorGate(page);
-
-      await page.goto(`/hub/${MOCK_HUB_ID}/messages`);
-      await waitForLoading(page);
-
-      // Open compose dialog
-      const composeBtn = page.getByRole("button", { name: /compose|new message/i });
-      if (await composeBtn.isVisible().catch(() => false)) {
-        await composeBtn.click();
-
-        // Fill in message
-        await page.getByLabel(/subject/i).fill("Test Subject");
-
-        // Find body textarea
-        const bodyField = page.getByRole("textbox").last();
-        await bodyField.fill("Test message content");
-
-        // Send button should be present
-        const sendBtn = page.getByRole("button", { name: /send/i });
-        expect(await sendBtn.isVisible()).toBeTruthy();
-      }
+      await page.getByTestId("message-input").fill("hello");
+      await expect(sendButton).toBeEnabled();
 
       expectNoConsoleErrors(errors);
     });
   });
 
-  test.describe("Client Messages", () => {
+  test.describe("Portal", () => {
     test.beforeEach(async ({ page }) => {
       await loginAsClient(page);
     });
 
-    test("client messages page loads", async ({ page }) => {
+    test("renders portal feed", async ({ page }) => {
       const errors = await setupConsoleErrorGate(page);
 
       await page.goto(`/portal/${MOCK_HUB_ID}/messages`);
       await waitForLoading(page);
 
       await expect(page.getByRole("heading", { name: /messages/i })).toBeVisible();
+      await expect(page.getByTestId("message-feed")).toBeVisible();
+      await expect(page.getByTestId("message-input")).toBeVisible();
+      await expect(page.getByTestId("message-send-button")).toBeVisible();
+
       expectNoConsoleErrors(errors);
     });
 
-    test("client can view message threads", async ({ page }) => {
+    test("sends a new portal message", async ({ page }) => {
       const errors = await setupConsoleErrorGate(page);
 
       await page.goto(`/portal/${MOCK_HUB_ID}/messages`);
       await waitForLoading(page);
 
-      // Should show threads or empty state
-      const content = await page.locator("main").textContent();
-      expect(content?.length).toBeGreaterThan(0);
+      const initialCount = await page.getByTestId("message-item").count();
+      const draft = makeMessageText("Portal e2e message");
 
-      expectNoConsoleErrors(errors);
-    });
+      await page.getByTestId("message-input").fill(draft);
+      await page.getByTestId("message-send-button").click();
 
-    test("client can compose new message", async ({ page }) => {
-      const errors = await setupConsoleErrorGate(page);
-
-      await page.goto(`/portal/${MOCK_HUB_ID}/messages`);
-      await waitForLoading(page);
-
-      const newMsgBtn = page.getByRole("button", { name: /new message/i });
-      if (await newMsgBtn.isVisible().catch(() => false)) {
-        await newMsgBtn.click();
-        await expect(page.getByRole("dialog")).toBeVisible();
-      }
+      await expect(page.getByTestId("message-item").filter({ hasText: draft })).toHaveCount(1);
+      await expect(page.getByTestId("message-item")).toHaveCount(initialCount + 1);
 
       expectNoConsoleErrors(errors);
     });
   });
 
-  test.describe("HTML Sanitization (Security)", () => {
-    test("XSS in message content is sanitized", async ({ page }) => {
+  test.describe("Security", () => {
+    test("message body is rendered as text and does not execute scripts", async ({ page }) => {
       const errors = await setupConsoleErrorGate(page);
 
       await loginAsStaff(page);
       await page.goto(`/hub/${MOCK_HUB_ID}/messages`);
       await waitForLoading(page);
 
-      // Check that no scripts execute
-      // If there was XSS in mock data, it would execute and potentially
-      // add elements or trigger events. We verify the page is stable.
-      await page.waitForTimeout(500);
+      await page.evaluate(() => {
+        (window as Window & { __messageXssFlag?: number }).__messageXssFlag = 0;
+      });
 
-      // Check that no injected elements exist
-      const injectedScript = await page.locator("script:not([src])").count();
-      const injectedIframe = await page.locator("iframe[srcdoc*='javascript']").count();
+      const payload = `<img src=x onerror="window.__messageXssFlag=1"><script>window.__messageXssFlag=1</script>`;
+      await page.getByTestId("message-input").fill(payload);
+      await page.getByTestId("message-send-button").click();
 
-      expect(injectedScript).toBe(0);
-      expect(injectedIframe).toBe(0);
+      await expect(page.getByTestId("message-item").filter({ hasText: payload })).toHaveCount(1);
 
-      // Also verify DOMPurify is being used by checking for sanitized content
-      const dangerousContent = await page.locator('[onclick], [onerror], [onload]').count();
-      expect(dangerousContent).toBe(0);
+      const scriptsInFeed = await page.getByTestId("message-feed").locator("script").count();
+      const handlersInFeed = await page
+        .getByTestId("message-feed")
+        .locator("[onerror], [onclick], [onload]")
+        .count();
+      const xssFlag = await page.evaluate(() => {
+        return (window as Window & { __messageXssFlag?: number }).__messageXssFlag ?? 0;
+      });
 
-      expectNoConsoleErrors(errors);
-    });
-
-    test("message body renders without script execution", async ({ page }) => {
-      // This test ensures that even if bodyHtml contains malicious content,
-      // it doesn't execute
-      const errors = await setupConsoleErrorGate(page);
-
-      await loginAsStaff(page);
-      await page.goto(`/hub/${MOCK_HUB_ID}/messages`);
-      await waitForLoading(page);
-
-      // Click first thread to view messages
-      const thread = page.locator('[class*="cursor-pointer"]').first();
-      if (await thread.isVisible().catch(() => false)) {
-        await thread.click();
-        await waitForLoading(page);
-
-        // Message content should be visible but safe
-        // No alert dialogs should have appeared
-        const dialogCount = await page.locator('[role="alertdialog"]').count();
-        // React Query error dialogs are fine, but not XSS-triggered alerts
-        // The key is no console errors about script execution
-      }
+      expect(scriptsInFeed).toBe(0);
+      expect(handlersInFeed).toBe(0);
+      expect(xssFlag).toBe(0);
 
       expectNoConsoleErrors(errors);
     });

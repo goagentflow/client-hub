@@ -118,3 +118,21 @@ export interface UpdateThreadRequest {
   projectId?: EntityId | null; // Assign to project (null to unassign)
   requiresDecision?: boolean; // Flag for Decision Queue
 }
+
+// ---------------------------------------------------------------------------
+// Message feed types (MVP live implementation)
+// ---------------------------------------------------------------------------
+
+export interface FeedMessage {
+  id: EntityId;
+  hubId: EntityId;
+  senderType: "staff" | "portal_client";
+  senderEmail: string;
+  senderName: string;
+  body: string;
+  createdAt: ISODateString;
+}
+
+export interface SendFeedMessageRequest {
+  body: string;
+}
