@@ -43,7 +43,10 @@ function getStorageClient(): SupabaseClient {
 function sanitiseFileName(name: string): string {
   return name
     .replace(/[/\\:*?"<>|]/g, '_')  // remove path separators + unsafe chars
-    .replace(/[\u0000-\u001f]/g, '')  // remove control chars
+    // Remove ASCII control characters (0x00-0x1F) without a control-char regex literal.
+    .split('')
+    .filter((char) => char.charCodeAt(0) >= 0x20)
+    .join('')
     .replace(/\s+/g, '_')            // spaces to underscores
     .slice(0, 200);                   // cap length
 }
