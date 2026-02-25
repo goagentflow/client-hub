@@ -1,4 +1,4 @@
-# AgentFlow Client Hub v0.1 (Phase 2b)
+# AgentFlow Client Hub v0.1 (Phase 1 — Document Upload)
 
 Read these files for full project context:
 - .cursorrules — Project context, scope, brand guidelines, code patterns
@@ -11,6 +11,7 @@ Read these files for full project context:
 
 For middleware development:
 - docs/PRODUCTION_ROADMAP.md — **Current architecture and implementation plan** (v5.3, docs synchronized post-Phase 2b)
+- docs/PHASE_1_DOCUMENT_UPLOAD_SUPABASE_PLAN.md — Phase 1 MVP file upload/download plan (Supabase Storage fast path) — **IMPLEMENTED**
 - docs/PHASE_1_5_EMAIL_VERIFICATION_PLAN.md — Email verification design (implemented, deployed, smoke-tested)
 - docs/middleware/MSAL_AUTH_IMPLEMENTATION_PLAN.md — Auth design (approved by senior dev)
 - ~~docs/middleware/ARCHITECTURE_V3_FINAL.md~~ — Moved to `docs/archive/`
@@ -32,7 +33,9 @@ Follow AGENTS.md canon: **Simple, Clean, DRY, Secure**.
 
 **Phase 2b (Status Updates):** DEPLOYED. Staff create fortnightly status updates via dialog UI, clients view them on the portal. Append-only data model enforced at DB level with triggers. Two input methods: staff UI + direct SQL via Claude Code.
 
-**Middleware:** Phase 0b + Phase 1.5 + Phase 2a + Phase 2b complete:
+**Phase 1 (Document Upload/Download):** DEPLOYED and smoke-tested. Document upload via Supabase Storage (private bucket, signed URLs, 50MB limit). Staff + portal download. Delete cleans up storage. See `docs/PHASE_1_DOCUMENT_UPLOAD_SUPABASE_PLAN.md`.
+
+**Middleware:** Phase 0b + Phase 1 + Phase 1.5 + Phase 2a + Phase 2b complete:
 - Prisma 6 ORM (replaced Supabase JS client)
 - `AUTH_MODE` + `DATA_BACKEND` config (replaced `DEMO_MODE`)
 - TenantRepository + AdminRepository pattern for tenant isolation
@@ -41,7 +44,8 @@ Follow AGENTS.md canon: **Simple, Clean, DRY, Secure**.
 - Portal email verification (Phase 1.5) — public + staff endpoints, Resend email, device tokens
 - Portal invite endpoints (Phase 2a) — POST/GET/DELETE invites with email, domain validation, cascade revoke
 - Status updates (Phase 2b) — append-only fortnightly updates, staff POST + GET, portal GET with field redaction, raw SQL migration with triggers
-- Endpoint accounting note: roadmap contract inventory is 115 endpoints (52 real, 63 placeholders); 9 additional Phase 1.5 real endpoints are tracked separately for continuity with earlier planning docs
+- Document upload/download (Phase 1) — Supabase Storage private bucket, multer upload, signed URL download, storage cleanup on delete
+- Endpoint accounting note: roadmap contract inventory is 115 endpoints (53 real, 62 placeholders); 11 additional non-contract real endpoints tracked separately
 
 **Hub Types:**
 - Pitch Hubs: Prospecting/new business (proposal, videos, questionnaire)
@@ -50,6 +54,7 @@ Follow AGENTS.md canon: **Simple, Clean, DRY, Secure**.
 **Key Features Implemented:**
 - Hub conversion (pitch → client)
 - Projects with milestones
+- Document upload/download (Supabase Storage, signed URLs)
 - Fortnightly status updates (append-only, staff + portal views)
 - Portal access management (password/email/open modes)
 - Portal contacts + invite workflows
@@ -70,7 +75,7 @@ Follow AGENTS.md canon: **Simple, Clean, DRY, Secure**.
 ## Key Files
 
 **Middleware config & data:**
-- `middleware/src/config/env.ts` — AUTH_MODE, DATA_BACKEND, RESEND_API_KEY, production guards
+- `middleware/src/config/env.ts` — AUTH_MODE, DATA_BACKEND, RESEND_API_KEY, SUPABASE_URL/KEY, production guards
 - `middleware/prisma/schema.prisma` — Database schema (Hub, HubEvent, HubNote, HubInvite, HubStatusUpdate, PortalContact, PortalVerification, PortalDevice)
 - `middleware/src/db/` — Prisma client, TenantRepository, AdminRepository, hub mapper, portal-verification-queries
 
@@ -86,13 +91,15 @@ Follow AGENTS.md canon: **Simple, Clean, DRY, Secure**.
 - `middleware/src/routes/status-updates.route.ts` — Staff-only POST + GET for fortnightly status updates
 - `middleware/src/services/status-update-queries.ts` — Shared query helper + portal field mapper
 - `middleware/src/services/email.service.ts` — Resend transactional email (verification codes + portal invites)
+- `middleware/src/services/storage.service.ts` — Supabase Storage wrapper (upload, signed URL download, delete)
+- `middleware/src/middleware/upload.ts` — Multer upload config (50MB, MIME + extension allowlist)
 - `middleware/prisma/sql/001_hub_status_update.sql` — Raw SQL migration (table, composite FK, CHECK constraints, append-only triggers)
 
 **Docker (Cloud Run deployment):**
 - `middleware/Dockerfile` — Multi-stage middleware build (Node 20, pnpm, Prisma, tsup, non-root)
 - `Dockerfile` (root) — Multi-stage frontend build (Vite + nginx-unprivileged, PORT envsubst)
 - `nginx.conf.template` — SPA routing with `${PORT}` for Cloud Run
-- `cloudbuild-middleware.yaml` — Cloud Build pipeline for middleware (includes RESEND_API_KEY secret)
+- `cloudbuild-middleware.yaml` — Cloud Build pipeline for middleware (includes RESEND_API_KEY + Supabase secrets)
 
 **Frontend:**
 - `src/services/api.ts` — API client (has setTokenGetter pattern)

@@ -1,6 +1,6 @@
 # AgentFlow Client Hub — Project Status
 
-**Last Updated:** 24 February 2026
+**Last Updated:** 25 February 2026
 
 > **Note:** This file is an implementation log.  
 > For canonical "what is live vs aspirational" status, read `docs/CURRENT_STATE.md` first.
@@ -21,20 +21,22 @@ Frontend (React/Vite/TypeScript)
   ├── Portal access via JWT tokens (password, email verification, or open mode)
   └── All data fetched through middleware API
 
-Middleware (Express/TypeScript) — contract inventory 115 endpoints (52 real, 63 stubbed)
-  ├── Additional live non-contract endpoints: 9 (portal contacts/access-method + public email verification)
+Middleware (Express/TypeScript) — contract inventory 115 endpoints (53 real, 62 stubbed)
+  ├── Additional live non-contract endpoints: 11 (portal contacts/access-method + public email verification + document download)
   ├── Auth: Azure AD JWT (RS256 via jose) + portal JWT (HS256) + demo headers
   ├── Config: AUTH_MODE (azure_ad | demo) + DATA_BACKEND (azure_pg)
   ├── Database: Prisma 6 ORM (PostgreSQL via DATABASE_URL)
+  ├── File storage: Supabase Storage (private bucket, signed URLs)
   ├── Tenant isolation: TenantRepository + AdminRepository pattern
-  └── 159 tests passing across 11 test files
+  └── 171 tests passing across 12 test files
 
 MVP Deployment (Live — first client)
   ├── Google Cloud Run (frontend, alongside goagentflow.com)
   ├── Google Cloud Run (middleware API, separate service)
   ├── Supabase PostgreSQL (existing instance, Prisma ORM)
   ├── Azure AD authentication (staff login via Microsoft)
-  └── OneDrive links for document sharing
+  ├── Supabase Storage (document upload/download, private bucket, signed URLs)
+  └── OneDrive links for legacy document sharing
 
 Production Target (Future — Phase 0a)
   ├── Azure App Service (middleware)
@@ -160,6 +162,45 @@ Append-only fortnightly status updates for client hubs. Staff create updates via
 
 **Review:** 3 rounds internal (senior-reviewer agent) + 2 rounds external review. All findings addressed.
 
+### Phase 1: Document Upload/Download via Supabase Storage (COMPLETE)
+
+Document upload and download using Supabase Storage as an interim fast-path (to be replaced by Azure Blob Storage or SharePoint/Graph API in Phase 5+).
+
+**Files created:**
+- `middleware/src/services/storage.service.ts` — Supabase Storage wrapper (upload, signed URL, delete)
+- `middleware/src/middleware/upload.ts` — Multer memory storage config (50MB limit, MIME + extension allowlist)
+- `middleware/src/__tests__/document-upload.test.ts` — 13 upload/download/portal/delete tests
+- `docs/PHASE_1_DOCUMENT_UPLOAD_SUPABASE_PLAN.md` — Implementation plan
+- `src/components/ui/ComingSoonPlaceholder.tsx` — Reusable placeholder for stub sections
+
+**Files changed:**
+- `middleware/src/config/env.ts` — Added optional SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY
+- `middleware/src/routes/documents.route.ts` — Replaced POST 501 stub with real upload, added download route, added storage cleanup on delete
+- `middleware/src/routes/portal.route.ts` — Added portal download route, portal-aware proposal mapping
+- `middleware/src/db/document.mapper.ts` — Download URLs point to middleware endpoints (not raw storage), safeDownloadUrl helper
+- `middleware/src/middleware/error-handler.ts` — Multer error handling
+- `middleware/src/__tests__/test-setup.ts` — vi.hoisted() refactor for ESM/CJS mock identity fix
+- `middleware/src/__tests__/status-updates.test.ts` — ESM import fix for mockAdminRepo
+- `middleware/src/__tests__/contract.test.ts` — Removed POST documents from 501 expectations
+- `middleware/package.json` — Added multer + @types/multer
+- `cloudbuild-middleware.yaml` — Added SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY secrets, bumped memory to 1Gi
+- `src/services/document.service.ts` — Added downloadDocument() + getPortalDocuments()
+- `src/components/ClientDocumentsSection.tsx` — Wired portal download button
+- `src/components/documents/DocumentDetailPanel.tsx` — Wired staff download button
+- `src/components/ClientHubLayout.tsx` — UI cleanup
+- `src/components/client-hub-overview/ClientHubOverview.tsx` — Removed brochureware, added ComingSoonPlaceholder
+- `src/pages/PortalDetail.tsx` — Portal routing cleanup
+
+**Infrastructure:**
+- Created `hub-documents` private bucket in Supabase (50MB file size limit)
+- Created GCP secrets: `CLIENTHUB_SUPABASE_URL`, `CLIENTHUB_SUPABASE_SERVICE_ROLE_KEY`
+- Granted `secretmanager.secretAccessor` to Compute Engine default SA
+- Fixed Azure AD app registration (added self-referencing API scope + admin consent)
+
+**Smoke test:** Upload PDF via staff UI, download via signed URL, delete — all passed on production.
+
+**Review:** 2 rounds senior-reviewer agent. Approved.
+
 ---
 
 ## Complete Roadmap
@@ -169,7 +210,7 @@ Append-only fortnightly status updates for client hubs. Staff create updates via
 | MVP | Cloud Run + Supabase | **LIVE** | First client deployment on Google Cloud Run + Supabase PostgreSQL. Near-zero cost. Forward-compatible with full Azure plan. |
 | 0a | Azure Infrastructure | **Deferred** | Resource group created (UK South). MVP deployed on Cloud Run + Supabase in the interim. Full Azure services created when scaling beyond MVP. |
 | 0b | Codebase Refactor | **Complete** | Prisma migration, AUTH_MODE/DATA_BACKEND config, TenantRepository, route migration. All 4 sub-phases approved. |
-| 1 | File Storage | Not started | Document, proposal, and video upload to Azure Blob Storage with AV scanning. 3 stubs. |
+| 1 | File Storage (Documents) | **Complete** | Document upload/download via Supabase Storage (private bucket, signed URLs, 50MB limit). Proposal + video upload deferred. 2 stubs remaining. |
 | 1.5 | Portal Email Verification | **Complete** | Public + staff endpoints, Resend email, device tokens, EmailGate UI. |
 | 2a | Portal Invite Endpoints | **Complete** | POST/GET/DELETE invites with email, domain validation, cascade revoke. |
 | 2b | Status Updates | **Complete** | Append-only fortnightly updates. Staff POST/GET + portal GET. Raw SQL migration with triggers. |
@@ -183,7 +224,7 @@ Append-only fortnightly status updates for client hubs. Staff create updates via
 | 9 | Relationship Intelligence | Not started | Health dashboard, expansion radar — frontend integration of Phase 8 endpoints. 0 stubs. |
 | 10 | Polish + E2E | Not started | Zero 501 stubs, Playwright E2E tests, conversion rollback. 2 stubs. |
 
-**Total stubs remaining:** 63 of 115 endpoints (55%).
+**Total stubs remaining:** 62 of 115 endpoints (54%).
 
 **Timeline:** ~15-16 weeks sequential, ~11-12 weeks with parallelisation. Phases 1-5 can run in parallel after Phase 0a (Azure infrastructure).
 
@@ -235,14 +276,14 @@ pnpm run dev             # Starts on http://localhost:3001
 ### Running Tests
 ```sh
 cd middleware
-pnpm test               # 159 tests across 11 files
+pnpm test               # 171 tests across 12 files
 ```
 
 ---
 
 ## Next Actions
 
-1. **Implement remaining placeholder endpoint families** — Start with Phase 1 uploads and Phase 3+ business-critical flows
+1. **Implement remaining placeholder endpoint families** — Proposal/video uploads, then Phase 3+ business-critical flows
 2. **Add `npm run verify-endpoints` script + CI enforcement** — Keep inventory counts aligned with code
 3. **Keep docs in lockstep** — Update `docs/CURRENT_STATE.md` + `docs/PRODUCTION_ROADMAP.md` whenever endpoint status changes
 4. **Phase 0a infrastructure (when scaling)** — Execute Azure cutover when moving beyond MVP constraints

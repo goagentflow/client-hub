@@ -483,6 +483,8 @@ Phase 0b — Codebase refactor (COMPLETE):
 
 **Objective:** Staff can upload real documents and proposals to hubs.
 
+**MVP execution note (current infra):** While Azure Blob remains the long-term target, the near-term implementation plan for the live Cloud Run + Supabase stack is documented in `docs/PHASE_1_DOCUMENT_UPLOAD_SUPABASE_PLAN.md`.
+
 **What's built:**
 - Azure Blob Storage container (`hub-files`) with folder structure: `{tenant_id}/{hub_id}/{type}/`
 - `POST /hubs/:hubId/documents` — multipart upload to Blob Storage

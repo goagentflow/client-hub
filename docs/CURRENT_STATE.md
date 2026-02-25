@@ -1,7 +1,7 @@
 # AgentFlow Client Hub - Current State (Live vs Aspirational)
 
-**Last verified:** 24 February 2026  
-**Verification basis:** route-level code audit (`middleware/src/routes`), test run (`159/159`), frontend build, frontend + middleware typecheck.
+**Last verified:** 25 February 2026
+**Verification basis:** route-level code audit (`middleware/src/routes`), test run (`171/171`), frontend build, production smoke test (upload + download).
 
 ---
 
@@ -45,6 +45,8 @@ If this file conflicts with older planning docs, trust this file and `docs/PRODU
 | Public portal verification | `/api/v1/public/hubs/:hubId/access-method|request-code|verify-code|verify-device` |
 | Portal invites (staff flow) | `/api/v1/hubs/:hubId/invites` (POST/GET/DELETE) |
 | Status updates (append-only) | `/api/v1/hubs/:hubId/status-updates` (staff POST/GET), `/api/v1/hubs/:hubId/portal/status-updates` (portal GET) |
+| Document upload (Supabase Storage) | `POST /api/v1/hubs/:hubId/documents` (multipart upload, 50MB limit, MIME + extension allowlist) |
+| Document download (signed URLs) | `GET /api/v1/hubs/:hubId/documents/:docId/download` (staff), `GET /api/v1/hubs/:hubId/portal/documents/:docId/download` (portal) |
 | Portal content retrieval | `/api/v1/hubs/:hubId/portal/videos|documents|proposal` |
 | Events | `/api/v1/hubs/:hubId/events`, `/api/v1/leadership/events` |
 | Leadership roll-up (partial) | `/api/v1/leadership/portfolio`, `/api/v1/leadership/clients` |
@@ -57,7 +59,8 @@ The following route families still return placeholders (mostly HTTP 501), or min
 
 | Area | Current Status |
 |---|---|
-| File uploads + engagement analytics | Placeholder endpoints in documents/proposals/videos |
+| File uploads (proposals + videos) | Proposal and video upload endpoints are still placeholders |
+| Document engagement analytics | `GET /hubs/:hubId/documents/:docId/engagement` is 501 |
 | Messages | All hub message endpoints are 501 |
 | Meetings | All hub meeting endpoints are 501 |
 | Relationship intelligence | Hub relationship-health / expansion endpoints are 501 |
@@ -76,8 +79,8 @@ The following route families still return placeholders (mostly HTTP 501), or min
 For planning/roadmap continuity, we track a **contract surface** of:
 
 - **115 contract endpoints**
-- **52 real**
-- **63 placeholders**
+- **53 real**
+- **62 placeholders**
 
 Important nuance:
 
@@ -86,7 +89,7 @@ Important nuance:
   - Public: `GET /public/hubs/:hubId/access-method`, `POST /public/hubs/:hubId/request-code`, `POST /public/hubs/:hubId/verify-code`, `POST /public/hubs/:hubId/verify-device`
 - Code also contains one legacy placeholder endpoint:
   `POST /hubs/:hubId/portal/invite` in `middleware/src/routes/portal.route.ts`
-- Actual mounted API surface today (excluding `/health`) is **125 endpoints** (**61 real**, **64 placeholders**)
+- Actual mounted API surface today (excluding `/health`) is **127 endpoints** (**64 real**, **63 placeholders**)
 
 ---
 
