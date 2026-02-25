@@ -324,10 +324,16 @@ hubsRouter.get('/:hubId/portal-preview', requireStaffAccess, async (req: Request
   try {
     const hub = await req.repo!.hub.findFirst({
       where: { id: req.params.hubId },
-      select: { id: true, companyName: true, hubType: true, isPublished: true },
+      select: { id: true, companyName: true, contactName: true, hubType: true, isPublished: true },
     });
     if (!hub) throw Errors.notFound('Hub', req.params.hubId);
-    sendItem(res, { id: hub.id, companyName: hub.companyName, hubType: hub.hubType, isPublished: hub.isPublished });
+    sendItem(res, {
+      id: hub.id,
+      companyName: hub.companyName,
+      contactName: hub.contactName,
+      hubType: hub.hubType,
+      isPublished: hub.isPublished,
+    });
   } catch (err) {
     next(err);
   }

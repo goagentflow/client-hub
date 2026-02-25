@@ -24,14 +24,25 @@ import { CATEGORY_COLOURS, CATEGORY_LABELS } from "@/lib/document-categories";
 interface ClientHubOverviewProps {
   hubId: string;
   hubName?: string;
+  contactName?: string;
+  welcomeHeadline?: string;
+  welcomeMessage?: string;
 }
 
 const formatDate = (dateStr: string) =>
   new Date(dateStr).toLocaleDateString("en-GB", { month: "short", day: "numeric" });
 
-export function ClientHubOverview({ hubId, hubName }: ClientHubOverviewProps) {
+export function ClientHubOverview({
+  hubId,
+  hubName,
+  contactName,
+  welcomeHeadline,
+  welcomeMessage,
+}: ClientHubOverviewProps) {
   const { data: authData } = useCurrentUser();
-  const userName = authData?.user?.displayName?.split(" ")[0] || "there";
+  const displayName = authData?.user?.displayName?.trim();
+  const fallbackName = contactName?.trim();
+  const userName = (displayName || fallbackName || "").split(" ")[0] || "";
   const { data: recentDocsData } = usePortalDocuments(hubId, { pageSize: 3 });
   const recentDocs = recentDocsData?.items ?? [];
 
@@ -45,12 +56,31 @@ export function ClientHubOverview({ hubId, hubName }: ClientHubOverviewProps) {
         {/* Welcome Header */}
         <header className="space-y-1">
           <h1 className="text-3xl font-bold text-[hsl(var(--bold-royal-blue))]">
-            Welcome back, {userName}
+            {userName ? `Welcome back, ${userName}` : "Welcome back"}
           </h1>
           {hubName && (
             <p className="text-sm text-[hsl(var(--medium-grey))]">{hubName}</p>
           )}
         </header>
+
+        {(welcomeHeadline || welcomeMessage) && (
+          <section aria-label="Welcome message">
+            <Card>
+              <CardContent className="pt-5">
+                {welcomeHeadline && (
+                  <h2 className="text-lg font-semibold text-[hsl(var(--dark-grey))]">
+                    {welcomeHeadline}
+                  </h2>
+                )}
+                {welcomeMessage && (
+                  <p className="mt-2 text-sm text-[hsl(var(--medium-grey))] whitespace-pre-line">
+                    {welcomeMessage}
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          </section>
+        )}
 
         {/* Status Update — fortnightly update from agency */}
         <section aria-label="Status update">

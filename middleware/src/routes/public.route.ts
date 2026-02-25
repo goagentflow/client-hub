@@ -52,6 +52,7 @@ publicRouter.get('/hubs/:hubId/portal-meta', generalLimit, async (req: Request, 
       data: {
         id: hub.id,
         companyName: hub.companyName,
+        contactName: hub.contactName,
         hubType: hub.hubType,
         isPublished: hub.isPublished,
         welcomeHeadline: hub.welcomeHeadline ?? '',

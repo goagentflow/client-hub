@@ -20,7 +20,13 @@ import { ClientHubOverview } from "./client-hub-overview";
 import type { PortalMeta, PortalConfig, HeroContentType } from "@/types";
 
 // Base type shared by both staff portal-preview and public portal-meta
-type HubMetaBase = { id: string; companyName: string; hubType: string; isPublished: boolean };
+type HubMetaBase = {
+  id: string;
+  companyName: string;
+  contactName?: string;
+  hubType: string;
+  isPublished: boolean;
+};
 
 interface ClientOverviewSectionProps {
   hubMeta?: HubMetaBase | PortalMeta | null;
@@ -112,7 +118,13 @@ function StaffOverviewSection() {
     return (
       <>
         <ClientWelcomeModal hubId={hubId} hubName={companyName} onDismiss={handleWelcomeClose} />
-        <ClientHubOverview hubId={hubId} hubName={companyName} />
+        <ClientHubOverview
+          hubId={hubId}
+          hubName={companyName}
+          contactName={hub?.contactName}
+          welcomeHeadline={config?.welcomeHeadline}
+          welcomeMessage={config?.welcomeMessage}
+        />
       </>
     );
   }
@@ -206,7 +218,13 @@ function PortalOverviewSection({ hubMeta }: { hubMeta?: PortalMeta | null }) {
     return (
       <>
         <ClientWelcomeModal hubId={hubId} hubName={companyName} onDismiss={handleWelcomeClose} />
-        <ClientHubOverview hubId={hubId} hubName={companyName} />
+        <ClientHubOverview
+          hubId={hubId}
+          hubName={companyName}
+          contactName={hubMeta?.contactName}
+          welcomeHeadline={config?.welcomeHeadline}
+          welcomeMessage={config?.welcomeMessage}
+        />
       </>
     );
   }

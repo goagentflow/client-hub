@@ -74,6 +74,7 @@ function buildUrl(endpoint: string, params?: Record<string, string>): string {
 // frontend service calls in src/services/*.service.ts,
 // and PortalDetail.tsx route config.
 const PORTAL_ENDPOINT_PATTERNS = [
+  /^\/auth\/me$/,                                   // profile for current portal session
   /^\/public\//,                                    // public endpoints (portal-meta, verify-password)
   /^\/hubs\/[^/]+$/,                                // hub detail
   /^\/hubs\/[^/]+\/portal(?:-config|\/|$)/,          // portal sub-routes + portal-config

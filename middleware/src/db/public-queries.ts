@@ -15,6 +15,7 @@ export async function findPublishedHub(hubId: string) {
     select: {
       id: true,
       companyName: true,
+      contactName: true,
       hubType: true,
       isPublished: true,
       welcomeHeadline: true,

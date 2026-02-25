@@ -121,6 +121,7 @@ export interface PortalSectionConfig {
 export interface PortalMeta {
   id: EntityId;
   companyName: string;
+  contactName?: string;
   hubType: string;
   isPublished: boolean;
   welcomeHeadline: string;

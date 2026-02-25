@@ -31,7 +31,7 @@ beforeAll(async () => {
 describe('Public routes — response shape', () => {
   it('GET /public/hubs/:hubId/portal-meta returns portal-meta shape for published hub', async () => {
     mockFindPublishedHub.mockResolvedValueOnce({
-      id: 'hub-pub', companyName: 'Published Co', hubType: 'pitch', isPublished: true,
+      id: 'hub-pub', companyName: 'Published Co', contactName: 'Sarah Client', hubType: 'pitch', isPublished: true,
       welcomeHeadline: 'Hello!', welcomeMessage: 'Welcome to your hub',
       heroContentType: 'video', heroContentId: 'vid-1',
       showProposal: true, showVideos: true, showDocuments: false,
@@ -43,6 +43,7 @@ describe('Public routes — response shape', () => {
     expect(res.body.data).toEqual({
       id: 'hub-pub',
       companyName: 'Published Co',
+      contactName: 'Sarah Client',
       hubType: 'pitch',
       isPublished: true,
       welcomeHeadline: 'Hello!',
