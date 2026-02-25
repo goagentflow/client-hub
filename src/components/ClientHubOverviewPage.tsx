@@ -38,6 +38,7 @@ export function ClientHubOverviewPage({ hub, hubId, onSettings }: ClientHubOverv
         onNavigateToProjects={() => navigate(`/hub/${hubId}/projects`)}
         onNavigateToActivity={() => navigate(`/hub/${hubId}/activity`)}
         onNavigateToDocuments={() => navigate(`/hub/${hubId}/documents`)}
+        onManageClientAccess={() => navigate(`/hub/${hubId}/client-portal`)}
         onInviteClient={() => setInviteOpen(true)}
         onAddStatusUpdate={() => setStatusUpdateOpen(true)}
       />

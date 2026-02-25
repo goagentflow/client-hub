@@ -7,7 +7,7 @@
  * - Recent activity preview
  */
 
-import { FolderKanban, Activity, ChevronRight, UserPlus, ClipboardList, FileText } from "lucide-react";
+import { FolderKanban, Activity, ChevronRight, UserPlus, ClipboardList, FileText, Shield } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -24,6 +24,7 @@ interface ClientHubOverviewSectionProps {
   onNavigateToProjects?: () => void;
   onNavigateToActivity?: () => void;
   onNavigateToDocuments?: () => void;
+  onManageClientAccess?: () => void;
   onInviteClient?: () => void;
   onAddStatusUpdate?: () => void;
 }
@@ -33,6 +34,7 @@ export function ClientHubOverviewSection({
   onNavigateToProjects,
   onNavigateToActivity,
   onNavigateToDocuments,
+  onManageClientAccess,
   onInviteClient,
   onAddStatusUpdate,
 }: ClientHubOverviewSectionProps) {
@@ -70,6 +72,14 @@ export function ClientHubOverviewSection({
           </span>
         </div>
         <div className="flex items-center gap-2">
+          <Button
+            onClick={onManageClientAccess}
+            variant="outline"
+            className="border-[hsl(var(--dark-grey))]/30 text-[hsl(var(--dark-grey))]"
+          >
+            <Shield className="w-4 h-4 mr-2" />
+            Manage Client Access
+          </Button>
           <Button
             onClick={onAddStatusUpdate}
             variant="outline"
