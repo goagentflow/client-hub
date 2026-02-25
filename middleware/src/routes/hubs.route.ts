@@ -23,7 +23,7 @@ hubsRouter.get('/', requireStaffAccess, async (req: Request, res: Response, next
 
     // Search by company name
     if (req.query.search) {
-      const sanitised = String(req.query.search).replace(/[^a-zA-Z0-9 '\-]/g, '').trim();
+      const sanitised = String(req.query.search).replace(/[^a-zA-Z0-9 '-]/g, '').trim();
       if (sanitised.length > 0) where.companyName = { contains: sanitised, mode: 'insensitive' };
     }
 
