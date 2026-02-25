@@ -14,7 +14,7 @@
 import { Link } from "react-router-dom";
 import { FolderOpen, Calendar, BarChart3, History, Sparkles, MessageSquare, FileText, ChevronRight } from "lucide-react";
 import { useCurrentUser, usePortalDocuments } from "@/hooks";
-import { ProjectStatusCard, StatusUpdateCard } from "./index";
+import { StatusUpdateCard } from "./index";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -127,10 +127,9 @@ export function ClientHubOverview({ hubId, hubName }: ClientHubOverviewProps) {
 
         {/* Main Grid: Responsive 2-column on desktop */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Left Column: Projects */}
-          <section aria-label="Project status">
-            <ProjectStatusCard hubId={hubId} />
-          </section>
+          {/* Left Column: placeholder for future features */}
+          <div className="space-y-6">
+          </div>
 
           {/* Right Column: Coming Soon cards */}
           <div className="space-y-6">
