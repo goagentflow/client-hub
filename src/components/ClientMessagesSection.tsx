@@ -82,8 +82,10 @@ export function ClientMessagesSection() {
   /**
    * Check if message is from client (current user's email matches sender)
    */
-  const isClientMessage = (senderEmail: string) => {
-    return senderEmail.toLowerCase() === currentUserEmail.toLowerCase();
+  const isClientMessage = (senderEmail?: string) => {
+    const sender = typeof senderEmail === "string" ? senderEmail.toLowerCase() : "";
+    const current = typeof currentUserEmail === "string" ? currentUserEmail.toLowerCase() : "";
+    return !!sender && !!current && sender === current;
   };
 
   if (isLoading) {
@@ -164,7 +166,7 @@ export function ClientMessagesSection() {
                 <ScrollArea className="flex-1 p-4">
                   <div className="space-y-4">
                     {selectedThread.messages.map((message) => {
-                      const isFromClient = isClientMessage(message.from.email);
+                      const isFromClient = isClientMessage(message.from?.email);
                       return (
                         <div key={message.id} className={cn("flex", isFromClient ? "justify-end" : "justify-start")}>
                           <div

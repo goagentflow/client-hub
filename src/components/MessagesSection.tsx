@@ -44,12 +44,13 @@ export function MessagesSection() {
   }, [trackHubViewed]);
 
   const threads = threadsData?.items || [];
+  const normalizedSearch = searchQuery.toLowerCase();
 
   // Filter threads by search
   const filteredThreads = threads.filter(
     (thread) =>
-      thread.subject.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      thread.lastMessagePreview.toLowerCase().includes(searchQuery.toLowerCase())
+      (thread.subject || "").toLowerCase().includes(normalizedSearch) ||
+      (thread.lastMessagePreview || "").toLowerCase().includes(normalizedSearch)
   );
 
   const handleSelectThread = (threadId: string) => {

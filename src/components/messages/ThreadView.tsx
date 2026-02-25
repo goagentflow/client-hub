@@ -129,8 +129,18 @@ export function ThreadView({
       <ScrollArea className="flex-1 p-6">
         <div className="space-y-6 max-w-4xl">
           {thread.messages.map((message) => {
-            const isYou = message.from.email.toLowerCase() === currentUserEmail.toLowerCase();
-            const senderInitial = message.from.name[0]?.toUpperCase() || "?";
+            const senderEmail = typeof message.from?.email === "string" ? message.from.email : "";
+            const currentEmail = typeof currentUserEmail === "string" ? currentUserEmail : "";
+            const isYou =
+              !!senderEmail &&
+              !!currentEmail &&
+              senderEmail.toLowerCase() === currentEmail.toLowerCase();
+            const senderName =
+              typeof message.from?.name === "string" && message.from.name.length > 0
+                ? message.from.name
+                : "Unknown";
+            const senderInitial = senderName[0]?.toUpperCase() || "?";
+            const attachments = Array.isArray(message.attachments) ? message.attachments : [];
 
             return (
               <div key={message.id} className={`flex ${isYou ? "justify-end" : "justify-start"}`}>
@@ -141,7 +151,7 @@ export function ThreadView({
                         <span className="text-xs text-[hsl(var(--medium-grey))]">
                           {new Date(message.sentAt).toLocaleString()}
                         </span>
-                        <span className="text-sm font-semibold">{message.from.name}</span>
+                        <span className="text-sm font-semibold">{senderName}</span>
                         <div className="w-8 h-8 rounded-full bg-[hsl(var(--gradient-blue))] flex items-center justify-center text-white text-sm font-medium">
                           {senderInitial}
                         </div>
@@ -152,7 +162,7 @@ export function ThreadView({
                         <div className="w-8 h-8 rounded-full bg-[hsl(var(--gradient-purple))] flex items-center justify-center text-white text-sm font-medium">
                           {senderInitial}
                         </div>
-                        <span className="text-sm font-semibold">{message.from.name}</span>
+                        <span className="text-sm font-semibold">{senderName}</span>
                         <span className="text-xs text-[hsl(var(--medium-grey))]">
                           {new Date(message.sentAt).toLocaleString()}
                         </span>
@@ -165,9 +175,9 @@ export function ThreadView({
                         className="text-sm text-[hsl(var(--dark-grey))] prose prose-sm"
                         dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(message.bodyHtml) }}
                       />
-                      {message.attachments.length > 0 && (
+                      {attachments.length > 0 && (
                         <div className="mt-3 space-y-2">
-                          {message.attachments.map((attachment) => (
+                          {attachments.map((attachment) => (
                             <div
                               key={attachment.id}
                               className="p-3 bg-background rounded border border-border/50 flex items-center justify-between"
@@ -217,7 +227,7 @@ export function ThreadView({
             </div>
             <div className="flex items-center gap-3">
               <p className="text-xs text-[hsl(var(--medium-grey))]">
-                Sent via Outlook to {lastMessage?.from.email}
+                Sent via Outlook to {lastMessage?.from?.email ?? "client"}
               </p>
               <Button
                 className="bg-[hsl(var(--gradient-blue))] hover:bg-[hsl(var(--gradient-blue))]/90"

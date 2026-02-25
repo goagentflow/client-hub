@@ -10,6 +10,10 @@ import { cn } from "@/lib/utils";
 
 const MAX_MESSAGE_LENGTH = 10000;
 
+function normalizeEmail(value: unknown): string {
+  return typeof value === "string" ? value.trim().toLowerCase() : "";
+}
+
 interface MessageFeedProps {
   messages: FeedMessage[];
   currentUserEmail?: string;
@@ -42,6 +46,7 @@ export function MessageFeed({
   inputPlaceholder = "Write a message...",
 }: MessageFeedProps) {
   const [draft, setDraft] = useState("");
+  const currentEmail = normalizeEmail(currentUserEmail);
 
   const orderedMessages = useMemo(
     () => [...messages].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()),
@@ -93,8 +98,16 @@ export function MessageFeed({
           ) : (
             <div className="space-y-3">
               {orderedMessages.map((message) => {
-                const mine =
-                  !!currentUserEmail && message.senderEmail.toLowerCase() === currentUserEmail.toLowerCase();
+                const senderEmail = normalizeEmail(message.senderEmail);
+                const mine = !!currentEmail && !!senderEmail && senderEmail === currentEmail;
+                const senderName =
+                  typeof message.senderName === "string" && message.senderName.trim().length > 0
+                    ? message.senderName
+                    : "Unknown";
+                const body =
+                  typeof message.body === "string" && message.body.length > 0
+                    ? message.body
+                    : "";
                 return (
                   <div
                     key={message.id}
@@ -111,14 +124,14 @@ export function MessageFeed({
                     >
                       <div className="flex items-center gap-2 mb-1">
                         <span className={cn("text-xs font-medium", mine ? "text-white/90" : "text-[hsl(var(--dark-grey))]")}>
-                          {message.senderName}
+                          {senderName}
                         </span>
                         <span className={cn("text-xs", mine ? "text-white/70" : "text-[hsl(var(--medium-grey))]")}>
                           {formatTimestamp(message.createdAt)}
                         </span>
                       </div>
                       <p className={cn("text-sm whitespace-pre-wrap", mine ? "text-white" : "text-[hsl(var(--dark-grey))]")}>
-                        {message.body}
+                        {body}
                       </p>
                     </div>
                   </div>
