@@ -34,6 +34,8 @@ export {
   getPortalConfig,
   updatePortalConfig,
   publishPortal,
+  unpublishPortal,
+  deleteHub,
   convertToClientHub,
   rollbackConversion,
 } from "./hub.service";

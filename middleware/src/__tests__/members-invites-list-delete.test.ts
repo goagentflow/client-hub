@@ -16,12 +16,17 @@ const mockInviteUpdate = vi.fn();
 const mockContactDeleteMany = vi.fn();
 const mockVerificationDeleteMany = vi.fn();
 const mockDeviceDeleteMany = vi.fn();
+const mockHubMemberUpdateMany = vi.fn();
+const mockAccessRevokeUpsert = vi.fn();
 const mockTransaction = vi.fn();
 
 const mockPrisma = {
   hub: { findFirst: vi.fn(), update: vi.fn() },
   hubInvite: { create: vi.fn(), update: mockInviteUpdate, findMany: mockInviteFindMany, findFirst: mockInviteFindFirst },
   portalContact: { upsert: vi.fn(), deleteMany: mockContactDeleteMany },
+  hubMember: { upsert: vi.fn(), updateMany: mockHubMemberUpdateMany, findMany: vi.fn(), count: vi.fn() },
+  hubAccessRevocation: { upsert: mockAccessRevokeUpsert, findMany: vi.fn(), deleteMany: vi.fn() },
+  hubCrmOrgMap: { findUnique: vi.fn(), upsert: vi.fn(), deleteMany: vi.fn() },
   portalVerification: { deleteMany: mockVerificationDeleteMany },
   portalDevice: { deleteMany: mockDeviceDeleteMany },
   $transaction: mockTransaction,
@@ -98,6 +103,8 @@ describe('DELETE /hubs/:hubId/invites/:id', () => {
     mockContactDeleteMany.mockResolvedValueOnce({ count: 1 });
     mockVerificationDeleteMany.mockResolvedValueOnce({ count: 0 });
     mockDeviceDeleteMany.mockResolvedValueOnce({ count: 0 });
+    mockHubMemberUpdateMany.mockResolvedValueOnce({ count: 1 });
+    mockAccessRevokeUpsert.mockResolvedValueOnce({});
 
     const res = await request(app).delete(`${API}/inv-1`).set(STAFF_HEADERS);
 
@@ -106,6 +113,8 @@ describe('DELETE /hubs/:hubId/invites/:id', () => {
     expect(mockContactDeleteMany).toHaveBeenCalledOnce();
     expect(mockVerificationDeleteMany).toHaveBeenCalledOnce();
     expect(mockDeviceDeleteMany).toHaveBeenCalledOnce();
+    expect(mockHubMemberUpdateMany).toHaveBeenCalledOnce();
+    expect(mockAccessRevokeUpsert).toHaveBeenCalledOnce();
   });
 
   it('returns 404 when invite not found', async () => {

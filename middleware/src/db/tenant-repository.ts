@@ -14,6 +14,7 @@ type AnyDelegate = {
   findFirst(args?: any): any;
   count(args?: any): any;
   create(args: any): any;
+  upsert?(args: any): any;
   update(args: any): any;
   updateMany(args: any): any;
   delete(args: any): any;
@@ -26,6 +27,7 @@ export interface ScopedModel {
   findFirst(args?: Record<string, any>): Promise<any | null>;
   count(args?: Record<string, any>): Promise<number>;
   create(args: Record<string, any>): Promise<any>;
+  upsert(args: Record<string, any>): Promise<any>;
   update(args: Record<string, any>): Promise<any>;
   updateMany(args: Record<string, any>): Promise<{ count: number }>;
   delete(args: Record<string, any>): Promise<any>;
@@ -50,6 +52,16 @@ function scopeModel(delegate: AnyDelegate, tenantId: string): ScopedModel {
     },
     create(args: Record<string, any>) {
       return delegate.create({ ...args, data: { ...args.data, tenantId } });
+    },
+    upsert(args: Record<string, any>) {
+      if (typeof delegate.upsert !== 'function') {
+        throw new Error('Delegate does not support upsert');
+      }
+      return delegate.upsert({
+        ...args,
+        create: { ...args.create, tenantId },
+        update: { ...args.update, tenantId },
+      });
     },
     update(args: Record<string, any>) {
       return delegate.update({ ...args, where: addTenant(args.where) });
@@ -78,6 +90,9 @@ export interface TenantRepository {
   hubEvent: ScopedModel;
   hubStatusUpdate: ScopedModel;
   hubMessage: ScopedModel;
+  hubMember: ScopedModel;
+  hubAccessRevocation: ScopedModel;
+  hubCrmOrgMap: ScopedModel;
 }
 
 export function createTenantRepository(
@@ -95,5 +110,8 @@ export function createTenantRepository(
     hubEvent: scopeModel(prisma.hubEvent, tenantId),
     hubStatusUpdate: scopeModel(prisma.hubStatusUpdate, tenantId),
     hubMessage: scopeModel(prisma.hubMessage, tenantId),
+    hubMember: scopeModel(prisma.hubMember, tenantId),
+    hubAccessRevocation: scopeModel(prisma.hubAccessRevocation, tenantId),
+    hubCrmOrgMap: scopeModel(prisma.hubCrmOrgMap, tenantId),
   };
 }

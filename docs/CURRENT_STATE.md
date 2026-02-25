@@ -1,7 +1,7 @@
 # AgentFlow Client Hub - Current State (Live vs Aspirational)
 
 **Last verified:** 25 February 2026
-**Verification basis:** route-level code audit (`middleware/src/routes`), test run (`195/195`), frontend build, production smoke test (upload + download).
+**Verification basis:** route-level code audit (`middleware/src/routes`), test run (`207/207`), frontend build, production smoke test (upload + download).
 
 ---
 
@@ -38,12 +38,13 @@ If this file conflicts with older planning docs, trust this file and `docs/PRODU
 | Capability | Route Area |
 |---|---|
 | Auth identity | `/api/v1/auth/me` |
-| Hub management | `/api/v1/hubs` (+ detail/update/overview/notes/activity/publish/portal-preview) |
+| Hub management | `/api/v1/hubs` (+ detail/update/overview/notes/activity/publish/unpublish/delete/portal-preview) |
 | Projects + milestones | `/api/v1/hubs/:hubId/projects` |
 | Portal configuration | `/api/v1/hubs/:hubId/portal-config` |
 | Portal contacts + access method | `/api/v1/hubs/:hubId/portal-contacts`, `/api/v1/hubs/:hubId/access-method` |
 | Public portal verification | `/api/v1/public/hubs/:hubId/access-method|request-code|verify-code|verify-device` |
 | Portal invites (staff flow) | `/api/v1/hubs/:hubId/invites` (POST/GET/DELETE) |
+| Hub members + access revoke | `/api/v1/hubs/:hubId/members` (GET/PATCH/DELETE), `/api/v1/hubs/:hubId/portal/members` (GET) |
 | Status updates (append-only) | `/api/v1/hubs/:hubId/status-updates` (staff POST/GET), `/api/v1/hubs/:hubId/portal/status-updates` (portal GET) |
 | Message feed (flat, non-threaded) | `/api/v1/hubs/:hubId/messages` (staff GET/POST), `/api/v1/hubs/:hubId/portal/messages` (portal GET/POST) |
 | Message audience visibility | `/api/v1/hubs/:hubId/messages/audience` (staff GET), `/api/v1/hubs/:hubId/portal/messages/audience` (portal GET), `/api/v1/hubs/:hubId/portal/messages/request-access` (portal POST) |
@@ -69,10 +70,10 @@ The following route families still return placeholders (mostly HTTP 501), or min
 | Relationship intelligence | Hub relationship-health / expansion endpoints are 501 |
 | Client intelligence | Instant answers, decision queue, performance, history, risk alerts are 501 |
 | Portal proposal comments | 501 |
-| Portal meetings/members/questionnaires | 501 |
+| Portal meetings/questionnaires | 501 |
 | Invite acceptance (`/public/invites/:token/accept`) | 501 |
 | Conversion rollback | 501 |
-| Members activity/update/delete + share-link | Placeholder (501/empty list behavior) |
+| Members activity + share-link | Placeholder (501 behavior) |
 | Questionnaire detail/create/update/delete/responses | Placeholder (501/empty list behavior) |
 
 ---
@@ -92,7 +93,7 @@ Important nuance:
   - Public: `GET /public/hubs/:hubId/access-method`, `POST /public/hubs/:hubId/request-code`, `POST /public/hubs/:hubId/verify-code`, `POST /public/hubs/:hubId/verify-device`
 - Code also contains one legacy placeholder endpoint:
   `POST /hubs/:hubId/portal/invite` in `middleware/src/routes/portal.route.ts`
-- Actual mounted API surface today (excluding `/health`) is **129 endpoints** (**70 real**, **59 placeholders**)
+- Actual mounted API surface today (excluding `/health`) is **131 endpoints** (**76 real**, **55 placeholders**)
 
 ---
 

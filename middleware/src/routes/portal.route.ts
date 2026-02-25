@@ -12,6 +12,7 @@ import { mapProposal, mapDocumentForPortal } from '../db/document.mapper.js';
 import { hubAccessMiddleware } from '../middleware/hub-access.js';
 import { createDownloadUrl, DEFAULT_SIGNED_URL_EXPIRY } from '../services/storage.service.js';
 import { sendClientReplyNotification, sendPortalAccessRequestNotification } from '../services/email.service.js';
+import { hydrateMembersFromPortalContacts, listActiveStaffEmails, mapHubMember, upsertClientMember } from '../services/membership.service.js';
 import { sendItem, sendList, send501 } from '../utils/response.js';
 import { parsePagination } from '../utils/pagination.js';
 import { queryStatusUpdates, mapStatusUpdateForPortal } from '../services/status-update-queries.js';
@@ -84,6 +85,35 @@ function extractMessageBody(payload: unknown): unknown {
 
 function previewFromBody(body: string): string {
   return body.replace(/\s+/g, ' ').trim().slice(0, PREVIEW_LENGTH);
+}
+
+async function notifyStaffOnPortalMessage(
+  repo: Request['repo'],
+  hubId: string,
+  tenantId: string,
+  senderName: string,
+  body: string,
+  companyName: string,
+): Promise<void> {
+  if (!repo) return;
+
+  const recipients = await listActiveStaffEmails(repo as Parameters<typeof listActiveStaffEmails>[0], {
+    hubId,
+    tenantId,
+  });
+  if (recipients.length === 0) {
+    logger.warn({ hubId }, 'No staff notification recipients for portal message');
+    return;
+  }
+
+  const hubUrl = new URL(`/clienthub/hub/${hubId}/messages`, env.CORS_ORIGIN).toString();
+  const preview = previewFromBody(body);
+
+  await Promise.allSettled(
+    recipients.map((staffEmail) =>
+      sendClientReplyNotification(staffEmail, senderName, companyName, preview, hubUrl),
+    ),
+  );
 }
 
 // GET /hubs/:hubId/portal/videos
@@ -256,10 +286,9 @@ portalRouter.post('/messages/request-access', portalAccessRequestLimiter, async 
 
     const hub = await req.repo!.hub.findFirst({
       where: { id: hubId },
-      select: { companyName: true, contactEmail: true, clientDomain: true },
+      select: { companyName: true, clientDomain: true },
     }) as {
       companyName: string;
-      contactEmail: string | null;
       clientDomain: string | null;
     } | null;
     if (!hub) throw Errors.notFound('Hub', hubId);
@@ -286,22 +315,29 @@ portalRouter.post('/messages/request-access', portalAccessRequestLimiter, async 
       return;
     }
 
-    const staffEmail = hub.contactEmail?.trim().toLowerCase();
-    if (!staffEmail) {
-      throw Errors.badRequest('Hub contact email is not configured');
+    const staffRecipients = await listActiveStaffEmails(req.repo!, {
+      hubId,
+      tenantId: req.user.tenantId,
+    });
+    if (staffRecipients.length === 0) {
+      throw Errors.badRequest('No staff notification recipients are configured for this hub yet');
     }
 
     const requesterName = req.user.name?.trim() || requesterEmail.split('@')[0] || 'Portal User';
     const hubUrl = new URL(`/clienthub/hub/${hubId}/members`, env.CORS_ORIGIN).toString();
 
-    await sendPortalAccessRequestNotification(staffEmail, {
-      requesterName,
-      requesterEmail,
-      requestedEmail,
-      hubName: hub.companyName,
-      hubUrl,
-      requestNote: parsed.data.note,
-    });
+    await Promise.allSettled(
+      staffRecipients.map((staffEmail) =>
+        sendPortalAccessRequestNotification(staffEmail, {
+          requesterName,
+          requesterEmail,
+          requestedEmail,
+          hubName: hub.companyName,
+          hubUrl,
+          ...(parsed.data.note ? { requestNote: parsed.data.note } : {}),
+        }),
+      ),
+    );
 
     sendItem(res, {
       requested: true,
@@ -352,22 +388,31 @@ portalRouter.post('/messages', portalPostLimiter, async (req: Request, res: Resp
       data: { lastActivity: new Date() },
     }).catch((err: unknown) => logger.error({ err, hubId }, 'Failed to update hub lastActivity after portal message'));
 
+    upsertClientMember({ hubMember: req.repo!.hubMember } as Parameters<typeof upsertClientMember>[0], {
+      hubId,
+      tenantId: req.user.tenantId,
+      email: senderEmail,
+      displayName: senderName,
+      source: 'message',
+      lastActiveAt: new Date(),
+    }).catch((err) => logger.error({ err, hubId, senderEmail }, 'Failed to upsert member activity from portal message'));
+
     const hub = await req.repo!.hub.findFirst({
       where: { id: hubId },
-      select: { contactEmail: true, companyName: true },
+      select: { companyName: true },
     });
-    const staffEmail = hub?.contactEmail?.trim().toLowerCase();
-    if (staffEmail) {
-      const hubUrl = new URL(`/clienthub/hub/${hubId}/messages`, env.CORS_ORIGIN).toString();
-      sendClientReplyNotification(
-        staffEmail,
+
+    if (hub) {
+      notifyStaffOnPortalMessage(
+        req.repo,
+        hubId,
+        req.user.tenantId,
         senderName,
+        body,
         hub.companyName,
-        previewFromBody(body),
-        hubUrl,
-      ).catch((err) => logger.error({ err, hubId, staffEmail }, 'Failed to send staff client-reply notification'));
+      ).catch((err) => logger.error({ err, hubId }, 'Failed to send staff client-reply notifications'));
     } else {
-      logger.warn({ hubId }, 'Hub contactEmail missing; cannot send client reply notification');
+      logger.warn({ hubId }, 'Hub not found while preparing staff client-reply notifications');
     }
 
     sendItem(res, {
@@ -389,9 +434,60 @@ portalRouter.get('/meetings', (_req: Request, res: Response) => {
   send501(res, 'Portal meetings');
 });
 
-// GET /hubs/:hubId/portal/members — 501
-portalRouter.get('/members', (_req: Request, res: Response) => {
-  send501(res, 'Portal members');
+// GET /hubs/:hubId/portal/members
+portalRouter.get('/members', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    if (!req.user.portalHubId) {
+      throw Errors.forbidden('Portal token required');
+    }
+
+    const hubId = req.params.hubId as string;
+    const { page, pageSize } = parsePagination(req.query);
+
+    await hydrateMembersFromPortalContacts(req.repo! as Parameters<typeof hydrateMembersFromPortalContacts>[0], {
+      hubId,
+      tenantId: req.user.tenantId,
+    });
+
+    const where = {
+      hubId,
+      tenantId: req.user.tenantId,
+      role: 'client',
+      status: 'active',
+    };
+
+    const [members, totalItems] = await Promise.all([
+      req.repo!.hubMember.findMany({
+        where,
+        select: {
+          id: true,
+          hubId: true,
+          userId: true,
+          email: true,
+          displayName: true,
+          role: true,
+          accessLevel: true,
+          invitedBy: true,
+          invitedByName: true,
+          joinedAt: true,
+          lastActiveAt: true,
+        },
+        orderBy: [{ joinedAt: 'desc' }, { id: 'desc' }],
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      req.repo!.hubMember.count({ where }),
+    ]);
+
+    sendList(res, members.map(mapHubMember), {
+      page,
+      pageSize,
+      totalItems,
+      totalPages: Math.ceil(totalItems / pageSize),
+    });
+  } catch (err) {
+    next(err);
+  }
 });
 
 // POST /hubs/:hubId/portal/invite — 501

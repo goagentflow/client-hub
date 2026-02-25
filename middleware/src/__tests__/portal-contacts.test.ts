@@ -32,10 +32,34 @@ const mockPrisma = {
     create: vi.fn(),
     delete: vi.fn(),
   },
+  hubMember: {
+    upsert: vi.fn().mockResolvedValue({}),
+    updateMany: vi.fn().mockResolvedValue({ count: 0 }),
+    findMany: vi.fn().mockResolvedValue([]),
+    count: vi.fn().mockResolvedValue(0),
+  },
+  hubAccessRevocation: {
+    upsert: vi.fn().mockResolvedValue({}),
+    findMany: vi.fn().mockResolvedValue([]),
+    deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
+  },
+  hubCrmOrgMap: {
+    findUnique: vi.fn().mockResolvedValue(null),
+    upsert: vi.fn().mockResolvedValue({}),
+    deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
+  },
+  hubMessage: {
+    findMany: vi.fn().mockResolvedValue([]),
+  },
   portalDevice: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
   portalVerification: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
   hub: {
-    findFirst: vi.fn().mockResolvedValue({ tenantId: 'tenant-agentflow', accessMethod: 'email' }),
+    findFirst: vi.fn().mockResolvedValue({
+      id: 'hub-1',
+      tenantId: 'tenant-agentflow',
+      companyName: 'Test Co',
+      accessMethod: 'email',
+    }),
     update: vi.fn(),
   },
   $transaction: vi.fn().mockResolvedValue([]),
@@ -49,7 +73,12 @@ beforeEach(() => { vi.clearAllMocks(); });
 
 describe('Staff portal contacts CRUD', () => {
   beforeEach(() => {
-    mockPrisma.hub.findFirst.mockResolvedValue({ tenantId: 'tenant-agentflow', accessMethod: 'email' });
+    mockPrisma.hub.findFirst.mockResolvedValue({
+      id: 'hub-1',
+      tenantId: 'tenant-agentflow',
+      companyName: 'Test Co',
+      accessMethod: 'email',
+    });
   });
 
   it('GET lists contacts', async () => {
@@ -122,7 +151,12 @@ describe('GET /hubs/:hubId/access-method (staff)', () => {
 
 describe('PATCH /hubs/:hubId/access-method', () => {
   beforeEach(() => {
-    mockPrisma.hub.findFirst.mockResolvedValue({ tenantId: 'tenant-agentflow', accessMethod: 'email' });
+    mockPrisma.hub.findFirst.mockResolvedValue({
+      id: 'hub-1',
+      tenantId: 'tenant-agentflow',
+      companyName: 'Test Co',
+      accessMethod: 'email',
+    });
     mockPrisma.hub.update.mockResolvedValue({});
   });
 
@@ -159,6 +193,7 @@ describe('PATCH /hubs/:hubId/access-method', () => {
     expect(mockPrisma.portalVerification.deleteMany).toHaveBeenCalledWith(
       expect.objectContaining({ where: { hubId: 'hub-1' } }),
     );
+    expect(mockPrisma.hubAccessRevocation.upsert).toHaveBeenCalledOnce();
   });
 
   it('switching to email does NOT revoke devices', async () => {

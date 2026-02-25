@@ -205,3 +205,32 @@ export async function publishPortal(hubId: string): Promise<PortalConfig> {
 
   return api.post<PortalConfig>(`/hubs/${hubId}/publish`);
 }
+
+/**
+ * Unpublish portal (hide from clients immediately)
+ */
+export async function unpublishPortal(hubId: string): Promise<PortalConfig> {
+  if (isMockApiEnabled()) {
+    await simulateDelay(300);
+    mockPortalConfig.isPublished = false;
+    return mockPortalConfig;
+  }
+
+  return api.post<PortalConfig>(`/hubs/${hubId}/unpublish`);
+}
+
+/**
+ * Delete hub and all associated data
+ */
+export async function deleteHub(hubId: string): Promise<void> {
+  if (isMockApiEnabled()) {
+    await simulateDelay(400);
+    const index = mockHubs.findIndex((h) => h.id === hubId);
+    if (index !== -1) {
+      mockHubs.splice(index, 1);
+    }
+    return;
+  }
+
+  await api.delete(`/hubs/${hubId}`);
+}

@@ -27,6 +27,8 @@ import {
   getPortalConfig,
   updatePortalConfig,
   publishPortal,
+  unpublishPortal,
+  deleteHub,
   convertToClientHub,
   type ConvertHubRequest,
   type ConvertHubResponse,
@@ -167,6 +169,37 @@ export function usePublishPortal(hubId: string) {
     mutationFn: () => publishPortal(hubId),
     onSuccess: (config) => {
       queryClient.setQueryData(hubKeys.portalConfig(hubId), config);
+    },
+  });
+}
+
+/**
+ * Hook to unpublish portal
+ */
+export function useUnpublishPortal(hubId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation<PortalConfig, Error>({
+    mutationFn: () => unpublishPortal(hubId),
+    onSuccess: (config) => {
+      queryClient.setQueryData(hubKeys.portalConfig(hubId), config);
+    },
+  });
+}
+
+/**
+ * Hook to delete a hub
+ */
+export function useDeleteHub() {
+  const queryClient = useQueryClient();
+
+  return useMutation<void, Error, string>({
+    mutationFn: (hubId) => deleteHub(hubId),
+    onSuccess: (_data, hubId) => {
+      queryClient.removeQueries({ queryKey: hubKeys.detail(hubId) });
+      queryClient.removeQueries({ queryKey: hubKeys.portalConfig(hubId) });
+      queryClient.removeQueries({ queryKey: hubKeys.overview(hubId) });
+      queryClient.invalidateQueries({ queryKey: hubKeys.lists() });
     },
   });
 }

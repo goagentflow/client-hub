@@ -92,7 +92,6 @@ describe('501 stubs', () => {
     ['GET', '/api/v1/hubs/hub-1/risk-alerts'],
     ['POST', '/api/v1/hubs/hub-1/portal/proposal/comment'],
     ['GET', '/api/v1/hubs/hub-1/portal/meetings'],
-    ['GET', '/api/v1/hubs/hub-1/portal/members'],
     ['GET', '/api/v1/hubs/hub-1/portal/questionnaires'],
     ['POST', '/api/v1/hubs/hub-1/convert/rollback'],
     ['GET', '/api/v1/leadership/at-risk'],
@@ -114,6 +113,16 @@ describe('501 stubs', () => {
       expect(res.body.message).toBeDefined();
     });
   }
+});
+
+describe('Portal members endpoint', () => {
+  it('GET /api/v1/hubs/:hubId/portal/members rejects staff auth (portal token required)', async () => {
+    const res = await request(app)
+      .get('/api/v1/hubs/hub-1/portal/members')
+      .set(STAFF_HEADERS);
+    expect(res.status).toBe(403);
+    expect(res.body.code).toBe('FORBIDDEN');
+  });
 });
 
 // ============================================================================

@@ -11,6 +11,7 @@ import { logger } from '../utils/logger.js';
 import { getPrisma } from '../db/prisma.js';
 import { createTenantRepository } from '../db/tenant-repository.js';
 import type { HubAccess } from '../types/api.js';
+import { upsertClientMember, upsertStaffMember } from '../services/membership.service.js';
 
 // Extend Express Request
 declare global {
@@ -43,7 +44,7 @@ export async function hubAccessMiddleware(req: Request, res: Response, next: Nex
       select: { isPublished: true, tenantId: true },
     });
     if (!hub) {
-      res.status(500).json({ code: 'INTERNAL_ERROR', message: 'Unable to verify hub access', correlationId: req.correlationId });
+      res.status(403).json({ code: 'FORBIDDEN', message: 'This hub is no longer available', correlationId: req.correlationId });
       return;
     }
     if (!hub.isPublished) {
@@ -58,6 +59,16 @@ export async function hubAccessMiddleware(req: Request, res: Response, next: Nex
       hubId, canView: true, canEdit: false,
       canInvite: false, canViewInternal: false, accessLevel: 'view_only',
     };
+
+    upsertClientMember({ hubMember: req.repo!.hubMember } as Parameters<typeof upsertClientMember>[0], {
+      hubId,
+      tenantId: hub.tenantId,
+      email: user.email,
+      displayName: user.name,
+      source: 'system',
+      lastActiveAt: new Date(),
+    }).catch((err) => logger.warn({ err, hubId, email: user.email }, 'Failed to touch portal member activity'));
+
     next();
     return;
   }
@@ -68,6 +79,17 @@ export async function hubAccessMiddleware(req: Request, res: Response, next: Nex
       hubId, canView: true, canEdit: true,
       canInvite: true, canViewInternal: true, accessLevel: 'full_access',
     };
+
+    upsertStaffMember({ hubMember: req.repo!.hubMember } as Parameters<typeof upsertStaffMember>[0], {
+      hubId,
+      tenantId: user.tenantId,
+      userId: user.userId,
+      email: user.email,
+      displayName: user.name,
+      source: 'system',
+      lastActiveAt: new Date(),
+    }).catch((err) => logger.warn({ err, hubId, email: user.email }, 'Failed to upsert staff member activity'));
+
     next();
     return;
   }

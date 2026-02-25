@@ -58,6 +58,9 @@ model Hub {
   invites        HubInvite[]
   statusUpdates  HubStatusUpdate[]
   messages       HubMessage[]
+  members        HubMember[]
+  accessRevocations HubAccessRevocation[]
+  crmOrgMap      HubCrmOrgMap?
 
   @@map("hub")
 }
@@ -272,4 +275,68 @@ model HubMessage {
 
   @@index([tenantId, hubId, createdAt(sort: Desc), id(sort: Desc)])
   @@map("hub_message")
+}
+
+/// Hub member access records (staff + client visibility, access level, activity).
+/// Created via raw SQL migration: prisma/sql/003_hub_membership_access.sql
+model HubMember {
+  id           String    @id @default(uuid())
+  hubId        String    @map("hub_id")
+  tenantId     String    @map("tenant_id")
+  userId       String?   @map("user_id")
+  email        String
+  displayName  String?   @map("display_name")
+  role         String
+  accessLevel  String    @default("full_access") @map("access_level")
+  invitedBy    String?   @map("invited_by")
+  invitedByName String?  @map("invited_by_name")
+  source       String    @default("system")
+  status       String    @default("active")
+  joinedAt     DateTime  @default(now()) @map("joined_at")
+  lastActiveAt DateTime? @map("last_active_at")
+  revokedAt    DateTime? @map("revoked_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @default(now()) @map("updated_at")
+
+  hub Hub @relation(fields: [hubId], references: [id])
+
+  @@unique([hubId, email, role])
+  @@index([tenantId, hubId, role, status, joinedAt(sort: Desc)])
+  @@index([tenantId, email])
+  @@map("hub_member")
+}
+
+/// Per-hub portal access revocation checkpoints.
+/// emailKey='*' revokes all portal sessions for the hub.
+/// Concrete email revokes only that contact.
+model HubAccessRevocation {
+  hubId        String   @map("hub_id")
+  tenantId     String   @map("tenant_id")
+  emailKey     String   @map("email_key")
+  revokedAfter DateTime @default(now()) @map("revoked_after")
+  reason       String?
+  revokedBy    String?  @map("revoked_by")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @default(now()) @map("updated_at")
+
+  hub Hub @relation(fields: [hubId], references: [id])
+
+  @@id([hubId, emailKey])
+  @@index([tenantId, hubId, revokedAfter(sort: Desc)])
+  @@map("hub_access_revocation")
+}
+
+/// Optional mapping from hub -> CRM org (insight-pulse shared DB).
+model HubCrmOrgMap {
+  hubId     String   @id @map("hub_id")
+  tenantId  String   @map("tenant_id")
+  orgId     String   @map("org_id")
+  linkedAt  DateTime @default(now()) @map("linked_at")
+  linkedBy  String?  @map("linked_by")
+  source    String   @default("auto")
+
+  hub Hub @relation(fields: [hubId], references: [id])
+
+  @@index([tenantId, orgId])
+  @@map("hub_crm_org_map")
 }

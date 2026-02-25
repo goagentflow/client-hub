@@ -141,7 +141,7 @@ export async function sendPortalAccessRequestNotification(
       requestedEmail: escapeHtml(details.requestedEmail),
       hubName: escapeHtml(details.hubName),
       hubUrl: escapeHtml(details.hubUrl),
-      requestNote: details.requestNote ? escapeHtml(details.requestNote) : undefined,
+      ...(details.requestNote ? { requestNote: escapeHtml(details.requestNote) } : {}),
     }),
   );
 }

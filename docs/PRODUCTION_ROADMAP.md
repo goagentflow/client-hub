@@ -628,9 +628,9 @@ Cloud Build:
 
 **Bug fix included:** `hubs.route.ts` portal-preview endpoint fixed to use `sendItem()` instead of `res.json({ data: {...} })` — resolved a pre-existing test failure.
 
-#### Phase 2b: Full Members & Access (NOT STARTED)
+#### Phase 2b: Full Members & Access (PARTIALLY IMPLEMENTED)
 
-**What remains:**
+**What remains (after current implementation):**
 
 **Client authentication — magic link:**
 - Staff invites a client by email address → system generates a time-limited magic link token
@@ -656,9 +656,9 @@ Cloud Build:
 - **Rollback:** Disable feature flag. Password access is unaffected.
 
 **What's to be built:**
-- New tables: `hub_member`, `hub_session` (all with `tenant_id`) — `hub_invite` already exists
-- 5 remaining endpoints in members.route.ts: list, activity, update, delete members; share link
-- Plus 1 contract portal stub: portal:members (`portal:invite` remains a legacy/deprecated 501 route)
+- New tables: `hub_session` (for magic-link session cookies) — `hub_member` is now live
+- Remaining endpoint placeholders in members.route.ts: member activity + share-link
+- `portal:members` is now live (`portal:invite` remains a legacy/deprecated 501 route)
 - Plus 1 public stub: public:invite-accept (the live invite-accept handler)
 - Hub access middleware updated to check member session (alongside existing password check)
 
@@ -1117,4 +1117,5 @@ Note: `created_source` must be `'claude_sql'` (not default `'staff_ui'`). Compos
 | v5.2 | 24 Feb 2026 | Phase 2b (Status Updates) implemented, reviewed, and deployed: (1) HubStatusUpdate model added to Prisma schema; (2) Raw SQL migration (`prisma/sql/001_hub_status_update.sql`) with composite FK `(hub_id, tenant_id)`, CHECK constraints (non-empty fields, length limits ≤200/≤5000, on_track enum), and append-only triggers (UPDATE/DELETE blocked); (3) `db:migrate:sql` and `db:migrate:all` scripts added to package.json with fail-fast error handling; (4) Staff-only POST + GET routes in `status-updates.route.ts` with `requireString()` type guard, length limits, strict onTrack validation, server-derived createdBy/createdSource; (5) Portal GET route added to `portal.route.ts` with `mapStatusUpdateForPortal()` stripping tenantId + createdSource; (6) Shared query service `status-update-queries.ts` (neutral module, no auth/HTTP); (7) Frontend: `CreateStatusUpdateDialog.tsx` (staff form), `StatusUpdateCard.tsx` (portal card with accumulative load-more pagination, stale-state reset on hub change), React Query hooks with broadened cache invalidation; (8) `QuickStatCard.tsx` and `ClientHubOverviewPage.tsx` extracted for file-length compliance; (9) 15 status-update tests (validation, auth, portal positive-path with field redaction assertion); (10) 159 total tests across 11 files; (11) 3 rounds internal review + 2 rounds external review, all findings addressed; (12) Both services redeployed to Cloud Run + SQL migration run against prod. |
 | v5.3 | 24 Feb 2026 | Documentation sync pass: (1) added `docs/CURRENT_STATE.md` as canonical live-vs-aspirational source; (2) aligned README + STATUS + roadmap references; (3) corrected stale counts/phrasing (tests, latest phase wording, remaining placeholder count); (4) added historical banners on outdated planning docs to prevent cold-dev confusion. |
 | v5.5 | 25 Feb 2026 | Messages MVP feed implemented: (1) new `hub_message` raw SQL migration + Prisma model + TenantRepository scope; (2) staff `GET/POST /hubs/:hubId/messages` with strict body validation and non-blocking notifications; (3) portal `GET/POST /hubs/:hubId/portal/messages` with verified-email posting requirement; (4) new message query service and Resend notification templates/functions; (5) 15 message tests added + contract stub assertions updated; (6) frontend message feed components/hooks/services wired for staff + portal routes; (7) portal Messages “Soon” placeholder removed; (8) docs inventory updated to 56 real / 59 placeholder contract endpoints. |
+| v5.6 | 25 Feb 2026 | Hub lifecycle + membership hardening delivered: (1) additive SQL migration `003_hub_membership_access.sql` adds `hub_member`, `hub_access_revocation`, `hub_crm_org_map` (non-breaking); (2) immediate portal-token revocation check added to auth middleware; (3) staff endpoints `POST /hubs/:hubId/unpublish` and `DELETE /hubs/:hubId` implemented; (4) members endpoints `GET/PATCH/DELETE /hubs/:hubId/members` and portal `GET /hubs/:hubId/portal/members` implemented; (5) invite/contact revoke paths now invalidate existing sessions instantly; (6) CRM activity sync added (best-effort, non-blocking) for membership changes; (7) portal client message notifications now fan out to all known staff recipients (not just hub owner); (8) frontend portal management adds Unpublish + Delete Hub actions; (9) 4 new backend test files + updates, total `207/207` passing, middleware typecheck clean, frontend build clean. |
 | v4.9 | 23 Feb 2026 | Phase 1.5 (Portal Email Verification) implemented and deployed: (1) 3 new Prisma models (PortalContact, PortalVerification, PortalDevice) + Hub.accessMethod field; (2) 4 public endpoints (access-method, request-code, verify-code, verify-device) with rate limiting and enumeration prevention; (3) 5 staff endpoints (portal contacts CRUD + access method management) with tenant isolation; (4) Email via Resend REST API (fire-and-forget, XSS-safe templates); (5) Frontend EmailGate + PortalContactsCard + PortalDetail access-method routing; (6) SHA-256 hashed codes, timing-safe comparison, per-code lockout; (7) Device token remember-me (90-day, localStorage); (8) Method-switch side-effects (clear passwordHash on open, revoke artifacts on method change); (9) 120 tests across 7 files; (10) 3 rounds automated review + 3 rounds external senior dev review; (11) CLIENTHUB_RESEND_API_KEY added to GCP Secret Manager; (12) Both services redeployed to Cloud Run. Browser smoke test pending. |

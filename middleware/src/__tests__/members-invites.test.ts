@@ -14,6 +14,7 @@ const mockHubFindFirst = vi.fn();
 const mockInviteCreate = vi.fn();
 const mockInviteUpdate = vi.fn();
 const mockContactUpsert = vi.fn();
+const mockHubMemberUpsert = vi.fn();
 const mockHubUpdate = vi.fn();
 const mockTransaction = vi.fn();
 const mockSendPortalInvite = vi.fn().mockResolvedValue(undefined);
@@ -22,6 +23,9 @@ const mockPrisma = {
   hub: { findFirst: mockHubFindFirst, update: mockHubUpdate },
   hubInvite: { create: mockInviteCreate, update: mockInviteUpdate, findMany: vi.fn(), findFirst: vi.fn() },
   portalContact: { upsert: mockContactUpsert, deleteMany: vi.fn() },
+  hubMember: { upsert: mockHubMemberUpsert, updateMany: vi.fn(), findMany: vi.fn(), count: vi.fn() },
+  hubAccessRevocation: { upsert: vi.fn(), findMany: vi.fn(), deleteMany: vi.fn() },
+  hubCrmOrgMap: { findUnique: vi.fn(), upsert: vi.fn(), deleteMany: vi.fn() },
   portalVerification: { deleteMany: vi.fn() },
   portalDevice: { deleteMany: vi.fn() },
   $transaction: mockTransaction,
@@ -58,6 +62,7 @@ describe('POST /hubs/:hubId/invites', () => {
     mockHubFindFirst.mockResolvedValueOnce(EMAIL_HUB);
     mockInviteCreate.mockResolvedValueOnce(INVITE_RESULT);
     mockContactUpsert.mockResolvedValueOnce({});
+    mockHubMemberUpsert.mockResolvedValueOnce({});
     mockHubUpdate.mockResolvedValueOnce({});
 
     const res = await request(app)
@@ -68,6 +73,7 @@ describe('POST /hubs/:hubId/invites', () => {
     expect(res.body.email).toBe('test@example.com');
     expect(mockInviteCreate).toHaveBeenCalledOnce();
     expect(mockContactUpsert).toHaveBeenCalledOnce();
+    expect(mockHubMemberUpsert).toHaveBeenCalledOnce();
     expect(mockHubUpdate).toHaveBeenCalledOnce();
     expect(mockSendPortalInvite).toHaveBeenCalledOnce();
   });
@@ -136,12 +142,12 @@ describe('POST /hubs/:hubId/invites', () => {
     expect(res.status).toBe(400);
   });
 
-  it('rejects tenant mismatch with 403', async () => {
-    mockHubFindFirst.mockResolvedValueOnce({ ...EMAIL_HUB, tenantId: 'other-tenant' });
+  it('tenant-mismatched hub lookup is hidden as 404', async () => {
+    mockHubFindFirst.mockResolvedValueOnce(null);
     const res = await request(app)
       .post(API).set(STAFF_HEADERS)
       .send({ email: 'test@example.com', accessLevel: 'full_access' });
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(404);
   });
 
   it('returns 404 for non-existent hub', async () => {

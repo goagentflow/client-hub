@@ -277,8 +277,8 @@ describe('Staff message feed endpoints', () => {
 describe('Portal message feed endpoints', () => {
   async function portalToken(headers?: { email?: string; name?: string }): Promise<Record<string, string>> {
     const token = await makePortalToken('hub-1', {
-      email: headers?.email,
-      name: headers?.name,
+      ...(headers?.email ? { email: headers.email } : {}),
+      ...(headers?.name ? { name: headers.name } : {}),
     });
     return portalHeaders(token);
   }
@@ -339,7 +339,59 @@ describe('Portal message feed endpoints', () => {
       senderName: 'Client User',
       body: 'Hello from portal',
     });
-    expect(mockSendClientReplyNotification).toHaveBeenCalledTimes(1);
+    expect(mockSendClientReplyNotification.mock.calls.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('POST /hubs/:hubId/portal/messages notifies all known staff recipients', async () => {
+    setPublishedHub();
+
+    const hubMember = portalRepo.hubMember as { findMany: ReturnType<typeof vi.fn> };
+    hubMember.findMany.mockResolvedValueOnce([
+      { email: 'owner@test.com' },
+      { email: 'ops@test.com' },
+      { email: 'Owner@Test.com' },
+    ]);
+
+    const headers = await portalToken({ email: 'client@test.com', name: 'Client User' });
+    const res = await request(app)
+      .post('/api/v1/hubs/hub-1/portal/messages')
+      .set(headers)
+      .send({ body: 'Notify all staff' });
+
+    expect(res.status).toBe(201);
+    const recipients = mockSendClientReplyNotification.mock.calls.map((c) => c[0]);
+    expect(recipients).toContain('owner@test.com');
+    expect(recipients).toContain('ops@test.com');
+    expect(new Set(recipients).size).toBe(recipients.length);
+  });
+
+  it('POST /hubs/:hubId/portal/messages never falls back to client contactEmail', async () => {
+    setPublishedHub();
+
+    const hubMember = portalRepo.hubMember as { findMany: ReturnType<typeof vi.fn> };
+    const hubMessage = portalRepo.hubMessage as { findMany: ReturnType<typeof vi.fn> };
+    const hubEvent = portalRepo.hubEvent as { findMany: ReturnType<typeof vi.fn> };
+    hubMember.findMany.mockResolvedValueOnce([]);
+    hubMessage.findMany.mockResolvedValueOnce([]);
+    hubEvent.findMany.mockResolvedValueOnce([]);
+
+    const hub = portalRepo.hub as { findFirst: ReturnType<typeof vi.fn> };
+    hub.findFirst.mockResolvedValueOnce({
+      id: 'hub-1',
+      companyName: 'Test Co',
+      contactEmail: 'client-owner@test.com',
+      clientDomain: 'test.com',
+      accessMethod: 'email',
+    });
+
+    const headers = await portalToken({ email: 'client@test.com', name: 'Client User' });
+    const res = await request(app)
+      .post('/api/v1/hubs/hub-1/portal/messages')
+      .set(headers)
+      .send({ body: 'No fallback to client email' });
+
+    expect(res.status).toBe(201);
+    expect(mockSendClientReplyNotification).not.toHaveBeenCalled();
   });
 
   it('POST /hubs/:hubId/portal/messages accepts legacy bodyHtml payload', async () => {
@@ -382,7 +434,7 @@ describe('Portal message feed endpoints', () => {
       requested: true,
       email: 'teammate@test.com',
     });
-    expect(mockSendPortalAccessRequestNotification).toHaveBeenCalledTimes(1);
+    expect(mockSendPortalAccessRequestNotification.mock.calls.length).toBeGreaterThanOrEqual(1);
   });
 
   it('POST /hubs/:hubId/portal/messages/request-access returns alreadyHasAccess for known contact', async () => {

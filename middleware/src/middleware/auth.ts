@@ -15,6 +15,7 @@ import { jwtVerify, createRemoteJWKSet, createLocalJWKSet } from 'jose';
 import { env } from '../config/env.js';
 import { logger } from '../utils/logger.js';
 import type { UserContext } from '../types/api.js';
+import { isPortalTokenRevoked } from '../services/access-revocation.service.js';
 
 const PORTAL_ISSUER = 'agentflow';
 const PORTAL_AUDIENCE = 'agentflow-portal';
@@ -84,6 +85,20 @@ export async function authMiddleware(req: Request, res: Response, next: NextFunc
         audience: PORTAL_AUDIENCE,
       });
       if (payload.type === 'portal' && typeof payload.sub === 'string') {
+        const revoked = await isPortalTokenRevoked(
+          payload.sub,
+          typeof payload.email === 'string' ? payload.email : undefined,
+          typeof payload.iat === 'number' ? payload.iat : undefined,
+        );
+        if (revoked) {
+          res.status(401).json({
+            code: 'UNAUTHENTICATED',
+            message: 'Portal session revoked. Please sign in again.',
+            correlationId: req.correlationId,
+          });
+          return;
+        }
+
         req.user = {
           userId: `portal-${payload.sub}`,
           email: (payload.email as string) || '',

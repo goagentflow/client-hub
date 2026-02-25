@@ -41,6 +41,11 @@ const _hoisted = vi.hoisted(() => {
         const data = args.data as Record<string, unknown>;
         return { ...STUB_HUB, ...data, id: 'hub-new' };
       }),
+      upsert: vi.fn().mockImplementation(async (args: Record<string, unknown>) => {
+        const create = args.create as Record<string, unknown> | undefined;
+        const update = args.update as Record<string, unknown> | undefined;
+        return { ...STUB_HUB, ...(create || {}), ...(update || {}) };
+      }),
       update: vi.fn().mockImplementation(async (args: Record<string, unknown>) => {
         const data = args.data as Record<string, unknown>;
         return { ...STUB_HUB, ...data };
@@ -63,6 +68,9 @@ const _hoisted = vi.hoisted(() => {
       hubEvent: makeMockScopedModel(),
       hubStatusUpdate: makeMockScopedModel(),
       hubMessage: makeMockScopedModel(),
+      hubMember: makeMockScopedModel(),
+      hubAccessRevocation: makeMockScopedModel(),
+      hubCrmOrgMap: makeMockScopedModel(),
     };
   }
 

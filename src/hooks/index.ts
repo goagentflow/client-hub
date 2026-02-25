@@ -32,6 +32,8 @@ export {
   useUpdateHubNotes,
   useUpdatePortalConfig,
   usePublishPortal,
+  useUnpublishPortal,
+  useDeleteHub,
   useConvertToClientHub,
 } from "./use-hubs";
 

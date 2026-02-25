@@ -4,7 +4,7 @@
  * Endpoints:
  *   GET    /hubs/:hubId/portal-contacts     — list contacts
  *   POST   /hubs/:hubId/portal-contacts     — add contact
- *   DELETE /hubs/:hubId/portal-contacts/:id — remove contact + cascade revoke
+ *   DELETE /hubs/:hubId/portal-contacts/:id — remove contact + immediate revoke
  *   GET    /hubs/:hubId/access-method       — get current access method
  *   PATCH  /hubs/:hubId/access-method       — set hub access method
  */
@@ -15,6 +15,9 @@ import { requireStaffAccess } from '../middleware/require-staff.js';
 import { hubAccessMiddleware } from '../middleware/hub-access.js';
 import { send204 } from '../utils/response.js';
 import { getPrisma } from '../db/prisma.js';
+import { upsertClientMember, revokeClientMember } from '../services/membership.service.js';
+import { revokePortalAccess } from '../services/access-revocation.service.js';
+import { syncMemberActivityToCrm } from '../services/crm-sync.service.js';
 import type { Request, Response, NextFunction } from 'express';
 
 export const portalContactsRouter = Router({ mergeParams: true });
@@ -30,11 +33,21 @@ const accessMethodSchema = z.object({
 });
 
 /** Verify hub exists and belongs to the staff user's tenant */
-async function verifyTenant(req: Request, res: Response): Promise<string | null> {
+async function verifyHub(req: Request, res: Response): Promise<{
+  id: string;
+  tenantId: string;
+  companyName: string;
+  accessMethod: string;
+} | null> {
   const hubId = req.params.hubId as string;
   const hub = await getPrisma().hub.findFirst({
     where: { id: hubId },
-    select: { tenantId: true },
+    select: {
+      id: true,
+      tenantId: true,
+      companyName: true,
+      accessMethod: true,
+    },
   });
   if (!hub) {
     res.status(404).json({ code: 'NOT_FOUND', message: 'Hub not found' });
@@ -44,7 +57,7 @@ async function verifyTenant(req: Request, res: Response): Promise<string | null>
     res.status(403).json({ code: 'FORBIDDEN', message: 'Hub does not belong to your tenant' });
     return null;
   }
-  return hubId;
+  return hub;
 }
 
 /** Map Prisma unique constraint violation → 409 Conflict */
@@ -63,10 +76,11 @@ portalContactsRouter.get(
   hubAccessMiddleware,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const hubId = await verifyTenant(req, res);
-      if (!hubId) return;
+      const hub = await verifyHub(req, res);
+      if (!hub) return;
+
       const contacts = await getPrisma().portalContact.findMany({
-        where: { hubId },
+        where: { hubId: hub.id },
         orderBy: { createdAt: 'desc' },
         select: { id: true, email: true, name: true, addedBy: true, createdAt: true },
       });
@@ -82,19 +96,44 @@ portalContactsRouter.post(
   hubAccessMiddleware,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const hubId = await verifyTenant(req, res);
-      if (!hubId) return;
+      const hub = await verifyHub(req, res);
+      if (!hub) return;
       const parsed = addContactSchema.parse(req.body);
 
-      const contact = await getPrisma().portalContact.create({
+      const prisma = getPrisma();
+      const contact = await prisma.portalContact.create({
         data: {
-          hubId,
+          hubId: hub.id,
           tenantId: req.user.tenantId,
           email: parsed.email,
           name: parsed.name ?? null,
           addedBy: req.user.userId,
         },
         select: { id: true, email: true, name: true, addedBy: true, createdAt: true },
+      });
+
+      await upsertClientMember(prisma as Parameters<typeof upsertClientMember>[0], {
+        hubId: hub.id,
+        tenantId: req.user.tenantId,
+        email: parsed.email,
+        displayName: parsed.name || null,
+        invitedBy: req.user.userId,
+        invitedByName: req.user.name,
+        source: 'portal_contact',
+      });
+
+      await syncMemberActivityToCrm(prisma, {
+        hubId: hub.id,
+        tenantId: req.user.tenantId,
+        companyName: hub.companyName,
+        actorUserId: req.user.userId,
+        activityType: 'team_invited',
+        title: 'Client contact added',
+        content: `${parsed.email} granted portal access`,
+        metadata: {
+          memberEmail: parsed.email,
+          source: 'portal_contact',
+        },
       });
 
       res.status(201).json({ data: contact });
@@ -108,28 +147,56 @@ portalContactsRouter.post(
   },
 );
 
-// DELETE /hubs/:hubId/portal-contacts/:id — transactional cascade
+// DELETE /hubs/:hubId/portal-contacts/:id — transactional cascade + immediate token revoke
 portalContactsRouter.delete(
   '/:id',
   requireStaffAccess,
   hubAccessMiddleware,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const hubId = await verifyTenant(req, res);
-      if (!hubId) return;
+      const hub = await verifyHub(req, res);
+      if (!hub) return;
       const id = req.params.id as string;
 
-      const contact = await getPrisma().portalContact.findUnique({ where: { id } });
-      if (!contact || contact.hubId !== hubId) {
+      const prisma = getPrisma();
+      const contact = await prisma.portalContact.findUnique({ where: { id } });
+      if (!contact || contact.hubId !== hub.id) {
         res.status(404).json({ code: 'NOT_FOUND', message: 'Contact not found' });
         return;
       }
 
-      await getPrisma().$transaction([
-        getPrisma().portalContact.delete({ where: { id } }),
-        getPrisma().portalDevice.deleteMany({ where: { hubId, email: contact.email } }),
-        getPrisma().portalVerification.deleteMany({ where: { hubId, email: contact.email } }),
-      ]);
+      await prisma.$transaction(async (tx) => {
+        await tx.portalContact.delete({ where: { id } });
+        await tx.portalDevice.deleteMany({ where: { hubId: hub.id, email: contact.email } });
+        await tx.portalVerification.deleteMany({ where: { hubId: hub.id, email: contact.email } });
+
+        await revokeClientMember(tx, {
+          hubId: hub.id,
+          email: contact.email,
+        });
+
+        await revokePortalAccess(tx, {
+          hubId: hub.id,
+          tenantId: req.user.tenantId,
+          email: contact.email,
+          reason: 'portal_contact_removed',
+          revokedBy: req.user.userId,
+        });
+      });
+
+      await syncMemberActivityToCrm(prisma, {
+        hubId: hub.id,
+        tenantId: req.user.tenantId,
+        companyName: hub.companyName,
+        actorUserId: req.user.userId,
+        activityType: 'status_changed',
+        title: 'Client contact removed',
+        content: `${contact.email} access revoked`,
+        metadata: {
+          memberEmail: contact.email,
+          source: 'portal_contact_remove',
+        },
+      });
 
       send204(res);
     } catch (err) { next(err); }
@@ -143,16 +210,8 @@ accessMethodRouter.get(
   hubAccessMiddleware,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const hubId = await verifyTenant(req, res);
-      if (!hubId) return;
-      const hub = await getPrisma().hub.findFirst({
-        where: { id: hubId },
-        select: { accessMethod: true },
-      });
-      if (!hub) {
-        res.status(404).json({ code: 'NOT_FOUND', message: 'Hub not found' });
-        return;
-      }
+      const hub = await verifyHub(req, res);
+      if (!hub) return;
       res.json({ data: { method: hub.accessMethod } });
     } catch (err) { next(err); }
   },
@@ -165,9 +224,11 @@ accessMethodRouter.patch(
   hubAccessMiddleware,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const hubId = await verifyTenant(req, res);
-      if (!hubId) return;
+      const hub = await verifyHub(req, res);
+      if (!hub) return;
       const parsed = accessMethodSchema.parse(req.body);
+
+      const prisma = getPrisma();
 
       // Build update payload — clear passwordHash when switching to open
       const data: Record<string, unknown> = { accessMethod: parsed.method };
@@ -175,17 +236,24 @@ accessMethodRouter.patch(
         data.passwordHash = null;
       }
 
-      await getPrisma().hub.update({
-        where: { id: hubId },
+      await prisma.hub.update({
+        where: { id: hub.id },
         data,
       });
 
-      // Switching away from email → revoke all email-related artifacts
+      // Switching away from email: revoke active email-auth artifacts + checkpoint all existing tokens.
       if (parsed.method !== 'email') {
         await Promise.all([
-          getPrisma().portalDevice.deleteMany({ where: { hubId } }),
-          getPrisma().portalVerification.deleteMany({ where: { hubId } }),
+          prisma.portalDevice.deleteMany({ where: { hubId: hub.id } }),
+          prisma.portalVerification.deleteMany({ where: { hubId: hub.id } }),
         ]);
+
+        await revokePortalAccess(prisma as Parameters<typeof revokePortalAccess>[0], {
+          hubId: hub.id,
+          tenantId: req.user.tenantId,
+          reason: `access_method_${parsed.method}`,
+          revokedBy: req.user.userId,
+        });
       }
 
       res.json({ data: { method: parsed.method } });

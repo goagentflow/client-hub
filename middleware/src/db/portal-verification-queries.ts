@@ -11,7 +11,7 @@ import { getPrisma } from './prisma.js';
 export async function findHubAccessMethod(hubId: string) {
   return getPrisma().hub.findFirst({
     where: { id: hubId, isPublished: true },
-    select: { id: true, companyName: true, accessMethod: true, isPublished: true },
+    select: { id: true, tenantId: true, companyName: true, accessMethod: true, isPublished: true },
   });
 }
 

@@ -1,20 +1,35 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Eye, Send, Copy, CheckCircle2, AlertCircle, Monitor, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { useHubId } from "@/contexts/hub-context";
 import {
   useHubOverview,
   usePortalConfig,
   useUpdatePortalConfig,
   usePublishPortal,
+  useUnpublishPortal,
+  useDeleteHub,
   useMembers,
   useInvites,
   useCreateInvite,
   useProposal,
   useQuestionnaires,
   useTrackEngagement,
+  useToast,
 } from "@/hooks";
 import {
   WelcomeSection,
@@ -28,7 +43,9 @@ import {
 import type { HeroContentType, PortalSectionConfig, CreateInviteRequest } from "@/types";
 
 export function ClientPortalSection() {
+  const navigate = useNavigate();
   const hubId = useHubId();
+  const { toast } = useToast();
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
 
   // Data hooks
@@ -42,6 +59,8 @@ export function ClientPortalSection() {
   // Mutation hooks
   const { mutate: updateConfig } = useUpdatePortalConfig(hubId);
   const { mutate: publishPortal, isPending: isPublishing } = usePublishPortal(hubId);
+  const { mutate: unpublishPortal, isPending: isUnpublishing } = useUnpublishPortal(hubId);
+  const { mutate: deleteHub, isPending: isDeletingHub } = useDeleteHub();
   const { mutate: createInvite, isPending: isInviting } = useCreateInvite(hubId);
 
   // Engagement tracking
@@ -89,7 +108,33 @@ export function ClientPortalSection() {
   };
 
   const handlePublish = () => {
-    publishPortal();
+    publishPortal(undefined, {
+      onSuccess: () => toast({ title: "Portal published" }),
+      onError: (err) => toast({ title: "Could not publish portal", description: err.message, variant: "destructive" }),
+    });
+  };
+
+  const handleUnpublish = () => {
+    unpublishPortal(undefined, {
+      onSuccess: () => {
+        toast({ title: "Portal unpublished", description: "Clients are now locked out immediately." });
+      },
+      onError: (err) => {
+        toast({ title: "Could not unpublish portal", description: err.message, variant: "destructive" });
+      },
+    });
+  };
+
+  const handleDeleteHub = () => {
+    deleteHub(hubId, {
+      onSuccess: () => {
+        toast({ title: "Hub deleted" });
+        navigate("/hubs");
+      },
+      onError: (err) => {
+        toast({ title: "Could not delete hub", description: err.message, variant: "destructive" });
+      },
+    });
   };
 
   if (isLoading || !config) {
@@ -122,14 +167,51 @@ export function ClientPortalSection() {
               <Eye className="h-4 w-4" />
               Preview as Client
             </Button>
-            <Button
-              className="bg-[hsl(var(--soft-coral))] hover:bg-[hsl(var(--soft-coral))]/90 gap-2"
-              onClick={handlePublish}
-              disabled={isPublishing}
-            >
-              <Send className="h-4 w-4" />
-              {isPublishing ? "Publishing..." : "Publish"}
-            </Button>
+            {isLive ? (
+              <Button
+                variant="outline"
+                className="gap-2"
+                onClick={handleUnpublish}
+                disabled={isUnpublishing}
+              >
+                <AlertCircle className="h-4 w-4" />
+                {isUnpublishing ? "Unpublishing..." : "Unpublish"}
+              </Button>
+            ) : (
+              <Button
+                className="bg-[hsl(var(--soft-coral))] hover:bg-[hsl(var(--soft-coral))]/90 gap-2"
+                onClick={handlePublish}
+                disabled={isPublishing}
+              >
+                <Send className="h-4 w-4" />
+                {isPublishing ? "Publishing..." : "Publish"}
+              </Button>
+            )}
+
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive" disabled={isDeletingHub}>
+                  Delete Hub
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete this hub?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This permanently removes the hub and associated portal data (messages, documents, contacts, and invite records).
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={handleDeleteHub}
+                    className="bg-destructive hover:bg-destructive/90"
+                  >
+                    {isDeletingHub ? "Deleting..." : "Delete hub"}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </div>
         </div>
 

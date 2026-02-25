@@ -14,7 +14,9 @@ import { createHash, randomBytes, randomInt, timingSafeEqual } from 'node:crypto
 import rateLimit from 'express-rate-limit';
 import { env } from '../config/env.js';
 import { logger } from '../utils/logger.js';
+import { getPrisma } from '../db/prisma.js';
 import { sendVerificationCode } from '../services/email.service.js';
+import { upsertClientMember } from '../services/membership.service.js';
 import {
   findHubAccessMethod,
   findPortalContact,
@@ -206,6 +208,17 @@ portalVerificationRouter.post(
       const deviceExpiresAt = new Date(Date.now() + DEVICE_EXPIRY_MS);
       await createDeviceRecord(hubId, email, deviceTokenHash, deviceExpiresAt);
 
+      if (hub.tenantId) {
+        await upsertClientMember(getPrisma() as Parameters<typeof upsertClientMember>[0], {
+          hubId,
+          tenantId: hub.tenantId,
+          email,
+          displayName: contact.name || null,
+          source: 'system',
+          lastActiveAt: new Date(),
+        });
+      }
+
       res.json({ data: { valid: true, token, deviceToken: deviceTokenRaw } });
     } catch (err) { next(err); }
   },
@@ -249,6 +262,16 @@ portalVerificationRouter.post(
       }
 
       const token = await issuePortalToken(hubId, email, contact.name || undefined);
+      if (hub.tenantId) {
+        await upsertClientMember(getPrisma() as Parameters<typeof upsertClientMember>[0], {
+          hubId,
+          tenantId: hub.tenantId,
+          email,
+          displayName: contact.name || null,
+          source: 'system',
+          lastActiveAt: new Date(),
+        });
+      }
       res.json({ data: { valid: true, token } });
     } catch (err) { next(err); }
   },

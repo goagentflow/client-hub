@@ -7,9 +7,11 @@ import { app } from './app.js';
 import { env } from './config/env.js';
 import { logger } from './utils/logger.js';
 import { ensureHubMessageSchema } from './services/message-schema.service.js';
+import { ensureMembershipSchema } from './services/membership-schema.service.js';
 
 async function startServer(): Promise<void> {
   await ensureHubMessageSchema();
+  await ensureMembershipSchema();
 
   const server = app.listen(env.PORT, () => {
     logger.info({ port: env.PORT, env: env.NODE_ENV, authMode: env.AUTH_MODE, dataBackend: env.DATA_BACKEND }, 'AgentFlow middleware started');

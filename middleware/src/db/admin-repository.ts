@@ -29,6 +29,7 @@ type PrismaDelegate = {
   findFirst: CallableFunction;
   count: CallableFunction;
   create: CallableFunction;
+  upsert: CallableFunction;
   update: CallableFunction;
   updateMany: CallableFunction;
   delete: CallableFunction;
@@ -59,6 +60,10 @@ function loggedModel(
     create(args: Record<string, any>) {
       log('create');
       return delegate.create(args);
+    },
+    upsert(args: Record<string, any>) {
+      log('upsert');
+      return delegate.upsert(args);
     },
     update(args: Record<string, any>) {
       log('update');

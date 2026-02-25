@@ -5,11 +5,14 @@
 import { Router } from 'express';
 import { mapHub, mapPortalConfig } from '../db/hub.mapper.js';
 import { HUB_SELECT } from '../db/hub-select.js';
+import { getPrisma } from '../db/prisma.js';
 import { hubAccessMiddleware } from '../middleware/hub-access.js';
 import { requireStaffAccess } from '../middleware/require-staff.js';
-import { sendItem, sendList } from '../utils/response.js';
+import { sendItem, sendList, send204 } from '../utils/response.js';
 import { parsePagination } from '../utils/pagination.js';
 import { Errors } from '../middleware/error-handler.js';
+import { revokePortalAccess } from '../services/access-revocation.service.js';
+import { syncMemberActivityToCrm } from '../services/crm-sync.service.js';
 import type { Request, Response, NextFunction } from 'express';
 
 export const hubsRouter = Router();
@@ -208,6 +211,98 @@ hubsRouter.post('/:hubId/publish', requireStaffAccess, async (req: Request, res:
     });
     if (!hub) throw Errors.notFound('Hub', req.params.hubId);
     sendItem(res, mapPortalConfig(hub));
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /hubs/:hubId/unpublish — unpublish portal (staff-only)
+hubsRouter.post('/:hubId/unpublish', requireStaffAccess, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const hub = await req.repo!.hub.update({
+      where: { id: req.params.hubId },
+      data: { isPublished: false },
+      select: HUB_SELECT,
+    });
+    if (!hub) throw Errors.notFound('Hub', req.params.hubId);
+
+    // Immediately revoke all existing portal sessions for this hub.
+    await revokePortalAccess({ hubAccessRevocation: req.repo!.hubAccessRevocation } as Parameters<typeof revokePortalAccess>[0], {
+      hubId: hub.id,
+      tenantId: req.user.tenantId,
+      reason: 'hub_unpublished',
+      revokedBy: req.user.userId,
+    });
+
+    await syncMemberActivityToCrm(getPrisma(), {
+      hubId: hub.id,
+      tenantId: req.user.tenantId,
+      companyName: hub.companyName,
+      actorUserId: req.user.userId,
+      activityType: 'status_changed',
+      title: 'Hub unpublished',
+      content: `${hub.companyName} portal unpublished`,
+      metadata: { action: 'unpublish' },
+    });
+
+    sendItem(res, mapPortalConfig(hub));
+  } catch (err) {
+    next(err);
+  }
+});
+
+// DELETE /hubs/:hubId — hard delete hub and all child records (staff-only)
+hubsRouter.delete('/:hubId', requireStaffAccess, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const hubId = req.params.hubId as string;
+    const hub = await req.repo!.hub.findFirst({
+      where: { id: hubId },
+      select: { id: true, tenantId: true, companyName: true },
+    }) as { id: string; tenantId: string; companyName: string } | null;
+    if (!hub) throw Errors.notFound('Hub', hubId);
+
+    await syncMemberActivityToCrm(getPrisma(), {
+      hubId: hub.id,
+      tenantId: req.user.tenantId,
+      companyName: hub.companyName,
+      actorUserId: req.user.userId,
+      activityType: 'status_changed',
+      title: 'Hub deleted',
+      content: `${hub.companyName} hub deleted by staff`,
+      metadata: { action: 'delete_hub' },
+    });
+
+    await getPrisma().$transaction(async (tx) => {
+      const projects = await tx.hubProject.findMany({
+        where: { hubId, tenantId: hub.tenantId },
+        select: { id: true },
+      });
+      const projectIds = projects.map((p) => p.id);
+
+      if (projectIds.length > 0) {
+        await tx.hubMilestone.deleteMany({
+          where: { tenantId: hub.tenantId, projectId: { in: projectIds } },
+        });
+      }
+
+      await tx.hubProject.deleteMany({ where: { hubId, tenantId: hub.tenantId } });
+      await tx.hubVideo.deleteMany({ where: { hubId, tenantId: hub.tenantId } });
+      await tx.hubDocument.deleteMany({ where: { hubId, tenantId: hub.tenantId } });
+      await tx.hubEvent.deleteMany({ where: { hubId, tenantId: hub.tenantId } });
+      await tx.hubInvite.deleteMany({ where: { hubId, tenantId: hub.tenantId } });
+      await tx.portalContact.deleteMany({ where: { hubId, tenantId: hub.tenantId } });
+      await tx.portalVerification.deleteMany({ where: { hubId } });
+      await tx.portalDevice.deleteMany({ where: { hubId } });
+      await tx.hubStatusUpdate.deleteMany({ where: { hubId, tenantId: hub.tenantId } });
+      await tx.hubMessage.deleteMany({ where: { hubId, tenantId: hub.tenantId } });
+      await tx.hubMember.deleteMany({ where: { hubId, tenantId: hub.tenantId } });
+      await tx.hubAccessRevocation.deleteMany({ where: { hubId, tenantId: hub.tenantId } });
+      await tx.hubCrmOrgMap.deleteMany({ where: { hubId, tenantId: hub.tenantId } });
+
+      await tx.hub.delete({ where: { id: hubId } });
+    });
+
+    send204(res);
   } catch (err) {
     next(err);
   }
