@@ -5,6 +5,7 @@
 import type { HubMessage } from '@prisma/client';
 import type { TenantRepository } from '../db/tenant-repository.js';
 import { parsePagination } from '../utils/pagination.js';
+import { resolveDisplayName } from '../utils/person-name.js';
 
 export interface MessageDTO {
   id: string;
@@ -22,7 +23,7 @@ function mapMessage(message: HubMessage): MessageDTO {
     hubId: message.hubId,
     senderType: message.senderType,
     senderEmail: message.senderEmail,
-    senderName: message.senderName,
+    senderName: resolveDisplayName(message.senderName, message.senderEmail),
     body: message.body,
     createdAt: message.createdAt.toISOString(),
   };

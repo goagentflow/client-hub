@@ -9,6 +9,7 @@ import type { TenantRepository } from '../db/tenant-repository.js';
 import { Errors } from '../middleware/error-handler.js';
 import { upsertStaffMember } from './membership.service.js';
 import { logger } from '../utils/logger.js';
+import { normaliseDisplayName, resolveDisplayName } from '../utils/person-name.js';
 
 type HubAccessMethod = 'email' | 'password' | 'open';
 
@@ -51,12 +52,6 @@ function normaliseAccessMethod(value: unknown): HubAccessMethod {
 
 function normaliseEmail(value: unknown): string {
   return typeof value === 'string' ? value.trim().toLowerCase() : '';
-}
-
-function normaliseName(value: unknown): string | null {
-  if (typeof value !== 'string') return null;
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : null;
 }
 
 function clientAudienceNote(method: HubAccessMethod): string {
@@ -145,7 +140,7 @@ async function backfillStaffMembersFromLegacyInvites(
       if (!userId || !email || userIdToProfile.has(userId)) continue;
       userIdToProfile.set(userId, {
         email,
-        displayName: normaliseName(row.displayName),
+        displayName: normaliseDisplayName(row.displayName),
       });
     }
 
@@ -155,7 +150,7 @@ async function backfillStaffMembersFromLegacyInvites(
       if (!userId || !email || userIdToProfile.has(userId)) continue;
       userIdToProfile.set(userId, {
         email,
-        displayName: normaliseName(row.userName),
+        displayName: normaliseDisplayName(row.userName),
       });
     }
 
@@ -174,7 +169,7 @@ async function backfillStaffMembersFromLegacyInvites(
         tenantId: repo.tenantId,
         userId,
         email,
-        displayName: normaliseName(actor.invitedByName) || profile.displayName || null,
+        displayName: normaliseDisplayName(actor.invitedByName) || profile.displayName || null,
         source: 'staff_manual',
       });
 
@@ -212,7 +207,7 @@ export async function getMessageAudience(repo: TenantRepository, hubId: string):
 
   await backfillStaffMembersFromLegacyInvites(repo, hubId);
 
-  const [contacts, clientMembers, staffMembers, staffMessages, staffEvents] = await Promise.all([
+  const [contacts, clientMembers, staffMembers, staffMessages, staffEvents, clientMessages] = await Promise.all([
     repo.portalContact.findMany({
       where: { hubId },
       select: { email: true, name: true },
@@ -242,15 +237,26 @@ export async function getMessageAudience(repo: TenantRepository, hubId: string):
       orderBy: { createdAt: 'desc' },
       take: 200,
     }) as Promise<Array<{ userId: string | null; userEmail: string | null; userName: string | null }>>,
+    repo.hubMessage.findMany({
+      where: { hubId, senderType: 'portal_client' },
+      select: { senderEmail: true, senderName: true },
+      orderBy: { createdAt: 'desc' },
+      take: 200,
+    }) as Promise<Array<{ senderEmail: string; senderName: string | null }>>,
   ]);
 
   const clientNameByEmail = new Map<string, string>();
   for (const member of clientMembers) {
     const email = normaliseEmail(member.email);
-    const name = normaliseName(member.displayName);
+    const name = normaliseDisplayName(member.displayName);
     if (email && name && !clientNameByEmail.has(email)) {
       clientNameByEmail.set(email, name);
     }
+  }
+  for (const message of clientMessages) {
+    const email = normaliseEmail(message.senderEmail);
+    if (!email || clientNameByEmail.has(email)) continue;
+    clientNameByEmail.set(email, resolveDisplayName(message.senderName, message.senderEmail));
   }
 
   const deduped = new Map<string, MessageAudienceContact>();
@@ -259,7 +265,7 @@ export async function getMessageAudience(repo: TenantRepository, hubId: string):
     if (!email || deduped.has(email)) continue;
     deduped.set(email, {
       email,
-      name: normaliseName(contact.name) || clientNameByEmail.get(email) || null,
+      name: normaliseDisplayName(contact.name) || clientNameByEmail.get(email) || null,
       source: 'portal_contact',
     });
   }
@@ -268,13 +274,13 @@ export async function getMessageAudience(repo: TenantRepository, hubId: string):
   if (hubContactEmail && !deduped.has(hubContactEmail)) {
     deduped.set(hubContactEmail, {
       email: hubContactEmail,
-      name: normaliseName(hub.contactName) || clientNameByEmail.get(hubContactEmail) || null,
+      name: normaliseDisplayName(hub.contactName) || clientNameByEmail.get(hubContactEmail) || null,
       source: 'hub_contact',
     });
   } else if (hubContactEmail && deduped.has(hubContactEmail)) {
     const existing = deduped.get(hubContactEmail)!;
     if (!existing.name) {
-      existing.name = normaliseName(hub.contactName) || clientNameByEmail.get(hubContactEmail) || null;
+      existing.name = normaliseDisplayName(hub.contactName) || clientNameByEmail.get(hubContactEmail) || null;
     }
   }
 
@@ -284,7 +290,7 @@ export async function getMessageAudience(repo: TenantRepository, hubId: string):
   const upsertStaffReader = (emailRaw: unknown, nameRaw: unknown): void => {
     const email = normaliseEmail(emailRaw);
     if (!email) return;
-    const name = normaliseName(nameRaw);
+    const name = normaliseDisplayName(nameRaw);
     const existing = staffDeduped.get(email);
     if (!existing) {
       staffDeduped.set(email, { email, name });

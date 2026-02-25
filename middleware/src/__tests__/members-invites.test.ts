@@ -13,7 +13,9 @@ import { INVITE_FIXTURES } from './members-invites-fixtures.js';
 const mockHubFindFirst = vi.fn();
 const mockInviteCreate = vi.fn();
 const mockInviteUpdate = vi.fn();
+const mockContactFindFirst = vi.fn();
 const mockContactUpsert = vi.fn();
+const mockHubMemberFindFirst = vi.fn();
 const mockHubMemberUpsert = vi.fn();
 const mockHubUpdate = vi.fn();
 const mockTransaction = vi.fn();
@@ -22,8 +24,8 @@ const mockSendPortalInvite = vi.fn().mockResolvedValue(undefined);
 const mockPrisma = {
   hub: { findFirst: mockHubFindFirst, update: mockHubUpdate },
   hubInvite: { create: mockInviteCreate, update: mockInviteUpdate, findMany: vi.fn(), findFirst: vi.fn() },
-  portalContact: { upsert: mockContactUpsert, deleteMany: vi.fn() },
-  hubMember: { upsert: mockHubMemberUpsert, updateMany: vi.fn(), findMany: vi.fn(), count: vi.fn() },
+  portalContact: { findFirst: mockContactFindFirst, upsert: mockContactUpsert, deleteMany: vi.fn() },
+  hubMember: { findFirst: mockHubMemberFindFirst, upsert: mockHubMemberUpsert, updateMany: vi.fn(), findMany: vi.fn(), count: vi.fn() },
   hubAccessRevocation: { upsert: vi.fn(), findMany: vi.fn(), deleteMany: vi.fn() },
   hubCrmOrgMap: { findUnique: vi.fn(), upsert: vi.fn(), deleteMany: vi.fn() },
   portalVerification: { deleteMany: vi.fn() },
@@ -53,6 +55,8 @@ beforeAll(async () => { app = await loadApp(); });
 beforeEach(() => {
   vi.clearAllMocks();
   mockTransaction.mockImplementation(async (fn: (tx: typeof mockPrisma) => unknown) => fn(mockPrisma));
+  mockContactFindFirst.mockResolvedValue(null);
+  mockHubMemberFindFirst.mockResolvedValue(null);
 });
 
 // --- Tests ---
@@ -67,7 +71,7 @@ describe('POST /hubs/:hubId/invites', () => {
 
     const res = await request(app)
       .post(API).set(STAFF_HEADERS)
-      .send({ email: 'test@example.com', accessLevel: 'full_access' });
+      .send({ email: 'test@example.com', name: 'Test User', accessLevel: 'full_access' });
 
     expect(res.status).toBe(201);
     expect(res.body.email).toBe('test@example.com');
@@ -93,7 +97,7 @@ describe('POST /hubs/:hubId/invites', () => {
 
     const res = await request(app)
       .post(API).set(STAFF_HEADERS)
-      .send({ email: 'test@example.com', accessLevel: 'full_access' });
+      .send({ email: 'test@example.com', name: 'Test User', accessLevel: 'full_access' });
 
     expect(res.status).toBe(201);
     expect(mockInviteUpdate).toHaveBeenCalledOnce();
@@ -110,7 +114,7 @@ describe('POST /hubs/:hubId/invites', () => {
 
     const res = await request(app)
       .post(API).set(STAFF_HEADERS)
-      .send({ email: 'Test@Example.COM', accessLevel: 'full_access' });
+      .send({ email: 'Test@Example.COM', name: 'Test User', accessLevel: 'full_access' });
 
     expect(res.status).toBe(201);
     const createArg = mockInviteCreate.mock.calls[0]?.[0] as Record<string, Record<string, unknown>> | undefined;
@@ -134,7 +138,7 @@ describe('POST /hubs/:hubId/invites', () => {
 
       const res = await request(app)
         .post(API).set(STAFF_HEADERS)
-        .send({ email: 'test@example.com', accessLevel: level });
+        .send({ email: 'test@example.com', name: 'Test User', accessLevel: level });
       expect(res.status).toBe(201);
       expect(res.body.accessLevel).toBe(level);
     },
@@ -143,7 +147,7 @@ describe('POST /hubs/:hubId/invites', () => {
   it('rejects message over 500 chars with 400', async () => {
     const res = await request(app)
       .post(API).set(STAFF_HEADERS)
-      .send({ email: 'test@example.com', accessLevel: 'full_access', message: 'x'.repeat(501) });
+      .send({ email: 'test@example.com', name: 'Test User', accessLevel: 'full_access', message: 'x'.repeat(501) });
     expect(res.status).toBe(400);
   });
 
@@ -151,7 +155,7 @@ describe('POST /hubs/:hubId/invites', () => {
     mockHubFindFirst.mockResolvedValueOnce(null);
     const res = await request(app)
       .post(API).set(STAFF_HEADERS)
-      .send({ email: 'test@example.com', accessLevel: 'full_access' });
+      .send({ email: 'test@example.com', name: 'Test User', accessLevel: 'full_access' });
     expect(res.status).toBe(404);
   });
 
@@ -159,7 +163,7 @@ describe('POST /hubs/:hubId/invites', () => {
     mockHubFindFirst.mockResolvedValueOnce(null);
     const res = await request(app)
       .post(API).set(STAFF_HEADERS)
-      .send({ email: 'test@example.com', accessLevel: 'full_access' });
+      .send({ email: 'test@example.com', name: 'Test User', accessLevel: 'full_access' });
     expect(res.status).toBe(404);
   });
 
@@ -167,7 +171,7 @@ describe('POST /hubs/:hubId/invites', () => {
     mockHubFindFirst.mockResolvedValueOnce({ ...EMAIL_HUB, accessMethod: 'password' });
     const res = await request(app)
       .post(API).set(STAFF_HEADERS)
-      .send({ email: 'test@example.com', accessLevel: 'full_access' });
+      .send({ email: 'test@example.com', name: 'Test User', accessLevel: 'full_access' });
     expect(res.status).toBe(400);
     expect(res.body.code).toBe('INVALID_ACCESS_METHOD');
   });
@@ -176,7 +180,7 @@ describe('POST /hubs/:hubId/invites', () => {
     mockHubFindFirst.mockResolvedValueOnce(EMAIL_HUB);
     const res = await request(app)
       .post(API).set(STAFF_HEADERS)
-      .send({ email: 'test@otherdomain.com', accessLevel: 'full_access' });
+      .send({ email: 'test@otherdomain.com', name: 'Test User', accessLevel: 'full_access' });
     expect(res.status).toBe(400);
     expect(res.body.code).toBe('DOMAIN_MISMATCH');
   });
@@ -185,9 +189,38 @@ describe('POST /hubs/:hubId/invites', () => {
     mockHubFindFirst.mockResolvedValueOnce({ ...EMAIL_HUB, clientDomain: null });
     const res = await request(app)
       .post(API).set(STAFF_HEADERS)
-      .send({ email: 'test@example.com', accessLevel: 'full_access' });
+      .send({ email: 'test@example.com', name: 'Test User', accessLevel: 'full_access' });
     expect(res.status).toBe(400);
     expect(res.body.code).toBe('NO_CLIENT_DOMAIN');
+  });
+
+  it('requires client name for first-time invite when no existing records', async () => {
+    mockHubFindFirst.mockResolvedValueOnce(EMAIL_HUB);
+
+    const res = await request(app)
+      .post(API).set(STAFF_HEADERS)
+      .send({ email: 'test@example.com', accessLevel: 'full_access' });
+
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe('VALIDATION_ERROR');
+    expect(res.body.message).toMatch(/name is required/i);
+  });
+
+  it('uses existing portal contact name when invite request omits name', async () => {
+    mockHubFindFirst.mockResolvedValueOnce(EMAIL_HUB);
+    mockContactFindFirst.mockResolvedValueOnce({ name: 'Saved Contact Name' });
+    mockInviteCreate.mockResolvedValueOnce(INVITE_RESULT);
+    mockContactUpsert.mockResolvedValueOnce({});
+    mockHubMemberUpsert.mockResolvedValueOnce({});
+    mockHubUpdate.mockResolvedValueOnce({});
+
+    const res = await request(app)
+      .post(API).set(STAFF_HEADERS)
+      .send({ email: 'test@example.com', accessLevel: 'full_access' });
+
+    expect(res.status).toBe(201);
+    const upsertArg = mockContactUpsert.mock.calls[0]?.[0] as Record<string, Record<string, unknown>> | undefined;
+    expect(upsertArg?.create?.name).toBe('Saved Contact Name');
   });
 
   it('production guard logic: would return 500 when production + no RESEND_API_KEY', () => {

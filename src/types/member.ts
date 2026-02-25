@@ -47,6 +47,7 @@ export type InviteStatus = "pending" | "accepted" | "expired" | "revoked";
 // Create invite request
 export interface CreateInviteRequest {
   email: string;
+  name?: string;
   accessLevel: AccessLevel;
   message?: string; // Optional personal message in invite email
 }

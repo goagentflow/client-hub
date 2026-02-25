@@ -21,6 +21,7 @@ import { getMessageAudience } from '../services/message-audience.service.js';
 import { logger } from '../utils/logger.js';
 import { Errors } from '../middleware/error-handler.js';
 import { env } from '../config/env.js';
+import { resolveDisplayName } from '../utils/person-name.js';
 import type { Request, Response, NextFunction } from 'express';
 
 export const portalRouter = Router({ mergeParams: true });
@@ -323,7 +324,7 @@ portalRouter.post('/messages/request-access', portalAccessRequestLimiter, async 
       throw Errors.badRequest('No staff notification recipients are configured for this hub yet');
     }
 
-    const requesterName = req.user.name?.trim() || requesterEmail.split('@')[0] || 'Portal User';
+    const requesterName = resolveDisplayName(req.user.name, requesterEmail);
     const hubUrl = new URL(`/clienthub/hub/${hubId}/members`, env.CORS_ORIGIN).toString();
 
     await Promise.allSettled(
@@ -361,7 +362,7 @@ portalRouter.post('/messages', portalPostLimiter, async (req: Request, res: Resp
     if (!senderEmail) {
       throw Errors.forbidden('Posting requires a verified email session');
     }
-    const senderName = req.user.name?.trim() || senderEmail.split('@')[0] || 'Portal User';
+    const senderName = resolveDisplayName(req.user.name, senderEmail);
     const body = validateMessageBody(extractMessageBody(req.body));
     const hubId = req.params.hubId as string;
 

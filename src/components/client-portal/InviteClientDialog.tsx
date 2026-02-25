@@ -29,16 +29,23 @@ interface InviteClientDialogProps {
 
 export function InviteClientDialog({ isOpen, onClose, onInvite, isInviting, clientDomain }: InviteClientDialogProps) {
   const [email, setEmail] = useState("");
+  const [name, setName] = useState("");
   const [accessLevel, setAccessLevel] = useState<AccessLevel>("full_access");
   const [message, setMessage] = useState("");
 
   const handleSubmit = () => {
     if (!email.trim()) return;
-    onInvite({ email, accessLevel, message: message || undefined });
+    onInvite({
+      email,
+      name: name.trim() || undefined,
+      accessLevel,
+      message: message || undefined,
+    });
   };
 
   const handleClose = () => {
     setEmail("");
+    setName("");
     setAccessLevel("full_access");
     setMessage("");
     onClose();
@@ -62,6 +69,18 @@ export function InviteClientDialog({ isOpen, onClose, onInvite, isInviting, clie
             />
             <p className="text-xs text-[hsl(var(--medium-grey))]">
               Only emails from @{clientDomain} can be invited
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Client Name</Label>
+            <Input
+              placeholder="Jane Smith"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+            />
+            <p className="text-xs text-[hsl(var(--medium-grey))]">
+              Used in messaging so clients are shown by name, not just email.
             </p>
           </div>
 

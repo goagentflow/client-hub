@@ -339,6 +339,7 @@ membersRouter.delete('/:id', async (req: Request, res: Response, next: NextFunct
 
 const inviteBodySchema = z.object({
   email: z.string().email().transform((v) => v.trim().toLowerCase()),
+  name: z.string().trim().max(120).optional(),
   accessLevel: z.enum(ACCESS_LEVELS),
   message: z.string().max(500).trim().optional(),
 });
@@ -371,7 +372,7 @@ invitesRouter.post('/', async (req: Request, res: Response, next: NextFunction) 
       return;
     }
 
-    const { email, accessLevel, message } = parsed.data;
+    const { email, name, accessLevel, message } = parsed.data;
     const hubId = req.params.hubId as string;
     const prisma = getPrisma();
 
@@ -413,6 +414,35 @@ invitesRouter.post('/', async (req: Request, res: Response, next: NextFunction) 
       res.status(400).json({
         code: 'DOMAIN_MISMATCH',
         message: `Email domain must match ${hubDomain}`,
+        correlationId: req.correlationId,
+      });
+      return;
+    }
+
+    const [existingContact, existingMember] = await Promise.all([
+      prisma.portalContact.findFirst({
+        where: { hubId, tenantId: req.user.tenantId, email },
+        select: { name: true },
+      }) as Promise<{ name: string | null } | null>,
+      prisma.hubMember.findFirst({
+        where: {
+          hubId,
+          tenantId: req.user.tenantId,
+          email,
+          role: 'client',
+        },
+        select: { displayName: true },
+      }) as Promise<{ displayName: string | null } | null>,
+    ]);
+
+    const inviteeName = (name || '').trim()
+      || (existingContact?.name || '').trim()
+      || (existingMember?.displayName || '').trim();
+
+    if (!inviteeName) {
+      res.status(400).json({
+        code: 'VALIDATION_ERROR',
+        message: 'Client name is required for first-time invites',
         correlationId: req.correlationId,
       });
       return;
@@ -469,15 +499,19 @@ invitesRouter.post('/', async (req: Request, res: Response, next: NextFunction) 
           hubId,
           tenantId: req.user.tenantId,
           email,
+          name: inviteeName,
           addedBy: req.user.userId,
         },
-        update: {},
+        update: {
+          ...(name || !existingContact?.name ? { name: inviteeName } : {}),
+        },
       });
 
       await upsertClientMember(tx, {
         hubId,
         tenantId: req.user.tenantId,
         email,
+        displayName: inviteeName,
         accessLevel,
         invitedBy: req.user.userId,
         invitedByName: req.user.name,

@@ -14,6 +14,7 @@ import { Request, Response, NextFunction } from 'express';
 import { jwtVerify, createRemoteJWKSet, createLocalJWKSet } from 'jose';
 import { env } from '../config/env.js';
 import { logger } from '../utils/logger.js';
+import { resolveDisplayName } from '../utils/person-name.js';
 import type { UserContext } from '../types/api.js';
 import { isPortalTokenRevoked } from '../services/access-revocation.service.js';
 
@@ -102,7 +103,7 @@ export async function authMiddleware(req: Request, res: Response, next: NextFunc
         req.user = {
           userId: `portal-${payload.sub}`,
           email: (payload.email as string) || '',
-          name: (payload.name as string) || 'Portal User',
+          name: resolveDisplayName(payload.name, payload.email),
           tenantId: `portal-${payload.sub}`,
           isStaff: false,
           portalHubId: payload.sub,
