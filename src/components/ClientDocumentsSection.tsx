@@ -166,6 +166,7 @@ export function ClientDocumentsSection() {
       {/* Preview Dialog */}
       <DocumentPreviewDialog
         document={previewDoc}
+        hubId={hubId}
         isOpen={!!previewDoc}
         onClose={() => setPreviewDoc(null)}
         onDownload={handleDownload}

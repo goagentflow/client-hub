@@ -27,49 +27,21 @@ export async function getDocuments(
 ): Promise<PaginatedList<Document>> {
   if (isMockApiEnabled()) {
     await simulateDelay(300);
-
-    let filtered = mockDocuments.filter((d) => d.hubId === hubId);
-
-    // Apply projectId filter
-    if (params?.projectId) {
-      if (params.projectId === "unassigned") {
-        filtered = filtered.filter((d) => !d.projectId);
-      } else {
-        filtered = filtered.filter((d) => d.projectId === params.projectId);
-      }
-    }
-
-    // Apply visibility filter
-    if (params?.visibility) {
-      filtered = filtered.filter((d) => d.visibility === params.visibility);
-    }
-
-    // Apply category filter
-    if (params?.category) {
-      filtered = filtered.filter((d) => d.category === params.category);
-    }
-
-    // Apply search
-    if (params?.search) {
-      const search = params.search.toLowerCase();
-      filtered = filtered.filter(
-        (d) =>
-          d.name.toLowerCase().includes(search) ||
-          d.description?.toLowerCase().includes(search)
-      );
-    }
-
+    const search = params?.search?.toLowerCase();
+    const filtered = mockDocuments.filter((d) => {
+      if (d.hubId !== hubId) return false;
+      if (params?.projectId === "unassigned" && d.projectId) return false;
+      if (params?.projectId && params.projectId !== "unassigned" && d.projectId !== params.projectId) return false;
+      if (params?.visibility && d.visibility !== params.visibility) return false;
+      if (params?.category && d.category !== params.category) return false;
+      if (search && !d.name.toLowerCase().includes(search) && !d.description?.toLowerCase().includes(search)) return false;
+      return true;
+    });
     const page = params?.page || 1;
     const pageSize = params?.pageSize || 20;
-
     return {
       items: filtered,
-      pagination: {
-        page,
-        pageSize,
-        totalItems: filtered.length,
-        totalPages: Math.ceil(filtered.length / pageSize),
-      },
+      pagination: { page, pageSize, totalItems: filtered.length, totalPages: Math.ceil(filtered.length / pageSize) },
     };
   }
 
@@ -272,6 +244,31 @@ export async function downloadDocument(
 }
 
 /**
+ * Get a preview URL for a document (does NOT increment download counter).
+ * Returns { url, expiresAt } where expiresAt is an ISO timestamp.
+ */
+export async function getDocumentPreviewUrl(
+  hubId: string,
+  documentId: string,
+  opts?: { portal?: boolean }
+): Promise<{ url: string; expiresAt: string }> {
+  if (isMockApiEnabled()) {
+    await simulateDelay(200);
+    const doc = mockDocuments.find((d) => d.id === documentId);
+    return {
+      url: doc?.downloadUrl || "",
+      expiresAt: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
+    };
+  }
+
+  const endpoint = opts?.portal
+    ? `/hubs/${hubId}/portal/documents/${documentId}/preview`
+    : `/hubs/${hubId}/documents/${documentId}/preview`;
+
+  return api.get<{ url: string; expiresAt: string }>(endpoint);
+}
+
+/**
  * Get client-visible documents (portal view)
  */
 export async function getPortalDocuments(
@@ -283,15 +280,12 @@ export async function getPortalDocuments(
     const filtered = mockDocuments.filter(
       (d) => d.hubId === hubId && d.visibility === "client"
     );
-
+    const page = params?.page || 1;
+    const pageSize = params?.pageSize || 20;
+    const paged = filtered.slice((page - 1) * pageSize, page * pageSize);
     return {
-      items: filtered,
-      pagination: {
-        page: 1,
-        pageSize: 20,
-        totalItems: filtered.length,
-        totalPages: 1,
-      },
+      items: paged,
+      pagination: { page, pageSize, totalItems: filtered.length, totalPages: Math.ceil(filtered.length / pageSize) },
     };
   }
 

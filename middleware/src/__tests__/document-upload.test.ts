@@ -26,6 +26,7 @@ vi.mock('../services/storage.service.js', () => ({
   createDownloadUrl: (...args: unknown[]) => mockCreateUrl(...args),
   deleteDocumentObject: (...args: unknown[]) => mockDeleteObj(...args),
   isSupabaseStorageRef: (...args: unknown[]) => mockIsRef(...args),
+  DEFAULT_SIGNED_URL_EXPIRY: 900,
 }));
 
 // Mock getPrisma + createTenantRepository for portal access
@@ -86,7 +87,8 @@ describe('POST /hubs/:hubId/documents (upload)', () => {
       .attach('file', Buffer.from('hello pdf'), { filename: 'test.pdf', contentType: 'application/pdf' })
       .field('name', 'Test Document')
       .field('category', 'reference')
-      .field('visibility', 'client');
+      .field('visibility', 'client')
+      .field('description', 'A test document for the client');
 
     expect(res.status).toBe(201);
     expect(mockUpload).toHaveBeenCalledTimes(1);
@@ -153,6 +155,34 @@ describe('POST /hubs/:hubId/documents (upload)', () => {
     expect(res.body.code).toBe('VALIDATION_ERROR');
   });
 
+  it('returns 400 for client-visible upload without description', async () => {
+    const res = await request(app)
+      .post('/api/v1/hubs/hub-1/documents')
+      .set(STAFF_HEADERS)
+      .attach('file', Buffer.from('hello pdf'), { filename: 'test.pdf', contentType: 'application/pdf' })
+      .field('name', 'Client Doc Without Summary')
+      .field('category', 'reference')
+      .field('visibility', 'client');
+
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/description.*required/i);
+  });
+
+  it('allows internal upload without description', async () => {
+    const hubDoc = mockRepo.hubDocument as { create: ReturnType<typeof vi.fn> };
+    hubDoc.create.mockResolvedValueOnce({ ...STUB_DOC, visibility: 'internal', description: null });
+
+    const res = await request(app)
+      .post('/api/v1/hubs/hub-1/documents')
+      .set(STAFF_HEADERS)
+      .attach('file', Buffer.from('hello pdf'), { filename: 'test.pdf', contentType: 'application/pdf' })
+      .field('name', 'Internal Doc')
+      .field('category', 'reference')
+      .field('visibility', 'internal');
+
+    expect(res.status).toBe(201);
+  });
+
   it('rejects non-staff users with 403', async () => {
     const res = await request(app)
       .post('/api/v1/hubs/hub-1/documents')
@@ -163,6 +193,114 @@ describe('POST /hubs/:hubId/documents (upload)', () => {
       .field('visibility', 'client');
 
     expect(res.status).toBe(403);
+  });
+});
+
+// ── PATCH Description Enforcement ─────────────────────────────
+
+describe('PATCH /hubs/:hubId/documents/:docId (description enforcement)', () => {
+  it('returns 400 when changing visibility to client without description', async () => {
+    const hubDoc = mockRepo.hubDocument as { findFirst: ReturnType<typeof vi.fn> };
+    hubDoc.findFirst.mockResolvedValueOnce({
+      id: 'doc-1', visibility: 'internal', description: null,
+    });
+
+    const res = await request(app)
+      .patch('/api/v1/hubs/hub-1/documents/doc-1')
+      .set(STAFF_HEADERS)
+      .send({ visibility: 'client' });
+
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/description.*required/i);
+  });
+
+  it('returns 400 when setting description to whitespace on client doc', async () => {
+    const hubDoc = mockRepo.hubDocument as { findFirst: ReturnType<typeof vi.fn> };
+    hubDoc.findFirst.mockResolvedValueOnce({
+      id: 'doc-1', visibility: 'client', description: 'Original summary',
+    });
+
+    const res = await request(app)
+      .patch('/api/v1/hubs/hub-1/documents/doc-1')
+      .set(STAFF_HEADERS)
+      .send({ description: '   ' });
+
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/description.*required/i);
+  });
+
+  it('allows PATCH to client visibility when description exists', async () => {
+    const hubDoc = mockRepo.hubDocument as {
+      findFirst: ReturnType<typeof vi.fn>;
+      update: ReturnType<typeof vi.fn>;
+    };
+    hubDoc.findFirst.mockResolvedValueOnce({
+      id: 'doc-1', visibility: 'internal', description: 'Has a summary',
+    });
+    hubDoc.update.mockResolvedValueOnce({
+      ...STUB_DOC, visibility: 'client', description: 'Has a summary',
+    });
+
+    const res = await request(app)
+      .patch('/api/v1/hubs/hub-1/documents/doc-1')
+      .set(STAFF_HEADERS)
+      .send({ visibility: 'client' });
+
+    expect(res.status).toBe(200);
+  });
+});
+
+// ── Bulk Visibility Enforcement ──────────────────────────────
+
+describe('POST /hubs/:hubId/documents/bulk (set_visibility enforcement)', () => {
+  it('returns 400 when moving docs to client visibility and some summaries are missing/whitespace', async () => {
+    const hubDoc = mockRepo.hubDocument as {
+      findMany: ReturnType<typeof vi.fn>;
+      updateMany: ReturnType<typeof vi.fn>;
+    };
+    hubDoc.findMany.mockResolvedValueOnce([
+      { description: null },
+      { description: 'Has summary' },
+      { description: '   ' },
+    ]);
+
+    const res = await request(app)
+      .post('/api/v1/hubs/hub-1/documents/bulk')
+      .set(STAFF_HEADERS)
+      .send({
+        documentIds: ['doc-1', 'doc-2', 'doc-3'],
+        action: 'set_visibility',
+        visibility: 'client',
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/2 documents? missing a description/i);
+    expect(hubDoc.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('allows bulk visibility move to client when all summaries are present', async () => {
+    const hubDoc = mockRepo.hubDocument as {
+      findMany: ReturnType<typeof vi.fn>;
+      updateMany: ReturnType<typeof vi.fn>;
+    };
+    hubDoc.findMany.mockResolvedValueOnce([
+      { description: 'Summary A' },
+      { description: 'Summary B' },
+    ]);
+    hubDoc.updateMany.mockResolvedValueOnce({ count: 2 });
+
+    const res = await request(app)
+      .post('/api/v1/hubs/hub-1/documents/bulk')
+      .set(STAFF_HEADERS)
+      .send({
+        documentIds: ['doc-1', 'doc-2'],
+        action: 'set_visibility',
+        visibility: 'client',
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ updated: 2 });
+    expect(hubDoc.updateMany).toHaveBeenCalled();
   });
 });
 
@@ -242,6 +380,99 @@ describe('GET /hubs/:hubId/portal/documents/:docId/download', () => {
     const token = await makePortalToken('hub-1');
     const res = await request(app)
       .get('/api/v1/hubs/hub-1/portal/documents/doc-internal/download')
+      .set(portalHeaders(token));
+
+    expect(res.status).toBe(404);
+  });
+});
+
+// ── Staff Preview ────────────────────────────────────────────
+
+describe('GET /hubs/:hubId/documents/:docId/preview', () => {
+  beforeEach(() => {
+    const hubDoc = mockRepo.hubDocument as { update: ReturnType<typeof vi.fn> };
+    hubDoc.update.mockClear();
+  });
+
+  it('returns signed URL with expiresAt and does NOT increment downloads', async () => {
+    const hubDoc = mockRepo.hubDocument as { findFirst: ReturnType<typeof vi.fn>; update: ReturnType<typeof vi.fn> };
+    hubDoc.findFirst.mockResolvedValueOnce({
+      id: 'doc-1',
+      downloadUrl: 'supabase://hub-documents/tenant-agentflow/hub-1/doc-1/report.pdf',
+    });
+
+    const res = await request(app)
+      .get('/api/v1/hubs/hub-1/documents/doc-1/preview')
+      .set(STAFF_HEADERS);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty('url', 'https://supabase.co/signed-url');
+    expect(res.body).toHaveProperty('expiresAt');
+    expect(mockCreateUrl).toHaveBeenCalledTimes(1);
+    // Must NOT increment downloads
+    expect(hubDoc.update).not.toHaveBeenCalled();
+  });
+
+  it('returns 404 for non-existent document', async () => {
+    const res = await request(app)
+      .get('/api/v1/hubs/hub-1/documents/nonexistent/preview')
+      .set(STAFF_HEADERS);
+
+    expect(res.status).toBe(404);
+  });
+});
+
+// ── Portal Preview ───────────────────────────────────────────
+
+describe('GET /hubs/:hubId/portal/documents/:docId/preview', () => {
+  beforeEach(() => {
+    const portalDocUpdate = portalRepo.hubDocument as { update: ReturnType<typeof vi.fn> };
+    portalDocUpdate.update.mockClear();
+  });
+
+  afterEach(() => {
+    const adminHub = mockAdminRepo.hub as { findFirst: ReturnType<typeof vi.fn> };
+    adminHub.findFirst.mockReset();
+    adminHub.findFirst.mockResolvedValue(null);
+  });
+
+  it('returns signed URL with expiresAt for client-visible document', async () => {
+    const adminHub = mockAdminRepo.hub as { findFirst: ReturnType<typeof vi.fn> };
+    adminHub.findFirst.mockResolvedValue({
+      id: 'hub-1', tenantId: 'tenant-agentflow', isPublished: true,
+    });
+
+    const portalDoc = portalRepo.hubDocument as { findFirst: ReturnType<typeof vi.fn> };
+    portalDoc.findFirst.mockResolvedValueOnce({
+      id: 'doc-1',
+      downloadUrl: 'supabase://hub-documents/tenant-agentflow/hub-1/doc-1/report.pdf',
+    });
+
+    const token = await makePortalToken('hub-1');
+    const res = await request(app)
+      .get('/api/v1/hubs/hub-1/portal/documents/doc-1/preview')
+      .set(portalHeaders(token));
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty('url');
+    expect(res.body).toHaveProperty('expiresAt');
+    // Must NOT increment downloads
+    const portalDocUpdate = portalRepo.hubDocument as { update: ReturnType<typeof vi.fn> };
+    expect(portalDocUpdate.update).not.toHaveBeenCalled();
+  });
+
+  it('returns 404 for internal-only document (enforces visibility=client)', async () => {
+    const adminHub = mockAdminRepo.hub as { findFirst: ReturnType<typeof vi.fn> };
+    adminHub.findFirst.mockResolvedValue({
+      id: 'hub-1', tenantId: 'tenant-agentflow', isPublished: true,
+    });
+
+    const portalDoc = portalRepo.hubDocument as { findFirst: ReturnType<typeof vi.fn> };
+    portalDoc.findFirst.mockResolvedValueOnce(null);
+
+    const token = await makePortalToken('hub-1');
+    const res = await request(app)
+      .get('/api/v1/hubs/hub-1/portal/documents/doc-internal/preview')
       .set(portalHeaders(token));
 
     expect(res.status).toBe(404);

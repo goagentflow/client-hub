@@ -1,5 +1,5 @@
 /**
- * Document routes — 9 endpoints (7 real, 2 x 501)
+ * Document routes — 10 endpoints (8 real, 2 x 501)
  */
 
 import crypto from 'node:crypto';
@@ -11,7 +11,7 @@ import { uploadMiddleware } from '../middleware/upload.js';
 import { sendItem, sendList, send204, send501 } from '../utils/response.js';
 import { parsePagination } from '../utils/pagination.js';
 import { Errors } from '../middleware/error-handler.js';
-import { uploadDocumentObject, createDownloadUrl, deleteDocumentObject, isSupabaseStorageRef } from '../services/storage.service.js';
+import { uploadDocumentObject, createDownloadUrl, deleteDocumentObject, isSupabaseStorageRef, DEFAULT_SIGNED_URL_EXPIRY } from '../services/storage.service.js';
 import { logger } from '../utils/logger.js';
 import type { Request, Response, NextFunction } from 'express';
 
@@ -94,17 +94,33 @@ documentsRouter.patch('/:docId', async (req: Request, res: Response, next: NextF
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const data: Record<string, any> = {};
     if (req.body.name !== undefined) data.name = req.body.name;
-    if (req.body.description !== undefined) data.description = req.body.description;
     if (req.body.category !== undefined) data.category = req.body.category;
     if (req.body.visibility !== undefined) data.visibility = req.body.visibility;
     if (req.body.projectId !== undefined) data.projectId = req.body.projectId;
 
+    // Normalize description: must be string if provided, trim whitespace, coerce empty to null
+    if (req.body.description !== undefined) {
+      if (req.body.description !== null && typeof req.body.description !== 'string') {
+        throw Errors.badRequest('description must be a string');
+      }
+      data.description = typeof req.body.description === 'string'
+        ? (req.body.description.trim() || null)
+        : null;
+    }
+
     // Verify doc exists and belongs to this hub before updating
     const existing = await req.repo!.hubDocument.findFirst({
       where: { id: req.params.docId, hubId: req.params.hubId, isProposal: false },
-      select: { id: true },
+      select: { id: true, visibility: true, description: true },
     });
     if (!existing) throw Errors.notFound('Document', req.params.docId);
+
+    // Enforce: client-visible documents must have a description
+    const finalVisibility = data.visibility ?? existing.visibility;
+    const finalDescription = data.description !== undefined ? data.description : existing.description;
+    if (finalVisibility === 'client' && (!finalDescription || (typeof finalDescription === 'string' && !finalDescription.trim()))) {
+      throw Errors.badRequest('description is required for client-visible documents');
+    }
 
     const doc = await req.repo!.hubDocument.update({
       where: { id: req.params.docId },
@@ -167,6 +183,24 @@ documentsRouter.get('/:docId/download', async (req: Request, res: Response, next
   }
 });
 
+// GET /hubs/:hubId/documents/:docId/preview
+documentsRouter.get('/:docId/preview', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const doc = await req.repo!.hubDocument.findFirst({
+      where: { id: req.params.docId, hubId: req.params.hubId, isProposal: false },
+      select: { id: true, downloadUrl: true },
+    });
+    if (!doc) throw Errors.notFound('Document', req.params.docId);
+
+    const signedUrl = await createDownloadUrl(doc.downloadUrl);
+    const expiresAt = new Date(Date.now() + DEFAULT_SIGNED_URL_EXPIRY * 1000).toISOString();
+
+    res.json({ url: signedUrl, expiresAt });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // GET /hubs/:hubId/documents/:docId/engagement — 501
 documentsRouter.get('/:docId/engagement', (_req: Request, res: Response) => {
   send501(res, 'Document engagement analytics');
@@ -199,6 +233,20 @@ documentsRouter.post('/bulk', async (req: Request, res: Response, next: NextFunc
         }
       }
     } else if (action === 'set_visibility' && visibility) {
+      // Enforce: cannot move docs to client visibility if any lack a description.
+      // Trim in app logic so whitespace-only summaries are also rejected.
+      if (visibility === 'client') {
+        const docsToValidate = await req.repo!.hubDocument.findMany({
+          where: baseWhere,
+          select: { description: true },
+        });
+        const missingDesc = docsToValidate.filter((doc) => !doc.description || !doc.description.trim()).length;
+        if (missingDesc > 0) {
+          throw Errors.badRequest(
+            `${missingDesc} document${missingDesc > 1 ? 's' : ''} missing a description — client-visible documents require a summary`,
+          );
+        }
+      }
       const result = await req.repo!.hubDocument.updateMany({ where: baseWhere, data: { visibility } });
       updated = result.count;
     } else if (action === 'set_category' && category) {
@@ -235,6 +283,10 @@ documentsRouter.post('/', uploadMiddleware, async (req: Request, res: Response, 
       throw Errors.badRequest('description must be a string');
     }
     const description = typeof descriptionRaw === 'string' ? (descriptionRaw.trim() || null) : null;
+
+    if (visibility === 'client' && !description) {
+      throw Errors.badRequest('description is required for client-visible documents');
+    }
 
     const hubId = req.params.hubId as string;
     const tenantId = req.user!.tenantId;

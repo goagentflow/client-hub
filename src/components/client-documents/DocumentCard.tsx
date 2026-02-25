@@ -1,6 +1,8 @@
 import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { FileText, FileSpreadsheet, FileImage, File, Download, Eye, Share2 } from "lucide-react";
+import { CATEGORY_COLOURS, CATEGORY_LABELS } from "@/lib/document-categories";
 import type { Document } from "@/types";
 
 interface DocumentCardProps {
@@ -10,9 +12,6 @@ interface DocumentCardProps {
   onShare: (doc: Document) => void;
 }
 
-/**
- * Get the appropriate icon based on mimeType
- */
 const getDocumentIcon = (mimeType: string) => {
   if (mimeType.includes("pdf")) return FileText;
   if (mimeType.includes("spreadsheet") || mimeType.includes("excel") || mimeType.includes("csv")) return FileSpreadsheet;
@@ -20,14 +19,9 @@ const getDocumentIcon = (mimeType: string) => {
   return File;
 };
 
-/**
- * Get file extension from mimeType or fileName for display
- */
 const getFileExtension = (mimeType: string, fileName: string): string => {
-  // Try to get from fileName first
   const ext = fileName.split(".").pop()?.toUpperCase();
   if (ext && ext.length <= 4) return ext;
-  // Fallback to mimeType mapping
   if (mimeType.includes("pdf")) return "PDF";
   if (mimeType.includes("spreadsheet") || mimeType.includes("excel")) return "XLSX";
   if (mimeType.includes("csv")) return "CSV";
@@ -54,6 +48,7 @@ const formatDate = (dateStr: string) => {
 export function DocumentCard({ document, onView, onDownload, onShare }: DocumentCardProps) {
   const Icon = getDocumentIcon(document.mimeType);
   const fileExtension = getFileExtension(document.mimeType, document.fileName);
+  const colours = CATEGORY_COLOURS[document.category] ?? CATEGORY_COLOURS.other;
 
   return (
     <Card className="hover:shadow-md transition-shadow">
@@ -64,13 +59,21 @@ export function DocumentCard({ document, onView, onDownload, onShare }: Document
           </div>
           <div className="flex-1 min-w-0">
             <h3 className="font-semibold text-[hsl(var(--dark-grey))] truncate">{document.name}</h3>
-            <div className="flex items-center gap-2 text-sm text-[hsl(var(--medium-grey))] mt-1">
+            <div className="flex items-center gap-2 text-sm text-[hsl(var(--medium-grey))] mt-1 flex-wrap">
+              <Badge variant="outline" className={`${colours.bg} ${colours.text} border-0 text-xs px-2 py-0`}>
+                {CATEGORY_LABELS[document.category] ?? "Other"}
+              </Badge>
               <span>{fileExtension}</span>
-              <span>•</span>
+              <span>·</span>
               <span>{formatFileSize(document.fileSize)}</span>
-              <span>•</span>
+              <span>·</span>
               <span>{formatDate(document.uploadedAt)}</span>
             </div>
+            {document.description && (
+              <p className="text-sm text-[hsl(var(--medium-grey))] mt-1.5 line-clamp-1">
+                {document.description}
+              </p>
+            )}
           </div>
           <div className="flex items-center gap-1">
             <Button variant="ghost" size="icon" onClick={() => onView(document)}>

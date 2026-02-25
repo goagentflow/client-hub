@@ -39,6 +39,7 @@ export function ClientHubOverviewPage({ hub, hubId, onSettings }: ClientHubOverv
         onNavigateToDecisions={() => navigate(`/hub/${hubId}/decisions`)}
         onNavigateToHealth={() => navigate(`/hub/${hubId}/intelligence`)}
         onNavigateToActivity={() => navigate(`/hub/${hubId}/activity`)}
+        onNavigateToDocuments={() => navigate(`/hub/${hubId}/documents`)}
         onInviteClient={() => setInviteOpen(true)}
         onAddStatusUpdate={() => setStatusUpdateOpen(true)}
       />

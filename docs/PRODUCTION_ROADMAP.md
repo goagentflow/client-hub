@@ -1,8 +1,8 @@
-# AgentFlow Client Hub — Production Roadmap v5.3
+# AgentFlow Client Hub — Production Roadmap v5.4
 
-**Date:** 24 Feb 2026
+**Date:** 25 Feb 2026
 **Author:** Hamish Nicklin / Claude Code
-**Status:** v5.3 — Documentation synchronization after Phase 2b. Canonical live-vs-aspirational status now in `docs/CURRENT_STATE.md`. Endpoint inventory remains 115 contract endpoints (52 real, 63 placeholder), with 9 Phase 1.5 real endpoints and one legacy placeholder endpoint excluded from contract totals (see inventory note).
+**Status:** v5.4 — Document UX improvements (preview endpoints, upload summary enforcement, portal card enrichment, overview recent docs, inline preview renderer). Endpoint inventory: 115 contract endpoints (52 real, 63 placeholder), plus 11 non-contract real endpoints (9 Phase 1.5 + 2 preview). Actual mounted surface: 129 endpoints (66 real, 63 placeholders). See `docs/CURRENT_STATE.md`.
 **Audience:** Senior developer reviewing for feasibility and sequencing
 
 ---

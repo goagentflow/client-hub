@@ -7,7 +7,7 @@ import { Router } from 'express';
 import { mapVideo } from '../db/video.mapper.js';
 import { mapProposal, mapDocumentForPortal } from '../db/document.mapper.js';
 import { hubAccessMiddleware } from '../middleware/hub-access.js';
-import { createDownloadUrl } from '../services/storage.service.js';
+import { createDownloadUrl, DEFAULT_SIGNED_URL_EXPIRY } from '../services/storage.service.js';
 import { sendItem, sendList, send501 } from '../utils/response.js';
 import { parsePagination } from '../utils/pagination.js';
 import { queryStatusUpdates, mapStatusUpdateForPortal } from '../services/status-update-queries.js';
@@ -94,6 +94,29 @@ portalRouter.get('/documents/:docId/download', async (req: Request, res: Respons
     }).catch((err: unknown) => logger.error({ err }, 'Failed to increment download count'));
 
     res.json({ url: signedUrl });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /hubs/:hubId/portal/documents/:docId/preview
+portalRouter.get('/documents/:docId/preview', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const doc = await req.repo!.hubDocument.findFirst({
+      where: {
+        id: req.params.docId,
+        hubId: req.params.hubId,
+        visibility: 'client',
+        isProposal: false,
+      },
+      select: { id: true, downloadUrl: true },
+    });
+    if (!doc) throw Errors.notFound('Document', req.params.docId);
+
+    const signedUrl = await createDownloadUrl(doc.downloadUrl);
+    const expiresAt = new Date(Date.now() + DEFAULT_SIGNED_URL_EXPIRY * 1000).toISOString();
+
+    res.json({ url: signedUrl, expiresAt });
   } catch (err) {
     next(err);
   }

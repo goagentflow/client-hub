@@ -90,6 +90,7 @@ export function DocumentsSection() {
     name: string;
     category: DocumentCategory;
     visibility: DocumentVisibility;
+    description?: string;
   }) => {
     uploadDocument(data, {
       onSuccess: () => setUploadModalOpen(false),
@@ -244,6 +245,7 @@ export function DocumentsSection() {
 
         <DocumentDetailPanel
           document={selectedDocument || null}
+          hubId={hubId}
           engagement={engagement}
           isOpen={!!selectedDocId}
           onClose={() => setSelectedDocId(null)}

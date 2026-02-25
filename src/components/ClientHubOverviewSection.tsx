@@ -7,7 +7,7 @@
  * - Recent activity preview
  */
 
-import { FolderKanban, Heart, Activity, ChevronRight, ClipboardCheck, UserPlus, ClipboardList } from "lucide-react";
+import { FolderKanban, Heart, Activity, ChevronRight, ClipboardCheck, UserPlus, ClipboardList, FileText } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,7 @@ import {
   useRelationshipHealth,
   useHubActivity,
   useDecisions,
+  useDocuments,
 } from "@/hooks";
 import type { Hub, HealthStatus } from "@/types";
 
@@ -26,6 +27,7 @@ interface ClientHubOverviewSectionProps {
   onNavigateToDecisions?: () => void;
   onNavigateToHealth?: () => void;
   onNavigateToActivity?: () => void;
+  onNavigateToDocuments?: () => void;
   onInviteClient?: () => void;
   onAddStatusUpdate?: () => void;
 }
@@ -48,12 +50,14 @@ export function ClientHubOverviewSection({
   onNavigateToDecisions,
   onNavigateToHealth,
   onNavigateToActivity,
+  onNavigateToDocuments,
   onInviteClient,
   onAddStatusUpdate,
 }: ClientHubOverviewSectionProps) {
   const { data: projectsData, isLoading: projectsLoading } = useProjects(hub.id);
   const { data: decisionsData, isLoading: decisionsLoading } = useDecisions(hub.id);
   const { data: health, isLoading: healthLoading } = useRelationshipHealth(hub.id);
+  const { data: clientDocsData, isLoading: docsLoading } = useDocuments(hub.id, { visibility: "client" });
   const { data: activityData, isLoading: activityLoading } = useHubActivity(hub.id, {
     page: 1,
     pageSize: 5,
@@ -62,6 +66,7 @@ export function ClientHubOverviewSection({
   const projects = projectsData?.items ?? [];
   const activeProjects = projects.filter((p) => p.status === "active").length;
   const recentActivity = activityData?.items ?? [];
+  const clientDocCount = clientDocsData?.pagination?.totalItems ?? 0;
 
   const pendingDecisions = decisionsData?.items.filter(
     (d) => d.status === "open" || d.status === "in_review"
@@ -112,7 +117,7 @@ export function ClientHubOverviewSection({
       </div>
 
       {/* Quick Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
         <QuickStatCard
           icon={<ClipboardCheck className="w-4 h-4" />}
           title="Waiting on Client"
@@ -188,6 +193,22 @@ export function ClientHubOverviewSection({
               {activityData?.total ?? 0}
             </span>
             <span className="text-sm text-[hsl(var(--medium-grey))]">events</span>
+          </div>
+        </QuickStatCard>
+
+        <QuickStatCard
+          icon={<FileText className="w-4 h-4" />}
+          title="Client Documents"
+          isLoading={docsLoading}
+          onClick={onNavigateToDocuments}
+        >
+          <div className="flex items-baseline gap-2">
+            <span className="text-2xl font-bold text-[hsl(var(--bold-royal-blue))]">
+              {clientDocCount}
+            </span>
+            <span className="text-sm text-[hsl(var(--medium-grey))]">
+              {clientDocCount === 1 ? "document" : "documents"}
+            </span>
           </div>
         </QuickStatCard>
       </div>

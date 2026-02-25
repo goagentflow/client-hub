@@ -1,4 +1,4 @@
-import { FileText, Download, Upload, Trash2, FileIcon, Image, Sheet } from "lucide-react";
+import { Download, Upload, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,10 +18,12 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { useToast } from "@/hooks/use-toast";
+import { DocumentPreviewRenderer } from "./DocumentPreviewRenderer";
 import type { Document, DocumentCategory, DocumentEngagement } from "@/types";
 
 interface DocumentDetailPanelProps {
   document: Document | null;
+  hubId: string;
   engagement: DocumentEngagement | undefined;
   isOpen: boolean;
   onClose: () => void;
@@ -30,25 +32,6 @@ interface DocumentDetailPanelProps {
   isSaving: boolean;
   isDeleting: boolean;
 }
-
-const getFileIcon = (mimeType: string) => {
-  if (mimeType.includes("pdf")) {
-    return <FileText className="h-5 w-5 text-red-500" />;
-  }
-  if (mimeType.includes("presentation") || mimeType.includes("powerpoint")) {
-    return <FileIcon className="h-5 w-5 text-orange-500" />;
-  }
-  if (mimeType.includes("word") || mimeType.includes("document")) {
-    return <FileText className="h-5 w-5 text-blue-500" />;
-  }
-  if (mimeType.includes("sheet") || mimeType.includes("excel")) {
-    return <Sheet className="h-5 w-5 text-green-500" />;
-  }
-  if (mimeType.includes("image")) {
-    return <Image className="h-5 w-5 text-purple-500" />;
-  }
-  return <FileIcon className="h-5 w-5 text-[hsl(var(--medium-grey))]" />;
-};
 
 const formatDate = (isoDate: string) => {
   const date = new Date(isoDate);
@@ -70,6 +53,7 @@ const formatTimeAgo = (isoDate: string) => {
 
 export function DocumentDetailPanel({
   document,
+  hubId,
   engagement,
   isOpen,
   onClose,
@@ -95,10 +79,11 @@ export function DocumentDetailPanel({
 
         <div className="space-y-6 mt-6">
           {/* Preview */}
-          <div className="aspect-[4/3] bg-muted rounded-lg flex items-center justify-center">
-            {getFileIcon(document.mimeType)}
-            <span className="ml-2 text-[hsl(var(--medium-grey))]">Document Preview</span>
-          </div>
+          <DocumentPreviewRenderer
+            hubId={hubId}
+            documentId={document.id}
+            mimeType={document.mimeType}
+          />
 
           <div className="flex gap-2">
             <Button

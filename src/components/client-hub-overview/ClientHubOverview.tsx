@@ -12,20 +12,28 @@
  */
 
 import { Link } from "react-router-dom";
-import { FolderOpen, Calendar, BarChart3, History, Sparkles, MessageSquare } from "lucide-react";
-import { useCurrentUser } from "@/hooks";
+import { FolderOpen, Calendar, BarChart3, History, Sparkles, MessageSquare, FileText, ChevronRight } from "lucide-react";
+import { useCurrentUser, usePortalDocuments } from "@/hooks";
 import { ProjectStatusCard, StatusUpdateCard } from "./index";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { ComingSoonPlaceholder } from "@/components/ui/ComingSoonPlaceholder";
+import { CATEGORY_COLOURS, CATEGORY_LABELS } from "@/lib/document-categories";
 
 interface ClientHubOverviewProps {
   hubId: string;
   hubName?: string;
 }
 
+const formatDate = (dateStr: string) =>
+  new Date(dateStr).toLocaleDateString("en-GB", { month: "short", day: "numeric" });
+
 export function ClientHubOverview({ hubId, hubName }: ClientHubOverviewProps) {
   const { data: authData } = useCurrentUser();
   const userName = authData?.user?.displayName?.split(" ")[0] || "there";
+  const { data: recentDocsData } = usePortalDocuments(hubId, { pageSize: 3 });
+  const recentDocs = recentDocsData?.items ?? [];
 
   return (
     <div className="min-h-screen bg-[hsl(var(--warm-cream))]">
@@ -47,6 +55,74 @@ export function ClientHubOverview({ hubId, hubName }: ClientHubOverviewProps) {
         {/* Status Update — fortnightly update from agency */}
         <section aria-label="Status update">
           <StatusUpdateCard hubId={hubId} />
+        </section>
+
+        {/* Recent Documents */}
+        <section aria-label="Recent documents">
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base text-[hsl(var(--dark-grey))]">
+                Recent Documents
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {recentDocs.length === 0 ? (
+                <p className="text-sm text-[hsl(var(--medium-grey))] py-2">
+                  No documents shared yet
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {recentDocs.map((doc) => {
+                    const colours = CATEGORY_COLOURS[doc.category] ?? CATEGORY_COLOURS.other;
+                    return (
+                      <div
+                        key={doc.id}
+                        className="flex items-start gap-3 pb-3 border-b last:border-0 last:pb-0"
+                      >
+                        <div className="p-2 rounded bg-[hsl(var(--gradient-blue))]/10 mt-0.5">
+                          <FileText className="h-4 w-4 text-[hsl(var(--gradient-blue))]" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-[hsl(var(--dark-grey))] truncate">
+                            {doc.name}
+                          </p>
+                          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                            <Badge
+                              variant="outline"
+                              className={`${colours.bg} ${colours.text} border-0 text-xs px-2 py-0`}
+                            >
+                              {CATEGORY_LABELS[doc.category] ?? "Other"}
+                            </Badge>
+                            <span className="text-xs text-[hsl(var(--medium-grey))]">
+                              {formatDate(doc.uploadedAt)}
+                            </span>
+                          </div>
+                          {doc.description && (
+                            <p className="text-xs text-[hsl(var(--medium-grey))] mt-1 line-clamp-1">
+                              {doc.description}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+              {recentDocs.length > 0 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-full mt-3 text-[hsl(var(--bold-royal-blue))]"
+                  asChild
+                >
+                  <Link to={`/portal/${hubId}/documents`}>
+                    View all documents
+                    <ChevronRight className="w-4 h-4 ml-1" />
+                  </Link>
+                </Button>
+              )}
+            </CardContent>
+          </Card>
         </section>
 
         {/* Main Grid: Responsive 2-column on desktop */}

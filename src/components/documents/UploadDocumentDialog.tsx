@@ -3,6 +3,7 @@ import { Upload, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
@@ -26,6 +27,7 @@ interface UploadDocumentDialogProps {
     name: string;
     category: DocumentCategory;
     visibility: DocumentVisibility;
+    description?: string;
   }) => void;
   defaultVisibility: DocumentVisibility;
   isUploading: boolean;
@@ -42,8 +44,11 @@ export function UploadDocumentDialog({
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [name, setName] = useState("");
   const [category, setCategory] = useState<DocumentCategory>("other");
+  const [description, setDescription] = useState("");
 
   const isClientTab = defaultVisibility === "client";
+  const descriptionRequired = isClientTab;
+  const descriptionMissing = descriptionRequired && !description.trim();
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -56,25 +61,28 @@ export function UploadDocumentDialog({
   };
 
   const handleSubmit = () => {
-    if (!selectedFile || !name || !category) return;
+    if (!selectedFile || !name || !category || descriptionMissing) return;
 
     onUpload({
       file: selectedFile,
       name,
       category,
       visibility: defaultVisibility,
+      description: description.trim() || undefined,
     });
 
     // Reset form
     setSelectedFile(null);
     setName("");
     setCategory("other");
+    setDescription("");
   };
 
   const handleClose = () => {
     setSelectedFile(null);
     setName("");
     setCategory("other");
+    setDescription("");
     onClose();
   };
 
@@ -144,6 +152,24 @@ export function UploadDocumentDialog({
             </Select>
           </div>
 
+          <div className="space-y-2">
+            <Label>
+              Summary
+              {descriptionRequired && <span className="text-[hsl(var(--soft-coral))] ml-1">*</span>}
+            </Label>
+            <Textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Brief description for the client — what is this document and why is it relevant?"
+              rows={3}
+            />
+            {descriptionMissing && selectedFile && (
+              <p className="text-xs text-[hsl(var(--soft-coral))]">
+                A summary is required for client-visible documents
+              </p>
+            )}
+          </div>
+
           <div className="bg-muted/50 p-3 rounded text-sm text-[hsl(var(--medium-grey))]">
             {isClientTab ? (
               <p className="flex items-center gap-2">
@@ -165,7 +191,7 @@ export function UploadDocumentDialog({
             <Button
               className="bg-[hsl(var(--gradient-blue))] hover:bg-[hsl(var(--gradient-blue))]/90 text-white"
               onClick={handleSubmit}
-              disabled={!selectedFile || !name || isUploading}
+              disabled={!selectedFile || !name || descriptionMissing || isUploading}
             >
               {isUploading ? "Uploading..." : "Upload"}
             </Button>

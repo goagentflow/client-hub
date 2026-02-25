@@ -14,7 +14,8 @@ import { AppError } from '../middleware/error-handler.js';
 
 const BUCKET = 'hub-documents';
 const STORAGE_SCHEME = 'supabase://';
-const DEFAULT_SIGNED_URL_EXPIRY = 900; // 15 minutes
+/** Signed URL expiry in seconds (15 minutes). Exported for route-level expiresAt calculation. */
+export const DEFAULT_SIGNED_URL_EXPIRY = 900;
 
 // ── Lazy client ──────────────────────────────────────────────
 
