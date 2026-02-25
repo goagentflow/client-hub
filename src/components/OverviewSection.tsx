@@ -10,11 +10,9 @@ import {
   useUpdateHubNotes,
   useTrackEngagement,
   useCreateInvite,
-  useUploadVideo,
+  useAddVideoLink,
   useUploadDocument,
   useSendMessage,
-  useScheduleMeeting,
-  useLinkQuestionnaire,
   useToast,
 } from "@/hooks";
 import {
@@ -28,11 +26,9 @@ import {
 } from "./overview";
 import type { QuickActionType } from "./overview/QuickActions";
 import { InviteClientDialog } from "./client-portal/InviteClientDialog";
-import { UploadVideoDialog } from "./videos/UploadVideoDialog";
+import { AddLinkDialog } from "./videos/AddLinkDialog";
 import { UploadDocumentDialog } from "./documents/UploadDocumentDialog";
 import { ComposeDialog } from "./messages/ComposeDialog";
-import { ScheduleMeetingDialog } from "./meetings/ScheduleMeetingDialog";
-import { AddQuestionnaireDialog } from "./questionnaire/AddQuestionnaireDialog";
 import { ClientHubOverviewPage } from "./ClientHubOverviewPage";
 import { ConversionWizard } from "./conversion";
 
@@ -44,11 +40,9 @@ export function OverviewSection() {
   // Dialog open states
   const [conversionOpen, setConversionOpen] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
-  const [uploadVideoOpen, setUploadVideoOpen] = useState(false);
+  const [addVideoLinkOpen, setAddVideoLinkOpen] = useState(false);
   const [uploadDocOpen, setUploadDocOpen] = useState(false);
   const [composeOpen, setComposeOpen] = useState(false);
-  const [scheduleOpen, setScheduleOpen] = useState(false);
-  const [questionnaireOpen, setQuestionnaireOpen] = useState(false);
 
   // Data hooks
   const { data: overview, isLoading, isError } = useHubOverview(hubId);
@@ -58,11 +52,9 @@ export function OverviewSection() {
 
   // Mutation hooks for dialogs
   const { mutate: createInvite, isPending: isInviting } = useCreateInvite(hubId);
-  const { mutate: uploadVideo, isPending: isUploadingVideo } = useUploadVideo(hubId);
+  const { mutate: addVideoLink, isPending: isAddingVideoLink } = useAddVideoLink(hubId);
   const { mutate: uploadDocument, isPending: isUploadingDoc } = useUploadDocument(hubId);
   const { mutate: sendMessage, isPending: isSending } = useSendMessage(hubId);
-  const { mutate: scheduleMeeting, isPending: isScheduling } = useScheduleMeeting(hubId);
-  const { mutate: linkQuestionnaire, isPending: isLinking } = useLinkQuestionnaire(hubId);
   const { toast } = useToast();
 
   // Track page view on mount
@@ -76,20 +68,14 @@ export function OverviewSection() {
       case "invite-client":
         setInviteOpen(true);
         break;
-      case "upload-video":
-        setUploadVideoOpen(true);
+      case "add-video-link":
+        setAddVideoLinkOpen(true);
         break;
       case "upload-document":
         setUploadDocOpen(true);
         break;
       case "send-message":
         setComposeOpen(true);
-        break;
-      case "schedule-meeting":
-        setScheduleOpen(true);
-        break;
-      case "create-questionnaire":
-        setQuestionnaireOpen(true);
         break;
     }
   };
@@ -217,13 +203,13 @@ export function OverviewSection() {
         clientDomain={hub.clientDomain}
       />
 
-      <UploadVideoDialog
-        isOpen={uploadVideoOpen}
-        onClose={() => setUploadVideoOpen(false)}
-        onUpload={(data) => {
-          uploadVideo(data, { onSuccess: () => setUploadVideoOpen(false) });
+      <AddLinkDialog
+        isOpen={addVideoLinkOpen}
+        onClose={() => setAddVideoLinkOpen(false)}
+        onAdd={(data) => {
+          addVideoLink(data, { onSuccess: () => setAddVideoLinkOpen(false) });
         }}
-        isUploading={isUploadingVideo}
+        isAdding={isAddingVideoLink}
       />
 
       <UploadDocumentDialog
@@ -245,25 +231,6 @@ export function OverviewSection() {
         defaultRecipient={hub.contactEmail}
       />
 
-      <ScheduleMeetingDialog
-        isOpen={scheduleOpen}
-        onClose={() => setScheduleOpen(false)}
-        onSchedule={(data) => {
-          scheduleMeeting(data, { onSuccess: () => setScheduleOpen(false) });
-        }}
-        isScheduling={isScheduling}
-        clientEmail={hub.contactEmail}
-        clientName={hub.contactName}
-      />
-
-      <AddQuestionnaireDialog
-        isOpen={questionnaireOpen}
-        onClose={() => setQuestionnaireOpen(false)}
-        onAdd={(data) => {
-          linkQuestionnaire(data, { onSuccess: () => setQuestionnaireOpen(false) });
-        }}
-        isAdding={isLinking}
-      />
     </div>
   );
 }

@@ -1,13 +1,11 @@
-import { UserPlus, Video, FilePlus, Mail, CalendarPlus, ClipboardPlus, type LucideIcon } from "lucide-react";
+import { UserPlus, Link2, FilePlus, Mail, type LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export type QuickActionType =
   | "invite-client"
-  | "upload-video"
+  | "add-video-link"
   | "upload-document"
-  | "send-message"
-  | "schedule-meeting"
-  | "create-questionnaire";
+  | "send-message";
 
 interface QuickAction {
   id: QuickActionType;
@@ -19,11 +17,9 @@ interface QuickAction {
 
 const quickActions: QuickAction[] = [
   { id: "invite-client", label: "Invite Client", icon: UserPlus, color: "bg-[hsl(var(--soft-coral))] hover:bg-[hsl(var(--soft-coral))]/90", primary: true },
-  { id: "upload-video", label: "Upload Video", icon: Video, color: "bg-[hsl(var(--gradient-blue))] hover:bg-[hsl(var(--gradient-blue))]/90" },
+  { id: "add-video-link", label: "Add Video Link", icon: Link2, color: "bg-[hsl(var(--gradient-blue))] hover:bg-[hsl(var(--gradient-blue))]/90" },
   { id: "upload-document", label: "Upload Document", icon: FilePlus, color: "bg-[hsl(var(--gradient-blue))] hover:bg-[hsl(var(--gradient-blue))]/90" },
   { id: "send-message", label: "Send Message", icon: Mail, color: "bg-[hsl(var(--gradient-blue))] hover:bg-[hsl(var(--gradient-blue))]/90" },
-  { id: "schedule-meeting", label: "Schedule Meeting", icon: CalendarPlus, color: "bg-[hsl(var(--gradient-blue))] hover:bg-[hsl(var(--gradient-blue))]/90" },
-  { id: "create-questionnaire", label: "Create Questionnaire", icon: ClipboardPlus, color: "bg-[hsl(var(--gradient-blue))] hover:bg-[hsl(var(--gradient-blue))]/90" },
 ];
 
 interface QuickActionsProps {

@@ -4,11 +4,8 @@ import {
   Play,
   Folder,
   Mail,
-  Calendar,
   Globe,
   FolderKanban,
-  ClipboardCheck,
-  BrainCircuit,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
@@ -31,22 +28,18 @@ const pitchNavItems = [
   { title: "Overview", path: "overview", icon: Home },
   { title: "Client Portal", path: "client-portal", icon: Globe },
   { title: "Proposal", path: "proposal", icon: FileText },
-  { title: "Videos", path: "videos", icon: Play },
+  { title: "Video Links", path: "videos", icon: Play },
   { title: "Documents", path: "documents", icon: Folder },
   { title: "Messages", path: "messages", icon: Mail },
-  { title: "Meetings", path: "meetings", icon: Calendar },
 ];
 
 // Navigation for client hubs (active client relationship) - max 7 items
-// Order: core tasks first, intelligence last
+// Order: only live sections shown in the staff UI.
 const clientNavItems = [
   { title: "Overview", path: "overview", icon: Home },
   { title: "Projects", path: "projects", icon: FolderKanban },
-  { title: "Decisions", path: "decisions", icon: ClipboardCheck },
   { title: "Documents", path: "documents", icon: Folder },
   { title: "Messages", path: "messages", icon: Mail },
-  { title: "Meetings", path: "meetings", icon: Calendar },
-  { title: "Intelligence", path: "intelligence", icon: BrainCircuit },
 ];
 
 export function HubSidebar() {
