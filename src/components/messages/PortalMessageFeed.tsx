@@ -11,6 +11,7 @@ import {
   useTrackEngagement,
   useToast,
 } from "@/hooks";
+import { setPortalMessageLastRead } from "@/lib/portal-message-read";
 
 export function PortalMessageFeed() {
   const hubId = useHubId();
@@ -26,6 +27,13 @@ export function PortalMessageFeed() {
   useEffect(() => {
     trackHubViewed("portal-messages");
   }, [trackHubViewed]);
+
+  useEffect(() => {
+    if (!data) return;
+    const latestMessage = data.items[0];
+    const seenAt = latestMessage?.createdAt || new Date().toISOString();
+    setPortalMessageLastRead(hubId, authData?.user?.email, seenAt);
+  }, [hubId, authData?.user?.email, data]);
 
   return (
     <div className="h-full flex flex-col gap-4">

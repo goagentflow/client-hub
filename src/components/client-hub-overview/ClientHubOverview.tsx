@@ -14,7 +14,7 @@
 import { Link } from "react-router-dom";
 import { FolderOpen, Calendar, BarChart3, History, Sparkles, FileText, ChevronRight } from "lucide-react";
 import { useCurrentUser, usePortalDocuments } from "@/hooks";
-import { StatusUpdateCard, RecentMessagesCard } from "./index";
+import { StatusUpdateCard, MessagesSummaryCard } from "./index";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -87,72 +87,75 @@ export function ClientHubOverview({
           <StatusUpdateCard hubId={hubId} />
         </section>
 
-        {/* Recent Documents */}
-        <section aria-label="Recent documents">
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base text-[hsl(var(--dark-grey))]">
-                Recent Documents
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {recentDocs.length === 0 ? (
-                <p className="text-sm text-[hsl(var(--medium-grey))] py-2">
-                  No documents shared yet
-                </p>
-              ) : (
-                <div className="space-y-3">
-                  {recentDocs.map((doc) => {
-                    const colours = CATEGORY_COLOURS[doc.category] ?? CATEGORY_COLOURS.other;
-                    return (
-                      <div
-                        key={doc.id}
-                        className="flex items-start gap-3 pb-3 border-b last:border-0 last:pb-0"
-                      >
-                        <div className="p-2 rounded bg-[hsl(var(--gradient-blue))]/10 mt-0.5">
-                          <FileText className="h-4 w-4 text-[hsl(var(--gradient-blue))]" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-[hsl(var(--dark-grey))] truncate">
-                            {doc.name}
-                          </p>
-                          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                            <Badge
-                              variant="outline"
-                              className={`${colours.bg} ${colours.text} border-0 text-xs px-2 py-0`}
-                            >
-                              {CATEGORY_LABELS[doc.category] ?? "Other"}
-                            </Badge>
-                            <span className="text-xs text-[hsl(var(--medium-grey))]">
-                              {formatDate(doc.uploadedAt)}
-                            </span>
+        {/* Recent Documents + Message Summary */}
+        <section aria-label="Recent documents and messages">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base text-[hsl(var(--dark-grey))]">
+                  Recent Documents
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {recentDocs.length === 0 ? (
+                  <p className="text-sm text-[hsl(var(--medium-grey))] py-2">
+                    No documents shared yet
+                  </p>
+                ) : (
+                  <div className="space-y-3">
+                    {recentDocs.map((doc) => {
+                      const colours = CATEGORY_COLOURS[doc.category] ?? CATEGORY_COLOURS.other;
+                      return (
+                        <div
+                          key={doc.id}
+                          className="flex items-start gap-3 pb-3 border-b last:border-0 last:pb-0"
+                        >
+                          <div className="p-2 rounded bg-[hsl(var(--gradient-blue))]/10 mt-0.5">
+                            <FileText className="h-4 w-4 text-[hsl(var(--gradient-blue))]" />
                           </div>
-                          {doc.description && (
-                            <p className="text-xs text-[hsl(var(--medium-grey))] mt-1 line-clamp-1">
-                              {doc.description}
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-[hsl(var(--dark-grey))] truncate">
+                              {doc.name}
                             </p>
-                          )}
+                            <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                              <Badge
+                                variant="outline"
+                                className={`${colours.bg} ${colours.text} border-0 text-xs px-2 py-0`}
+                              >
+                                {CATEGORY_LABELS[doc.category] ?? "Other"}
+                              </Badge>
+                              <span className="text-xs text-[hsl(var(--medium-grey))]">
+                                {formatDate(doc.uploadedAt)}
+                              </span>
+                            </div>
+                            {doc.description && (
+                              <p className="text-xs text-[hsl(var(--medium-grey))] mt-1 line-clamp-1">
+                                {doc.description}
+                              </p>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-              {recentDocs.length > 0 && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="w-full mt-3 text-[hsl(var(--bold-royal-blue))]"
-                  asChild
-                >
-                  <Link to={`/portal/${hubId}/documents`}>
-                    View all documents
-                    <ChevronRight className="w-4 h-4 ml-1" />
-                  </Link>
-                </Button>
-              )}
-            </CardContent>
-          </Card>
+                      );
+                    })}
+                  </div>
+                )}
+                {recentDocs.length > 0 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="w-full mt-3 text-[hsl(var(--bold-royal-blue))]"
+                    asChild
+                  >
+                    <Link to={`/portal/${hubId}/documents`}>
+                      View all documents
+                      <ChevronRight className="w-4 h-4 ml-1" />
+                    </Link>
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
+            <MessagesSummaryCard hubId={hubId} />
+          </div>
         </section>
 
         {/* Main Grid: Responsive 2-column on desktop */}
@@ -184,9 +187,6 @@ export function ClientHubOverview({
                   />
                 </CardContent>
               </Card>
-            </section>
-            <section aria-label="Recent messages">
-              <RecentMessagesCard hubId={hubId} />
             </section>
           </div>
         </div>

@@ -19,3 +19,4 @@ export { DecisionsWaitingCard } from "./DecisionsWaitingCard";
 export { QuickAskInput } from "./QuickAskInput";
 export { UpcomingCard } from "./UpcomingCard";
 export { RecentMessagesCard } from "./RecentMessagesCard";
+export { MessagesSummaryCard } from "./MessagesSummaryCard";
