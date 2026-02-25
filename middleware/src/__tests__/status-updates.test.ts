@@ -13,7 +13,7 @@
 import { describe, it, expect, beforeAll, vi } from 'vitest';
 import request from 'supertest';
 import type { Express } from 'express';
-import { STAFF_HEADERS, CLIENT_HEADERS, loadApp, makePortalToken, portalHeaders, makeMockRepo } from './test-setup.js';
+import { STAFF_HEADERS, CLIENT_HEADERS, loadApp, makePortalToken, portalHeaders, makeMockRepo, mockAdminRepo } from './test-setup.js';
 
 // Mock getPrisma + createTenantRepository so hub-access can re-scope for portal users
 vi.mock('../db/prisma.js', () => ({ getPrisma: () => ({}) }));
@@ -169,10 +169,7 @@ describe('GET /hubs/:hubId/portal/status-updates', () => {
 
   it('returns items with tenantId and createdSource stripped for published hub', async () => {
     // Reset adminRepo hub mock then set it to return a published hub
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const setup = require('./test-setup.ts');
-    const adminHub = setup.mockAdminRepo.hub;
-    adminHub.findFirst.mockReset();
+    const adminHub = mockAdminRepo.hub as { findFirst: ReturnType<typeof vi.fn> };
     adminHub.findFirst.mockResolvedValue({ id: 'hub-1', isPublished: true, tenantId: 'tenant-agentflow' });
 
     // Mock portalRepo to return a status update with internal fields

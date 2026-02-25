@@ -4,26 +4,19 @@
  * "What matters to ME right now?" - The client-centric dashboard.
  *
  * Layout (mobile-first, responsive grid):
- * - Decisions first (urgency-sorted pending decisions)
- * - Quick Ask input (instant answers seeding)
+ * - Status Update (fortnightly agency update)
  * - Project Status (active projects with progress)
- * - Upcoming (next meeting + milestones)
- * - Recent Messages (portal messages, not staff)
+ * - Coming Soon cards for features in development
  *
  * @see docs/CLIENT_HUB_OVERVIEW_REDESIGN.md
  */
 
 import { Link } from "react-router-dom";
-import { FolderOpen, Calendar, BarChart3, History } from "lucide-react";
+import { FolderOpen, Calendar, BarChart3, History, Sparkles, MessageSquare } from "lucide-react";
 import { useCurrentUser } from "@/hooks";
-import {
-  DecisionsWaitingCard,
-  QuickAskInput,
-  ProjectStatusCard,
-  StatusUpdateCard,
-  UpcomingCard,
-  RecentMessagesCard,
-} from "./index";
+import { ProjectStatusCard, StatusUpdateCard } from "./index";
+import { Card, CardContent } from "@/components/ui/card";
+import { ComingSoonPlaceholder } from "@/components/ui/ComingSoonPlaceholder";
 
 interface ClientHubOverviewProps {
   hubId: string;
@@ -51,16 +44,6 @@ export function ClientHubOverview({ hubId, hubName }: ClientHubOverviewProps) {
           )}
         </header>
 
-        {/* Decisions First - Most Prominent (spec requirement) */}
-        <section aria-label="Decisions awaiting your input">
-          <DecisionsWaitingCard hubId={hubId} />
-        </section>
-
-        {/* Quick Ask - Below decisions */}
-        <section aria-label="Quick question">
-          <QuickAskInput hubId={hubId} />
-        </section>
-
         {/* Status Update — fortnightly update from agency */}
         <section aria-label="Status update">
           <StatusUpdateCard hubId={hubId} />
@@ -73,13 +56,40 @@ export function ClientHubOverview({ hubId, hubName }: ClientHubOverviewProps) {
             <ProjectStatusCard hubId={hubId} />
           </section>
 
-          {/* Right Column: Upcoming + Messages */}
+          {/* Right Column: Coming Soon cards */}
           <div className="space-y-6">
-            <section aria-label="Upcoming events">
-              <UpcomingCard hubId={hubId} />
+            <section aria-label="Instant answers — coming soon">
+              <Card>
+                <CardContent className="pt-6">
+                  <ComingSoonPlaceholder
+                    icon={Sparkles}
+                    title="Instant Answers"
+                    description="Ask questions about your account and get immediate answers."
+                  />
+                </CardContent>
+              </Card>
             </section>
-            <section aria-label="Recent messages">
-              <RecentMessagesCard hubId={hubId} />
+            <section aria-label="Upcoming meetings — coming soon">
+              <Card>
+                <CardContent className="pt-6">
+                  <ComingSoonPlaceholder
+                    icon={Calendar}
+                    title="Upcoming Meetings & Events"
+                    description="Your upcoming meetings and key milestones, all in one place."
+                  />
+                </CardContent>
+              </Card>
+            </section>
+            <section aria-label="Messages — coming soon">
+              <Card>
+                <CardContent className="pt-6">
+                  <ComingSoonPlaceholder
+                    icon={MessageSquare}
+                    title="Messages"
+                    description="Direct messaging with your agency team."
+                  />
+                </CardContent>
+              </Card>
             </section>
           </div>
         </div>
@@ -100,28 +110,31 @@ export function ClientHubOverview({ hubId, hubName }: ClientHubOverviewProps) {
               <li>
                 <Link
                   to={`/portal/${hubId}/meetings`}
-                  className="flex items-center gap-2 text-sm text-[hsl(var(--medium-grey))] hover:text-[hsl(var(--bold-royal-blue))] transition-colors"
+                  className="flex items-center gap-2 text-sm text-[hsl(var(--medium-grey))]/60 hover:text-[hsl(var(--medium-grey))] transition-colors"
                 >
                   <Calendar className="h-4 w-4" aria-hidden="true" />
                   Meetings
+                  <span className="text-[10px] bg-[hsl(var(--medium-grey))]/10 px-1.5 py-0.5 rounded">Soon</span>
                 </Link>
               </li>
               <li>
                 <Link
                   to={`/portal/${hubId}/performance`}
-                  className="flex items-center gap-2 text-sm text-[hsl(var(--medium-grey))] hover:text-[hsl(var(--bold-royal-blue))] transition-colors"
+                  className="flex items-center gap-2 text-sm text-[hsl(var(--medium-grey))]/60 hover:text-[hsl(var(--medium-grey))] transition-colors"
                 >
                   <BarChart3 className="h-4 w-4" aria-hidden="true" />
                   Performance
+                  <span className="text-[10px] bg-[hsl(var(--medium-grey))]/10 px-1.5 py-0.5 rounded">Soon</span>
                 </Link>
               </li>
               <li>
                 <Link
                   to={`/portal/${hubId}/history`}
-                  className="flex items-center gap-2 text-sm text-[hsl(var(--medium-grey))] hover:text-[hsl(var(--bold-royal-blue))] transition-colors"
+                  className="flex items-center gap-2 text-sm text-[hsl(var(--medium-grey))]/60 hover:text-[hsl(var(--medium-grey))] transition-colors"
                 >
                   <History className="h-4 w-4" aria-hidden="true" />
                   History
+                  <span className="text-[10px] bg-[hsl(var(--medium-grey))]/10 px-1.5 py-0.5 rounded">Soon</span>
                 </Link>
               </li>
             </ul>

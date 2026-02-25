@@ -82,7 +82,6 @@ describe('501 stubs', () => {
     ['GET', '/api/v1/hubs/hub-1/videos/vid-1/engagement'],
     ['POST', '/api/v1/hubs/hub-1/videos'],
     ['GET', '/api/v1/hubs/hub-1/documents/doc-1/engagement'],
-    ['POST', '/api/v1/hubs/hub-1/documents'],
     ['GET', '/api/v1/hubs/hub-1/proposal/engagement'],
     ['POST', '/api/v1/hubs/hub-1/proposal'],
     ['GET', '/api/v1/hubs/hub-1/messages'],

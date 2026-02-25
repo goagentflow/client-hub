@@ -236,6 +236,42 @@ export async function bulkDocumentAction(
 }
 
 /**
+ * Download a document — fetches a signed URL from the middleware and opens it.
+ *
+ * Staff endpoints require Azure AD token; portal endpoints require portal JWT.
+ * Both are handled automatically by the api client's token injection.
+ */
+export async function downloadDocument(
+  hubId: string,
+  documentId: string,
+  opts?: { portal?: boolean }
+): Promise<void> {
+  if (isMockApiEnabled()) {
+    // In mock mode, fall back to the document's downloadUrl directly
+    const doc = mockDocuments.find((d) => d.id === documentId);
+    if (doc?.downloadUrl) window.open(doc.downloadUrl, "_blank");
+    return;
+  }
+
+  const endpoint = opts?.portal
+    ? `/hubs/${hubId}/portal/documents/${documentId}/download`
+    : `/hubs/${hubId}/documents/${documentId}/download`;
+
+  const result = await api.get<{ url: string }>(endpoint);
+
+  if (result.url) {
+    // Create a temporary link for download (opens in new tab)
+    const a = document.createElement("a");
+    a.href = result.url;
+    a.target = "_blank";
+    a.rel = "noopener noreferrer";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  }
+}
+
+/**
  * Get client-visible documents (portal view)
  */
 export async function getPortalDocuments(

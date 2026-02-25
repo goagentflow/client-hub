@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { ZodError } from 'zod';
+import multer from 'multer';
 import { logger } from '../utils/logger.js';
 
 /**
@@ -61,6 +62,21 @@ export function errorHandler(err: Error, req: Request, res: Response, _next: Nex
       code: 'VALIDATION_ERROR',
       message: 'Request validation failed',
       details: { issues: err.issues },
+      correlationId,
+    });
+    return;
+  }
+
+  // Handle Multer upload errors
+  if (err instanceof multer.MulterError) {
+    logger.warn({ correlationId, code: err.code, message: err.message }, 'Upload validation error');
+    const message = err.code === 'LIMIT_FILE_SIZE'
+      ? 'File exceeds 50 MB size limit'
+      : err.message || 'Upload validation failed';
+
+    res.status(400).json({
+      code: 'VALIDATION_ERROR',
+      message,
       correlationId,
     });
     return;

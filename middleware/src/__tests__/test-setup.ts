@@ -15,68 +15,75 @@ vi.mock('pino-http', () => ({
   pinoHttp: () => (_req: unknown, _res: unknown, next: () => void) => next(),
 }));
 
-// --- Stub hub data ---
-const STUB_HUB = {
-  id: 'hub-1', tenantId: 'tenant-agentflow',
-  companyName: 'Test Co', contactName: 'Test User',
-  contactEmail: 'test@test.com', status: 'active', hubType: 'pitch',
-  createdAt: new Date('2024-01-01'), updatedAt: new Date('2024-01-01'),
-  lastActivity: new Date('2024-01-01'), clientsInvited: 0, lastVisit: null,
-  clientDomain: 'test.com', internalNotes: null, convertedAt: null,
-  convertedBy: null, isPublished: false, welcomeHeadline: null,
-  welcomeMessage: null, heroContentType: null, heroContentId: null,
-  showProposal: true, showVideos: true, showDocuments: true,
-  showMessages: true, showMeetings: true, showQuestionnaire: true,
-  passwordHash: null,
-};
+// --- Stub hub data + mock repos (vi.hoisted so vi.mock factories can access them) ---
 
-// --- Mock repository factory ---
-function makeMockScopedModel(defaults?: { findFirst?: unknown; findMany?: unknown[] }) {
-  return {
-    findMany: vi.fn().mockResolvedValue(defaults?.findMany ?? []),
-    findFirst: vi.fn().mockResolvedValue(defaults?.findFirst ?? null),
-    count: vi.fn().mockResolvedValue(0),
-    create: vi.fn().mockImplementation(async (args: Record<string, unknown>) => {
-      const data = args.data as Record<string, unknown>;
-      return { ...STUB_HUB, ...data, id: 'hub-new' };
-    }),
-    update: vi.fn().mockImplementation(async (args: Record<string, unknown>) => {
-      const data = args.data as Record<string, unknown>;
-      return { ...STUB_HUB, ...data };
-    }),
-    updateMany: vi.fn().mockResolvedValue({ count: 0 }),
-    delete: vi.fn().mockResolvedValue({ id: 'del-1' }),
-    deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
+const _hoisted = vi.hoisted(() => {
+  const STUB_HUB = {
+    id: 'hub-1', tenantId: 'tenant-agentflow',
+    companyName: 'Test Co', contactName: 'Test User',
+    contactEmail: 'test@test.com', status: 'active', hubType: 'pitch',
+    createdAt: new Date('2024-01-01'), updatedAt: new Date('2024-01-01'),
+    lastActivity: new Date('2024-01-01'), clientsInvited: 0, lastVisit: null,
+    clientDomain: 'test.com', internalNotes: null, convertedAt: null,
+    convertedBy: null, isPublished: false, welcomeHeadline: null,
+    welcomeMessage: null, heroContentType: null, heroContentId: null,
+    showProposal: true, showVideos: true, showDocuments: true,
+    showMessages: true, showMeetings: true, showQuestionnaire: true,
+    passwordHash: null,
   };
-}
 
-export function makeMockRepo(tenantId = 'tenant-agentflow'): Record<string, unknown> {
-  return {
-    tenantId,
-    hub: makeMockScopedModel({ findFirst: STUB_HUB }),
-    hubVideo: makeMockScopedModel(),
-    hubDocument: makeMockScopedModel(),
-    hubProject: makeMockScopedModel(),
-    hubMilestone: makeMockScopedModel(),
-    hubEvent: makeMockScopedModel(),
-    hubStatusUpdate: makeMockScopedModel(),
+  function makeMockScopedModel(defaults?: { findFirst?: unknown; findMany?: unknown[] }) {
+    return {
+      findMany: vi.fn().mockResolvedValue(defaults?.findMany ?? []),
+      findFirst: vi.fn().mockResolvedValue(defaults?.findFirst ?? null),
+      count: vi.fn().mockResolvedValue(0),
+      create: vi.fn().mockImplementation(async (args: Record<string, unknown>) => {
+        const data = args.data as Record<string, unknown>;
+        return { ...STUB_HUB, ...data, id: 'hub-new' };
+      }),
+      update: vi.fn().mockImplementation(async (args: Record<string, unknown>) => {
+        const data = args.data as Record<string, unknown>;
+        return { ...STUB_HUB, ...data };
+      }),
+      updateMany: vi.fn().mockResolvedValue({ count: 0 }),
+      delete: vi.fn().mockResolvedValue({ id: 'del-1' }),
+      deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
+    };
+  }
+
+  function makeMockRepo(tenantId = 'tenant-agentflow'): Record<string, unknown> {
+    return {
+      tenantId,
+      hub: makeMockScopedModel({ findFirst: STUB_HUB }),
+      hubVideo: makeMockScopedModel(),
+      hubDocument: makeMockScopedModel(),
+      hubProject: makeMockScopedModel(),
+      hubMilestone: makeMockScopedModel(),
+      hubEvent: makeMockScopedModel(),
+      hubStatusUpdate: makeMockScopedModel(),
+    };
+  }
+
+  const mockRepo: Record<string, unknown> = makeMockRepo();
+  const mockAdminRepo: Record<string, unknown> = {
+    query: vi.fn().mockImplementation(async (_a: string, _r: string, fn: (p: unknown) => unknown) => fn({})),
+    ...makeMockRepo('admin'),
   };
-}
 
-export const mockRepo: Record<string, unknown> = makeMockRepo();
-export const mockAdminRepo: Record<string, unknown> = {
-  query: vi.fn().mockImplementation(async (_a: string, _r: string, fn: (p: unknown) => unknown) => fn({})),
-  ...makeMockRepo('admin'),
-};
+  return { STUB_HUB, makeMockRepo, mockRepo, mockAdminRepo };
+});
 
-// Mock inject-repository to attach our mock repo
+// Re-export hoisted values as regular exports (same object references)
+export const makeMockRepo = _hoisted.makeMockRepo;
+export const mockRepo = _hoisted.mockRepo;
+export const mockAdminRepo = _hoisted.mockAdminRepo;
+
+// Mock inject-repository — uses hoisted refs directly (same objects as exports)
 vi.mock('../middleware/inject-repository.js', () => ({
   injectRepository: (_req: unknown, _res: unknown, next: () => void) => {
     const req = _req as Record<string, unknown>;
-    // Dynamically import to get latest mockRepo
-    const setup = require('./test-setup.ts');
-    req.repo = setup.mockRepo;
-    req.adminRepo = setup.mockAdminRepo;
+    req.repo = _hoisted.mockRepo;
+    req.adminRepo = _hoisted.mockAdminRepo;
     next();
   },
 }));
@@ -107,7 +114,7 @@ vi.mock('../adapters/supabase.adapter.js', () => {
         fn.mockReturnValue(c);
       }
     }
-    c.single = vi.fn().mockResolvedValue({ data: STUB_HUB, error: null });
+    c.single = vi.fn().mockResolvedValue({ data: _hoisted.STUB_HUB, error: null });
     c.maybeSingle = vi.fn().mockResolvedValue({ data: null, error: null });
     c.range = vi.fn().mockResolvedValue({ data: [], count: 0, error: null });
     return c;

@@ -34,7 +34,15 @@ import {
 } from "lucide-react";
 import { useCurrentUser, useLogout } from "@/hooks";
 import { useHubId } from "@/contexts/hub-context";
+import type { LucideIcon } from "lucide-react";
 import type { HubType } from "@/types";
+
+interface NavItem {
+  title: string;
+  path: string;
+  icon: LucideIcon;
+  comingSoon?: boolean;
+}
 
 interface ClientHubLayoutProps {
   children: React.ReactNode;
@@ -47,7 +55,7 @@ interface ClientHubLayoutProps {
 const MAX_CLIENT_NAV_ITEMS = 8;
 
 // Pitch hub nav items (existing pitch functionality)
-const pitchHubNavItems = [
+const pitchHubNavItems: NavItem[] = [
   { title: "Overview", path: "overview", icon: Home },
   { title: "Proposal", path: "proposal", icon: FileText },
   { title: "Videos", path: "videos", icon: Play },
@@ -56,16 +64,16 @@ const pitchHubNavItems = [
   { title: "Questionnaire", path: "questionnaire", icon: ClipboardList },
 ];
 
-// Client hub nav items - includes core collaboration (Messages, Meetings) + Phase 5 features
-const clientHubNavItems = [
+// Client hub nav items — coming soon features flagged for subtle styling
+const clientHubNavItems: NavItem[] = [
   { title: "Overview", path: "overview", icon: Home },
-  { title: "Messages", path: "messages", icon: MessageSquare },
-  { title: "Meetings", path: "meetings", icon: Calendar },
+  { title: "Messages", path: "messages", icon: MessageSquare, comingSoon: true },
+  { title: "Meetings", path: "meetings", icon: Calendar, comingSoon: true },
   { title: "Documents", path: "documents", icon: FolderOpen },
-  { title: "Decisions", path: "decisions", icon: ClipboardCheck },
-  { title: "Performance", path: "performance", icon: BarChart3 },
-  { title: "Instant Answers", path: "instant-answers", icon: Sparkles },
-  { title: "History", path: "history", icon: History },
+  { title: "Decisions", path: "decisions", icon: ClipboardCheck, comingSoon: true },
+  { title: "Performance", path: "performance", icon: BarChart3, comingSoon: true },
+  { title: "Instant Answers", path: "instant-answers", icon: Sparkles, comingSoon: true },
+  { title: "History", path: "history", icon: History, comingSoon: true },
 ];
 
 function ClientSidebar({ hubType = "pitch" }: { hubType?: HubType }) {
@@ -88,6 +96,7 @@ function ClientSidebar({ hubType = "pitch" }: { hubType?: HubType }) {
                 const url = `/portal/${hubId}/${item.path}`;
                 const isActive = location.pathname.startsWith(url) ||
                   (item.path === "overview" && location.pathname === `/portal/${hubId}`);
+                const isSoon = item.comingSoon === true;
                 return (
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton asChild>
@@ -95,10 +104,15 @@ function ClientSidebar({ hubType = "pitch" }: { hubType?: HubType }) {
                         to={url}
                         className={`text-white/70 hover:text-white hover:bg-white/10 transition-colors ${
                           isActive ? "text-white bg-[hsl(var(--gradient-purple))]/30 border-l-4 border-[hsl(var(--soft-coral))]" : ""
-                        }`}
+                        } ${isSoon ? "opacity-60" : ""}`}
                       >
                         <item.icon className="h-5 w-5" />
                         <span className="flex-1">{item.title}</span>
+                        {isSoon && (
+                          <span className="text-[10px] font-medium bg-white/15 text-white/70 px-1.5 py-0.5 rounded">
+                            Soon
+                          </span>
+                        )}
                       </NavLink>
                     </SidebarMenuButton>
                   </SidebarMenuItem>

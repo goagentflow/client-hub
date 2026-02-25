@@ -120,9 +120,14 @@ export function DocumentsSection() {
     setSelectedDocs([]);
   };
 
-  const handleDownload = (documentId: string, downloadUrl: string) => {
+  const handleDownload = async (documentId: string, _downloadUrl: string) => {
     trackDocumentDownloaded(documentId);
-    window.open(downloadUrl, "_blank");
+    try {
+      const { downloadDocument } = await import("@/services/document.service");
+      await downloadDocument(hubId, documentId);
+    } catch {
+      toast({ title: "Download failed", description: "Could not download the document.", variant: "destructive" });
+    }
   };
 
   if (isLoading) {

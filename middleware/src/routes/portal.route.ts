@@ -5,11 +5,14 @@
 
 import { Router } from 'express';
 import { mapVideo } from '../db/video.mapper.js';
-import { mapDocument, mapProposal } from '../db/document.mapper.js';
+import { mapProposal, mapDocumentForPortal } from '../db/document.mapper.js';
 import { hubAccessMiddleware } from '../middleware/hub-access.js';
+import { createDownloadUrl } from '../services/storage.service.js';
 import { sendItem, sendList, send501 } from '../utils/response.js';
 import { parsePagination } from '../utils/pagination.js';
 import { queryStatusUpdates, mapStatusUpdateForPortal } from '../services/status-update-queries.js';
+import { logger } from '../utils/logger.js';
+import { Errors } from '../middleware/error-handler.js';
 import type { Request, Response, NextFunction } from 'express';
 
 export const portalRouter = Router({ mergeParams: true });
@@ -59,10 +62,38 @@ portalRouter.get('/documents', async (req: Request, res: Response, next: NextFun
       req.repo!.hubDocument.count({ where }),
     ]);
 
-    sendList(res, docs.map(mapDocument), {
+    sendList(res, docs.map(mapDocumentForPortal), {
       page, pageSize, totalItems,
       totalPages: Math.ceil(totalItems / pageSize),
     });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /hubs/:hubId/portal/documents/:docId/download
+portalRouter.get('/documents/:docId/download', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const doc = await req.repo!.hubDocument.findFirst({
+      where: {
+        id: req.params.docId,
+        hubId: req.params.hubId,
+        visibility: 'client',
+        isProposal: false,
+      },
+      select: { id: true, downloadUrl: true, downloads: true },
+    });
+    if (!doc) throw Errors.notFound('Document', req.params.docId);
+
+    const signedUrl = await createDownloadUrl(doc.downloadUrl);
+
+    // Increment download counter (fire-and-forget)
+    req.repo!.hubDocument.update({
+      where: { id: doc.id },
+      data: { downloads: { increment: 1 } },
+    }).catch((err: unknown) => logger.error({ err }, 'Failed to increment download count'));
+
+    res.json({ url: signedUrl });
   } catch (err) {
     next(err);
   }
@@ -76,7 +107,7 @@ portalRouter.get('/proposal', async (req: Request, res: Response, next: NextFunc
       orderBy: { uploadedAt: 'desc' },
     });
 
-    sendItem(res, doc ? mapProposal(doc) : null);
+    sendItem(res, doc ? mapProposal(doc, { portal: true }) : null);
   } catch (err) {
     next(err);
   }

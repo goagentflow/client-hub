@@ -39,7 +39,7 @@ steps:
   - name: 'gcr.io/cloud-builders/gcloud'
     id: 'deploy'
     entrypoint: 'bash'
-    secretEnv: ['CLIENTHUB_DATABASE_URL', 'CLIENTHUB_PORTAL_TOKEN_SECRET', 'CLIENTHUB_AZURE_CLIENT_ID', 'CLIENTHUB_AZURE_TENANT_ID', 'CLIENTHUB_RESEND_API_KEY']
+    secretEnv: ['CLIENTHUB_DATABASE_URL', 'CLIENTHUB_PORTAL_TOKEN_SECRET', 'CLIENTHUB_AZURE_CLIENT_ID', 'CLIENTHUB_AZURE_TENANT_ID', 'CLIENTHUB_RESEND_API_KEY', 'CLIENTHUB_SUPABASE_URL', 'CLIENTHUB_SUPABASE_SERVICE_ROLE_KEY']
     args:
       - '-c'
       - |
@@ -49,9 +49,10 @@ steps:
           --platform managed \
           --allow-unauthenticated \
           --port 3001 \
-          --memory 512Mi \
+          --memory 1Gi \
           --cpu 1 \
           --max-instances 10 \
+          --concurrency 10 \
           --set-env-vars "NODE_ENV=production" \
           --set-env-vars "AUTH_MODE=azure_ad" \
           --set-env-vars "DATA_BACKEND=azure_pg" \
@@ -64,6 +65,8 @@ steps:
           --set-secrets "DATABASE_URL=CLIENTHUB_DATABASE_URL:latest" \
           --set-secrets "PORTAL_TOKEN_SECRET=CLIENTHUB_PORTAL_TOKEN_SECRET:latest" \
           --set-secrets "RESEND_API_KEY=CLIENTHUB_RESEND_API_KEY:latest" \
+          --set-secrets "SUPABASE_URL=CLIENTHUB_SUPABASE_URL:latest" \
+          --set-secrets "SUPABASE_SERVICE_ROLE_KEY=CLIENTHUB_SUPABASE_SERVICE_ROLE_KEY:latest" \
           --format "value(status.url)" | tail -1 > /workspace/service-url.txt
 
         echo "Deployed to: $(cat /workspace/service-url.txt)"
@@ -116,6 +119,10 @@ availableSecrets:
       env: 'CLIENTHUB_AZURE_TENANT_ID'
     - versionName: projects/$PROJECT_ID/secrets/CLIENTHUB_RESEND_API_KEY/versions/latest
       env: 'CLIENTHUB_RESEND_API_KEY'
+    - versionName: projects/$PROJECT_ID/secrets/CLIENTHUB_SUPABASE_URL/versions/latest
+      env: 'CLIENTHUB_SUPABASE_URL'
+    - versionName: projects/$PROJECT_ID/secrets/CLIENTHUB_SUPABASE_SERVICE_ROLE_KEY/versions/latest
+      env: 'CLIENTHUB_SUPABASE_SERVICE_ROLE_KEY'
 
 timeout: '600s'
 

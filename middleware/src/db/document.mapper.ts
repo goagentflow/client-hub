@@ -43,11 +43,19 @@ export function mapDocument(doc: HubDocument): DocumentDTO {
     uploadedAt: doc.uploadedAt.toISOString(),
     uploadedBy: doc.uploadedBy,
     uploadedByName: doc.uploadedByName,
-    downloadUrl: doc.downloadUrl,
+    downloadUrl: `/api/v1/hubs/${doc.hubId}/documents/${doc.id}/download`,
     embedUrl: doc.embedUrl ?? null,
     views: doc.views,
     downloads: doc.downloads,
     versions: [],
+  };
+}
+
+/** Portal-aware mapper — download URL points at the portal download endpoint. */
+export function mapDocumentForPortal(doc: HubDocument): DocumentDTO {
+  return {
+    ...mapDocument(doc),
+    downloadUrl: `/api/v1/hubs/${doc.hubId}/portal/documents/${doc.id}/download`,
   };
 }
 
@@ -70,7 +78,19 @@ export interface ProposalDTO {
   versions: never[];
 }
 
-export function mapProposal(doc: HubDocument): ProposalDTO {
+/** Guard: rewrite supabase:// refs to middleware download endpoint, pass through http(s). */
+function safeDownloadUrl(doc: HubDocument, options?: { portal?: boolean }): string {
+  if (doc.downloadUrl.startsWith('supabase://')) {
+    if (options?.portal) {
+      return `/api/v1/hubs/${doc.hubId}/portal/documents/${doc.id}/download`;
+    }
+    return `/api/v1/hubs/${doc.hubId}/documents/${doc.id}/download`;
+  }
+  return doc.downloadUrl;
+}
+
+export function mapProposal(doc: HubDocument, options?: { portal?: boolean }): ProposalDTO {
+  const dlUrl = safeDownloadUrl(doc, options);
   return {
     id: doc.id,
     hubId: doc.hubId,
@@ -80,8 +100,8 @@ export function mapProposal(doc: HubDocument): ProposalDTO {
     uploadedAt: doc.uploadedAt.toISOString(),
     uploadedBy: doc.uploadedBy,
     totalSlides: 0,
-    embedUrl: doc.embedUrl || doc.downloadUrl,
-    downloadUrl: doc.visibility === 'client' ? doc.downloadUrl : null,
+    embedUrl: doc.embedUrl || dlUrl,
+    downloadUrl: doc.visibility === 'client' ? dlUrl : null,
     thumbnailUrl: null,
     settings: {
       isClientVisible: doc.visibility === 'client',

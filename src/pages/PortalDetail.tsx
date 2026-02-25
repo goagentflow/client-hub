@@ -1,21 +1,15 @@
 import { useState, useEffect } from "react";
 import { Routes, Route, Navigate, useParams } from "react-router-dom";
-import { Loader2, AlertCircle } from "lucide-react";
+import { Loader2, AlertCircle, MessageSquare, Calendar, ClipboardCheck, BarChart3, Sparkles, History } from "lucide-react";
 import { ClientHubLayout } from "@/components/ClientHubLayout";
 import { ClientOverviewSection } from "@/components/ClientOverviewSection";
 import { ClientProposalSection } from "@/components/ClientProposalSection";
 import { ClientVideosSection } from "@/components/ClientVideosSection";
 import { ClientDocumentsSection } from "@/components/ClientDocumentsSection";
-import { ClientMessagesSection } from "@/components/ClientMessagesSection";
-import { ClientMeetingsSection } from "@/components/ClientMeetingsSection";
 import { ClientQuestionnaireSection } from "@/components/ClientQuestionnaireSection";
 import { ClientPeopleSection } from "@/components/ClientPeopleSection";
-// Phase 5: Client-facing components
-import { ClientInstantAnswers } from "@/components/client-instant-answers";
-import { ClientDecisionQueue } from "@/components/client-decision-queue";
-import { ClientPerformance } from "@/components/client-performance";
-import { ClientHistory } from "@/components/client-history";
 import { PasswordGate } from "@/components/PasswordGate";
+import { ComingSoonPlaceholder } from "@/components/ui/ComingSoonPlaceholder";
 import { EmailGate } from "@/components/EmailGate";
 import { HubProvider } from "@/contexts/hub-context";
 import { useCurrentUser } from "@/hooks";
@@ -123,16 +117,16 @@ const PortalDetail = () => {
           <Routes>
             <Route path="overview" element={<ClientOverviewSection hubMeta={hubMeta} isStaff={!!isStaff} />} />
             <Route path="documents" element={<ClientDocumentsSection />} />
-            <Route path="messages" element={<ClientMessagesSection />} />
+            <Route path="messages" element={<ComingSoonPlaceholder icon={MessageSquare} title="Messages" description="Direct messaging with your agency team." />} />
             <Route path="proposal" element={<ClientProposalSection />} />
             <Route path="videos" element={<ClientVideosSection />} />
-            <Route path="meetings" element={<ClientMeetingsSection />} />
+            <Route path="meetings" element={<ComingSoonPlaceholder icon={Calendar} title="Meetings" description="Your upcoming meetings and key milestones, all in one place." />} />
             <Route path="questionnaire" element={<ClientQuestionnaireSection />} />
             <Route path="people" element={<ClientPeopleSection />} />
-            <Route path="instant-answers" element={<ClientInstantAnswers hubId={hubId} />} />
-            <Route path="decisions" element={<ClientDecisionQueue hubId={hubId} />} />
-            <Route path="performance" element={<ClientPerformance hubId={hubId} />} />
-            <Route path="history" element={<ClientHistory hubId={hubId} />} />
+            <Route path="instant-answers" element={<ComingSoonPlaceholder icon={Sparkles} title="Instant Answers" description="Ask questions about your account and get immediate answers." />} />
+            <Route path="decisions" element={<ComingSoonPlaceholder icon={ClipboardCheck} title="Decision Queue" description="Pending decisions that need your input, all in one place." />} />
+            <Route path="performance" element={<ComingSoonPlaceholder icon={BarChart3} title="Performance Insights" description="Campaign performance data and key metrics at a glance." />} />
+            <Route path="history" element={<ComingSoonPlaceholder icon={History} title="History & Alerts" description="A complete timeline of activity and important notifications." />} />
             <Route path="/" element={<Navigate to="overview" replace />} />
           </Routes>
         </ClientHubLayout>
@@ -173,20 +167,20 @@ const PortalDetail = () => {
           {/* Shared routes */}
           <Route path="overview" element={<ClientOverviewSection hubMeta={hubMeta} isStaff={!!isStaff} />} />
           <Route path="documents" element={<ClientDocumentsSection />} />
-          <Route path="messages" element={<ClientMessagesSection />} />
+          <Route path="messages" element={<ComingSoonPlaceholder icon={MessageSquare} title="Messages" description="Direct messaging with your agency team." />} />
 
           {/* Pitch hub routes */}
           <Route path="proposal" element={<ClientProposalSection />} />
           <Route path="videos" element={<ClientVideosSection />} />
-          <Route path="meetings" element={<ClientMeetingsSection />} />
+          <Route path="meetings" element={<ComingSoonPlaceholder icon={Calendar} title="Meetings" description="Your upcoming meetings and key milestones, all in one place." />} />
           <Route path="questionnaire" element={<ClientQuestionnaireSection />} />
           <Route path="people" element={<ClientPeopleSection />} />
 
-          {/* Phase 5: Client hub routes */}
-          <Route path="instant-answers" element={<ClientInstantAnswers hubId={hubId} />} />
-          <Route path="decisions" element={<ClientDecisionQueue hubId={hubId} />} />
-          <Route path="performance" element={<ClientPerformance hubId={hubId} />} />
-          <Route path="history" element={<ClientHistory hubId={hubId} />} />
+          {/* Coming soon: Client hub features */}
+          <Route path="instant-answers" element={<ComingSoonPlaceholder icon={Sparkles} title="Instant Answers" description="Ask questions about your account and get immediate answers." />} />
+          <Route path="decisions" element={<ComingSoonPlaceholder icon={ClipboardCheck} title="Decision Queue" description="Pending decisions that need your input, all in one place." />} />
+          <Route path="performance" element={<ComingSoonPlaceholder icon={BarChart3} title="Performance Insights" description="Campaign performance data and key metrics at a glance." />} />
+          <Route path="history" element={<ComingSoonPlaceholder icon={History} title="History & Alerts" description="A complete timeline of activity and important notifications." />} />
 
           <Route path="/" element={<Navigate to="overview" replace />} />
         </Routes>

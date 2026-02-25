@@ -17,6 +17,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { useToast } from "@/hooks/use-toast";
 import type { Document, DocumentCategory, DocumentEngagement } from "@/types";
 
 interface DocumentDetailPanelProps {
@@ -77,6 +78,8 @@ export function DocumentDetailPanel({
   isSaving,
   isDeleting,
 }: DocumentDetailPanelProps) {
+  const { toast } = useToast();
+
   if (!document) return null;
 
   const isClientDoc = document.visibility === "client";
@@ -98,11 +101,24 @@ export function DocumentDetailPanel({
           </div>
 
           <div className="flex gap-2">
-            <Button variant="outline" className="flex-1" asChild>
-              <a href={document.downloadUrl} download>
-                <Download className="h-4 w-4 mr-2" />
-                Download
-              </a>
+            <Button
+              variant="outline"
+              className="flex-1"
+              onClick={async () => {
+                try {
+                  const { downloadDocument } = await import("@/services/document.service");
+                  await downloadDocument(document.hubId, document.id);
+                } catch {
+                  toast({
+                    title: "Download failed",
+                    description: "Could not download the document.",
+                    variant: "destructive",
+                  });
+                }
+              }}
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Download
             </Button>
             {document.embedUrl && (
               <Button variant="outline" className="flex-1" asChild>

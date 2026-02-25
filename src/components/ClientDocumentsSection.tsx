@@ -50,12 +50,22 @@ export function ClientDocumentsSection() {
     trackDocumentViewed(doc.id);
   };
 
-  const handleDownload = (doc: Document) => {
+  const handleDownload = async (doc: Document) => {
     trackDocumentDownloaded(doc.id);
-    toast({
-      title: "Download started",
-      description: `Downloading ${doc.name}`,
-    });
+    try {
+      const { downloadDocument } = await import("@/services/document.service");
+      await downloadDocument(hubId, doc.id, { portal: true });
+      toast({
+        title: "Download started",
+        description: `Downloading ${doc.name}`,
+      });
+    } catch {
+      toast({
+        title: "Download failed",
+        description: "Could not download the document.",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleShare = (doc: Document) => {
