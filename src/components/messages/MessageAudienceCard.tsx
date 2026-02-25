@@ -21,6 +21,11 @@ function formatSource(source: "portal_contact" | "hub_contact"): string {
   return source === "portal_contact" ? "approved contact" : "hub owner contact";
 }
 
+function hasDistinctName(name: string | null, email: string): boolean {
+  if (!name) return false;
+  return name.trim().toLowerCase() !== email.trim().toLowerCase();
+}
+
 export function MessageAudienceCard({
   audience,
   isLoading = false,
@@ -39,8 +44,11 @@ export function MessageAudienceCard({
   }, [email, isRequesting, onRequestAccess]);
 
   const visibleContacts = audience?.clientAudience.knownReaders ?? [];
+  const visibleStaff = audience?.staffAudience.knownReaders ?? [];
   const remainingCount = Math.max(0, visibleContacts.length - 4);
   const primaryContacts = visibleContacts.slice(0, 4);
+  const remainingStaffCount = Math.max(0, visibleStaff.length - 4);
+  const primaryStaff = visibleStaff.slice(0, 4);
 
   const submitRequest = () => {
     if (!canSubmit || !onRequestAccess) return;
@@ -99,22 +107,17 @@ export function MessageAudienceCard({
                 <p className="text-xs text-[hsl(var(--medium-grey))]">No known client contacts are listed yet.</p>
               ) : (
                 <div className="space-y-1.5">
-                  <div className="flex flex-wrap gap-1.5">
-                    {primaryContacts.map((contact) => (
-                      <Badge
-                        key={`${contact.email}-${contact.source}`}
-                        variant="outline"
-                        className="max-w-full truncate text-xs font-normal"
-                        title={contact.name ? `${contact.name} (${contact.email})` : contact.email}
-                      >
-                        {contact.name || contact.email}
-                      </Badge>
-                    ))}
-                  </div>
                   {primaryContacts.map((contact) => (
-                    <p key={`${contact.email}-${contact.source}-meta`} className="text-[11px] text-[hsl(var(--medium-grey))]">
-                      {contact.email} · {formatSource(contact.source)}
-                    </p>
+                    <div key={`${contact.email}-${contact.source}`} className="flex items-center justify-between gap-2 text-xs">
+                      <p className="truncate font-medium text-[hsl(var(--dark-grey))]">
+                        {hasDistinctName(contact.name, contact.email) ? contact.name : contact.email}
+                      </p>
+                      <p className="shrink-0 text-[11px] text-[hsl(var(--medium-grey))]">
+                        {hasDistinctName(contact.name, contact.email)
+                          ? `${contact.email} · ${formatSource(contact.source)}`
+                          : formatSource(contact.source)}
+                      </p>
+                    </div>
                   ))}
                   {remainingCount > 0 ? (
                     <p className="text-[11px] text-[hsl(var(--medium-grey))]">+{remainingCount} more contacts</p>
@@ -126,11 +129,35 @@ export function MessageAudienceCard({
             </div>
 
             <div className="border-t pt-2 space-y-1">
-              <div className="flex items-center gap-2">
-                <Shield className="h-4 w-4 text-[hsl(var(--bold-royal-blue))]" />
-                <p className="text-sm font-medium">Agent Flow staff</p>
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <Shield className="h-4 w-4 text-[hsl(var(--bold-royal-blue))]" />
+                  <p className="text-sm font-medium">Agent Flow staff</p>
+                </div>
+                <p className="text-xs text-[hsl(var(--medium-grey))]">
+                  {visibleStaff.length} member{visibleStaff.length === 1 ? "" : "s"}
+                </p>
               </div>
-              <p className="text-xs text-[hsl(var(--dark-grey))]">Can read this message feed.</p>
+              {primaryStaff.length === 0 ? (
+                <p className="text-xs text-[hsl(var(--dark-grey))]">Can read this message feed.</p>
+              ) : (
+                <div className="space-y-1">
+                  {primaryStaff.map((staff) => (
+                    <div key={`staff-${staff.email}`} className="flex items-center justify-between gap-2 text-xs">
+                      <p className="truncate font-medium text-[hsl(var(--dark-grey))]">
+                        {hasDistinctName(staff.name, staff.email) ? staff.name : staff.email}
+                      </p>
+                      {hasDistinctName(staff.name, staff.email) ? (
+                        <p className="shrink-0 text-[11px] text-[hsl(var(--medium-grey))]">{staff.email}</p>
+                      ) : null}
+                    </div>
+                  ))}
+                  {remainingStaffCount > 0 ? (
+                    <p className="text-[11px] text-[hsl(var(--medium-grey))]">+{remainingStaffCount} more staff</p>
+                  ) : null}
+                </div>
+              )}
+              <p className="text-[11px] text-[hsl(var(--medium-grey))]">{audience.staffAudience.note}</p>
             </div>
           </div>
         ) : null}

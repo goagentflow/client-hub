@@ -112,6 +112,7 @@ export type {
   SendFeedMessageRequest,
   MessageAudience,
   MessageAudienceContact,
+  MessageAudienceStaffReader,
   RequestMessageAccessRequest,
   RequestMessageAccessResponse,
   HubAccessMethod,

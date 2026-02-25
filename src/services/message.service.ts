@@ -82,6 +82,11 @@ const mockAudience: MessageAudience = {
     scope: "staff_role_global",
     label: "Agent Flow staff",
     note: "All Agent Flow staff can read this message feed.",
+    knownReaders: [
+      { email: "hamish@goagentflow.com", name: "Hamish Nicklin" },
+      { email: "stephen@goagentflow.com", name: "Stephen" },
+    ],
+    totalKnownReaders: 2,
   },
   clientAudience: {
     knownReaders: [

@@ -145,6 +145,11 @@ export interface MessageAudienceContact {
   source: "portal_contact" | "hub_contact";
 }
 
+export interface MessageAudienceStaffReader {
+  email: string;
+  name: string | null;
+}
+
 export interface MessageAudience {
   hubId: EntityId;
   companyName: string;
@@ -153,6 +158,8 @@ export interface MessageAudience {
     scope: "staff_role_global";
     label: string;
     note: string;
+    knownReaders: MessageAudienceStaffReader[];
+    totalKnownReaders: number;
   };
   clientAudience: {
     knownReaders: MessageAudienceContact[];

@@ -138,6 +138,7 @@ describe('Staff message feed endpoints', () => {
       },
     });
     expect(res.body.clientAudience.knownReaders.length).toBeGreaterThan(0);
+    expect(res.body.staffAudience.knownReaders.length).toBeGreaterThan(0);
   });
 
   it('POST /hubs/:hubId/messages creates message with server-derived sender fields', async () => {
@@ -321,6 +322,7 @@ describe('Portal message feed endpoints', () => {
         isExact: true,
       },
     });
+    expect(res.body.staffAudience.knownReaders.length).toBeGreaterThan(0);
   });
 
   it('POST /hubs/:hubId/portal/messages creates message with senderType portal_client', async () => {

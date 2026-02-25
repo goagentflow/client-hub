@@ -15,6 +15,11 @@ export interface MessageAudienceContact {
   source: 'portal_contact' | 'hub_contact';
 }
 
+export interface MessageAudienceStaffReader {
+  email: string;
+  name: string | null;
+}
+
 export interface MessageAudience {
   hubId: string;
   companyName: string;
@@ -23,6 +28,8 @@ export interface MessageAudience {
     scope: 'staff_role_global';
     label: string;
     note: string;
+    knownReaders: MessageAudienceStaffReader[];
+    totalKnownReaders: number;
   };
   clientAudience: {
     knownReaders: MessageAudienceContact[];
@@ -43,6 +50,12 @@ function normaliseEmail(value: unknown): string {
   return typeof value === 'string' ? value.trim().toLowerCase() : '';
 }
 
+function normaliseName(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
 function clientAudienceNote(method: HubAccessMethod): string {
   if (method === 'email') {
     return 'Only approved client contacts listed here can access and read this message feed.';
@@ -59,12 +72,14 @@ export async function getMessageAudience(repo: TenantRepository, hubId: string):
     select: {
       id: true,
       companyName: true,
+      contactName: true,
       contactEmail: true,
       accessMethod: true,
     },
   }) as {
     id: string;
     companyName: string;
+    contactName: string | null;
     contactEmail: string | null;
     accessMethod: string | null;
   } | null;
@@ -73,11 +88,46 @@ export async function getMessageAudience(repo: TenantRepository, hubId: string):
     throw Errors.notFound('Hub', hubId);
   }
 
-  const contacts = await repo.portalContact.findMany({
-    where: { hubId },
-    select: { email: true, name: true },
-    orderBy: { email: 'asc' },
-  }) as Array<{ email: string; name: string | null }>;
+  const [contacts, clientMembers, staffMembers, staffMessages, staffEvents] = await Promise.all([
+    repo.portalContact.findMany({
+      where: { hubId },
+      select: { email: true, name: true },
+      orderBy: { email: 'asc' },
+    }) as Promise<Array<{ email: string; name: string | null }>>,
+    repo.hubMember.findMany({
+      where: { hubId, role: 'client', status: 'active' },
+      select: { email: true, displayName: true },
+      orderBy: { joinedAt: 'desc' },
+      take: 200,
+    }) as Promise<Array<{ email: string; displayName: string | null }>>,
+    repo.hubMember.findMany({
+      where: { hubId, role: 'staff', status: 'active' },
+      select: { email: true, displayName: true },
+      orderBy: { joinedAt: 'desc' },
+      take: 200,
+    }) as Promise<Array<{ email: string; displayName: string | null }>>,
+    repo.hubMessage.findMany({
+      where: { hubId, senderType: 'staff' },
+      select: { senderEmail: true, senderName: true },
+      orderBy: { createdAt: 'desc' },
+      take: 200,
+    }) as Promise<Array<{ senderEmail: string; senderName: string | null }>>,
+    repo.hubEvent.findMany({
+      where: { hubId, userEmail: { not: null } },
+      select: { userId: true, userEmail: true, userName: true },
+      orderBy: { createdAt: 'desc' },
+      take: 200,
+    }) as Promise<Array<{ userId: string | null; userEmail: string | null; userName: string | null }>>,
+  ]);
+
+  const clientNameByEmail = new Map<string, string>();
+  for (const member of clientMembers) {
+    const email = normaliseEmail(member.email);
+    const name = normaliseName(member.displayName);
+    if (email && name && !clientNameByEmail.has(email)) {
+      clientNameByEmail.set(email, name);
+    }
+  }
 
   const deduped = new Map<string, MessageAudienceContact>();
   for (const contact of contacts) {
@@ -85,7 +135,7 @@ export async function getMessageAudience(repo: TenantRepository, hubId: string):
     if (!email || deduped.has(email)) continue;
     deduped.set(email, {
       email,
-      name: contact.name?.trim() || null,
+      name: normaliseName(contact.name) || clientNameByEmail.get(email) || null,
       source: 'portal_contact',
     });
   }
@@ -94,12 +144,46 @@ export async function getMessageAudience(repo: TenantRepository, hubId: string):
   if (hubContactEmail && !deduped.has(hubContactEmail)) {
     deduped.set(hubContactEmail, {
       email: hubContactEmail,
-      name: null,
+      name: normaliseName(hub.contactName) || clientNameByEmail.get(hubContactEmail) || null,
       source: 'hub_contact',
     });
+  } else if (hubContactEmail && deduped.has(hubContactEmail)) {
+    const existing = deduped.get(hubContactEmail)!;
+    if (!existing.name) {
+      existing.name = normaliseName(hub.contactName) || clientNameByEmail.get(hubContactEmail) || null;
+    }
   }
 
   const knownReaders = Array.from(deduped.values()).sort((a, b) => a.email.localeCompare(b.email));
+  const staffDeduped = new Map<string, MessageAudienceStaffReader>();
+
+  const upsertStaffReader = (emailRaw: unknown, nameRaw: unknown): void => {
+    const email = normaliseEmail(emailRaw);
+    if (!email) return;
+    const name = normaliseName(nameRaw);
+    const existing = staffDeduped.get(email);
+    if (!existing) {
+      staffDeduped.set(email, { email, name });
+      return;
+    }
+    if (!existing.name && name) {
+      existing.name = name;
+    }
+  };
+
+  for (const member of staffMembers) {
+    upsertStaffReader(member.email, member.displayName);
+  }
+  for (const msg of staffMessages) {
+    upsertStaffReader(msg.senderEmail, msg.senderName);
+  }
+  for (const event of staffEvents) {
+    const userId = (event.userId || '').toLowerCase();
+    if (userId.startsWith('portal-')) continue;
+    upsertStaffReader(event.userEmail, event.userName);
+  }
+
+  const staffKnownReaders = Array.from(staffDeduped.values()).sort((a, b) => a.email.localeCompare(b.email));
   const accessMethod = normaliseAccessMethod(hub.accessMethod);
 
   return {
@@ -110,6 +194,8 @@ export async function getMessageAudience(repo: TenantRepository, hubId: string):
       scope: 'staff_role_global',
       label: 'Agent Flow staff',
       note: 'All Agent Flow staff can read this message feed.',
+      knownReaders: staffKnownReaders,
+      totalKnownReaders: staffKnownReaders.length,
     },
     clientAudience: {
       knownReaders,
