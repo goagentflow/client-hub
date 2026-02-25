@@ -307,7 +307,7 @@ portalRouter.post('/messages/request-access', portalAccessRequestLimiter, async 
       requested: true,
       alreadyHasAccess: false,
       email: requestedEmail,
-      message: 'Access request sent to your AgentFlow team.',
+      message: 'Access request sent to Agent Flow staff.',
     }, 201);
   } catch (err) {
     next(err);

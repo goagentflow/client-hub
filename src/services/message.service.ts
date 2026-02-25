@@ -499,7 +499,7 @@ export async function requestPortalMessageAccess(
       requested: true,
       alreadyHasAccess: false,
       email: data.email.trim().toLowerCase(),
-      message: "Access request sent to your AgentFlow team.",
+      message: "Access request sent to Agent Flow staff.",
     };
   }
 

@@ -127,7 +127,7 @@ export function MessageAudienceCard({
               <p className="text-sm font-medium">Request teammate access</p>
             </div>
             <p className="text-xs text-[hsl(var(--medium-grey))]">
-              Request that your AgentFlow team adds another client contact to this hub.
+              Request that Agent Flow staff adds another client contact to this hub.
             </p>
 
             <div className="space-y-2">

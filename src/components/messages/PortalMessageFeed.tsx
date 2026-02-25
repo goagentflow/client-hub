@@ -68,7 +68,7 @@ export function PortalMessageFeed() {
         isSending={isSending}
         errorMessage={error ? "Unable to load messages" : undefined}
         emptyTitle="No messages yet"
-        emptyDescription="Start the conversation with your AgentFlow team."
+        emptyDescription="Start the conversation with Agent Flow staff."
         onSend={(body) =>
           sendMessage(
             { body },
