@@ -81,10 +81,9 @@ export function MessageAudienceCard({
             <div className="rounded-md border p-3 space-y-2">
               <div className="flex items-center gap-2">
                 <Shield className="h-4 w-4 text-[hsl(var(--bold-royal-blue))]" />
-                <p className="text-sm font-medium">Staff readers</p>
+                <p className="text-sm font-medium">Agent Flow staff</p>
               </div>
-              <p className="text-sm text-[hsl(var(--dark-grey))]">{audience.staffAudience.label}</p>
-              <p className="text-xs text-[hsl(var(--medium-grey))]">{audience.staffAudience.note}</p>
+              <p className="text-sm text-[hsl(var(--dark-grey))]">Can read this message feed.</p>
             </div>
 
             <div className="rounded-md border p-3 space-y-3">

@@ -108,8 +108,8 @@ export async function getMessageAudience(repo: TenantRepository, hubId: string):
     accessMethod,
     staffAudience: {
       scope: 'staff_role_global',
-      label: 'All AgentFlow staff users with the Staff role',
-      note: 'Staff access is role-based today, not a per-hub membership list.',
+      label: 'Agent Flow staff',
+      note: 'All Agent Flow staff can read this message feed.',
     },
     clientAudience: {
       knownReaders,
