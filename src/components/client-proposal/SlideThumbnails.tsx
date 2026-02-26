@@ -30,12 +30,13 @@ export function SlideThumbnails({
           return (
             <button
               key={slideNum}
+              type="button"
               onClick={() => onSlideSelect(slideNum)}
               className={cn(
-                "w-full p-2 rounded-lg border text-left transition-colors flex items-center justify-between",
+                "w-full p-2 rounded-lg border bg-white text-left shadow-sm transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))] focus-visible:ring-offset-2 active:translate-y-px active:shadow-none flex items-center justify-between",
                 isActive
-                  ? "border-[hsl(var(--gradient-blue))] bg-[hsl(var(--gradient-blue))]/5"
-                  : "border-muted hover:bg-muted/50"
+                  ? "border-[hsl(var(--royal-blue))] bg-[hsl(var(--royal-blue))]/10"
+                  : "border-muted hover:border-[hsl(var(--royal-blue))]/40 hover:bg-muted/50"
               )}
             >
               <div className="flex items-center gap-3">

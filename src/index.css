@@ -13,12 +13,14 @@ All colors MUST be HSL.
     --gradient-purple: 263 45% 80%;
     --deep-navy: 210 29% 24%;
     --warm-cream: 40 60% 98%;
-    --soft-coral: 9 85% 79%;
+    --soft-coral: 9 68% 45%;
     --sage-green: 126 18% 68%;
     --dark-grey: 0 0% 24%;
     --medium-grey: 0 0% 42%;
     --royal-blue: 222 47% 45%;
     --rich-violet: 266 42% 51%;
+    --bold-royal-blue: 222 47% 45%;
+    --light-grey: 210 16% 90%;
 
     /* Semantic tokens using AgentFlow palette */
     --background: var(--warm-cream);
@@ -30,7 +32,7 @@ All colors MUST be HSL.
     --popover: 0 0% 100%;
     --popover-foreground: var(--dark-grey);
 
-    --primary: var(--gradient-blue);
+    --primary: var(--royal-blue);
     --primary-foreground: 0 0% 100%;
 
     --secondary: var(--gradient-purple);

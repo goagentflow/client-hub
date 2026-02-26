@@ -171,13 +171,14 @@ export function OverviewSection() {
 
       {/* Preview as Client Link */}
       <div className="text-center">
-        <button
-          className="text-sm text-[hsl(var(--medium-grey))] hover:text-[hsl(var(--gradient-blue))] inline-flex items-center gap-2"
-          onClick={() => window.open(`${import.meta.env.BASE_URL}portal/${hubId}/overview`, "_blank")}
+        <Button
+          variant="link"
+          className="text-sm text-[hsl(var(--medium-grey))] hover:text-[hsl(var(--royal-blue))]"
+          onClick={() => window.open(`${import.meta.env.BASE_URL}portal/${hubId}/overview?preview=client`, "_blank")}
         >
           See what {hub.contactName.split(" ")[0]} sees
           <ArrowRight className="w-4 h-4" />
-        </button>
+        </Button>
       </div>
 
       {/* Conversion Wizard */}

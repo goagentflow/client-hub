@@ -25,6 +25,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
 import {
   useCurrentUser,
   useLogout,
@@ -126,12 +127,9 @@ const LeadershipPortfolio = () => {
             Leadership views require admin permissions. Contact your administrator
             if you believe you should have access.
           </p>
-          <button
-            onClick={() => navigate("/hubs")}
-            className="text-[hsl(var(--bold-royal-blue))] hover:underline"
-          >
+          <Button variant="link" onClick={() => navigate("/hubs")}>
             Return to Hub List
-          </button>
+          </Button>
         </div>
       </div>
     );
@@ -167,7 +165,7 @@ const LeadershipPortfolio = () => {
           {/* User Menu */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+              <Button variant="ghost" className="h-10 gap-2 px-2">
                 <Avatar className="h-9 w-9">
                   <AvatarFallback className="bg-[hsl(var(--gradient-blue))] text-white text-sm font-medium">
                     {userInitials}
@@ -177,7 +175,7 @@ const LeadershipPortfolio = () => {
                   {user?.displayName ?? "Loading..."}
                 </span>
                 <ChevronDown className="h-4 w-4 text-[hsl(var(--medium-grey))]" />
-              </button>
+              </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48 bg-white z-50">
               <DropdownMenuItem

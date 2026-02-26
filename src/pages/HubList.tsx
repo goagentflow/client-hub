@@ -90,7 +90,7 @@ const HubList = () => {
             {/* User Menu */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+                <Button variant="ghost" className="h-10 gap-2 px-2">
                   <Avatar className="h-9 w-9">
                     <AvatarFallback className="bg-gradient-blue text-white text-sm font-medium">
                       {userInitials}
@@ -100,7 +100,7 @@ const HubList = () => {
                     {user?.displayName ?? "Loading..."}
                   </span>
                   <ChevronDown className="h-4 w-4 text-medium-grey" />
-                </button>
+                </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48 bg-white z-50">
                 {isAdmin && (
@@ -134,7 +134,7 @@ const HubList = () => {
             Your Hubs
           </h2>
           <Button
-            className="bg-soft-coral hover:bg-soft-coral/90 text-white font-semibold shadow-lg hover:shadow-xl transition-all duration-300 w-full md:w-auto"
+            className="w-full md:w-auto"
             onClick={() => setCreateDialogOpen(true)}
           >
             <Plus className="w-5 h-5 mr-2" />

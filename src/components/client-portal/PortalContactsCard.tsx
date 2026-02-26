@@ -17,6 +17,7 @@ import {
   useRemovePortalContact,
   useUpdateAccessMethod,
 } from "@/hooks/use-portal-contacts";
+import { useToast } from "@/hooks/use-toast";
 import type { AccessMethod } from "@/services/portal-contacts.service";
 
 interface PortalContactsCardProps {
@@ -33,6 +34,7 @@ export function PortalContactsCard({ hubId }: PortalContactsCardProps) {
   const [newEmail, setNewEmail] = useState("");
   const [newName, setNewName] = useState("");
   const [showAddForm, setShowAddForm] = useState(false);
+  const { toast } = useToast();
 
   const { data: contacts = [], isLoading: loadingContacts } = usePortalContacts(hubId);
   const { data: accessMethod, isLoading: loadingMethod } = useAccessMethod(hubId);
@@ -46,9 +48,28 @@ export function PortalContactsCard({ hubId }: PortalContactsCardProps) {
     if (!email) return;
     addContact({ email, name: newName.trim() || undefined }, {
       onSuccess: () => {
+        toast({
+          title: "Contact added",
+          description: `${email} can now access this portal.`,
+        });
         setNewEmail("");
         setNewName("");
         setShowAddForm(false);
+      },
+      onError: (err) => {
+        const apiErr = err as { status?: number; message?: string };
+        if (apiErr.status === 409) {
+          toast({
+            title: "Contact already exists",
+            description: `${email} already has access to this hub.`,
+          });
+          return;
+        }
+        toast({
+          title: "Could not add contact",
+          description: apiErr.message ?? "Please try again.",
+          variant: "destructive",
+        });
       },
     });
   };
@@ -76,15 +97,16 @@ export function PortalContactsCard({ hubId }: PortalContactsCardProps) {
                 return (
                   <button
                     key={opt.value}
+                    type="button"
                     onClick={() => setMethod(opt.value)}
-                    className={`flex flex-col items-center gap-1.5 p-3 rounded-lg border text-center transition-colors ${
+                    className={`flex flex-col items-center gap-1.5 p-3 rounded-lg border text-center shadow-sm transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))] focus-visible:ring-offset-2 active:translate-y-px ${
                       isActive
-                        ? "border-[hsl(var(--gradient-blue))] bg-[hsl(var(--gradient-blue))]/5"
-                        : "border-gray-200 hover:border-gray-300"
+                        ? "border-[hsl(var(--royal-blue))] bg-[hsl(var(--royal-blue))]/10"
+                        : "border-gray-200 bg-white hover:border-[hsl(var(--royal-blue))]/40 hover:bg-[hsl(var(--royal-blue))]/5"
                     }`}
                   >
-                    <Icon className={`h-4 w-4 ${isActive ? "text-[hsl(var(--gradient-blue))]" : "text-[hsl(var(--medium-grey))]"}`} />
-                    <span className={`text-xs font-medium ${isActive ? "text-[hsl(var(--gradient-blue))]" : "text-[hsl(var(--dark-grey))]"}`}>
+                    <Icon className={`h-4 w-4 ${isActive ? "text-[hsl(var(--royal-blue))]" : "text-[hsl(var(--medium-grey))]"}`} />
+                    <span className={`text-xs font-medium ${isActive ? "text-[hsl(var(--royal-blue))]" : "text-[hsl(var(--dark-grey))]"}`}>
                       {opt.label}
                     </span>
                   </button>
@@ -137,7 +159,6 @@ export function PortalContactsCard({ hubId }: PortalContactsCardProps) {
                   <Button
                     type="submit"
                     size="sm"
-                    className="bg-[hsl(var(--gradient-blue))] hover:bg-[hsl(var(--gradient-blue))]/90"
                     disabled={isAdding || !newEmail.trim()}
                   >
                     {isAdding ? "Adding..." : "Add Contact"}

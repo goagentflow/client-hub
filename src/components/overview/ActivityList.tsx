@@ -1,5 +1,6 @@
 import { Clock, User, CheckCircle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import type { ActivityFeedItem } from "@/types";
 
 interface ActivityListProps {
@@ -66,12 +67,9 @@ export function ActivityList({ activities, clientDomain, onViewAll }: ActivityLi
             })
           )}
         </div>
-        <button
-          className="text-sm text-[hsl(var(--gradient-blue))] hover:underline mt-4"
-          onClick={onViewAll}
-        >
+        <Button variant="link" size="sm" className="mt-4 h-auto px-0 text-sm" onClick={onViewAll}>
           View all
-        </button>
+        </Button>
       </CardContent>
     </Card>
   );

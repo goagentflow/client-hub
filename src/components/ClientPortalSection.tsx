@@ -208,7 +208,7 @@ export function ClientPortalSection() {
             <Button
               variant="outline"
               className="gap-2"
-              onClick={() => window.open(`${import.meta.env.BASE_URL}portal/${hubId}/overview`, "_blank")}
+              onClick={() => window.open(`${import.meta.env.BASE_URL}portal/${hubId}/overview?preview=client`, "_blank")}
             >
               <Eye className="h-4 w-4" />
               Preview as Client
@@ -324,7 +324,7 @@ export function ClientPortalSection() {
               <CardContent className="pt-6">
                 <Button
                   className="w-full bg-[hsl(var(--gradient-blue))] hover:bg-[hsl(var(--gradient-blue))]/90 gap-2 h-12"
-                  onClick={() => window.open(`${import.meta.env.BASE_URL}portal/${hubId}/overview`, "_blank")}
+                  onClick={() => window.open(`${import.meta.env.BASE_URL}portal/${hubId}/overview?preview=client`, "_blank")}
                 >
                   <Monitor className="h-5 w-5" />
                   Preview Client Portal

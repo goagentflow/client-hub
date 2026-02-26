@@ -118,18 +118,17 @@ export function QuickAskInput({ hubId }: QuickAskInputProps) {
               aria-label="Suggested questions"
             >
               {suggestedQuestions.map((suggestion) => (
-                <button
+                <Button
                   key={suggestion}
                   type="button"
                   onClick={() => handleSuggestionClick(suggestion)}
                   disabled={createAnswer.isPending}
-                  className="px-3 py-1.5 text-xs rounded-full border border-[hsl(var(--light-grey))]
-                             text-[hsl(var(--medium-grey))] hover:border-[hsl(var(--bold-royal-blue))]
-                             hover:text-[hsl(var(--bold-royal-blue))] hover:bg-[hsl(var(--bold-royal-blue))]/5
-                             transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  variant="outline"
+                  size="sm"
+                  className="h-7 rounded-full px-3 text-xs text-[hsl(var(--medium-grey))] hover:text-[hsl(var(--bold-royal-blue))]"
                 >
                   {suggestion}
-                </button>
+                </Button>
               ))}
             </div>
           )}

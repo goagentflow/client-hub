@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Routes, Route, Navigate, useParams } from "react-router-dom";
+import { Routes, Route, Navigate, useParams, useSearchParams } from "react-router-dom";
 import { Loader2, AlertCircle, Calendar, ClipboardCheck, BarChart3, Sparkles, History } from "lucide-react";
 import { ClientHubLayout } from "@/components/ClientHubLayout";
 import { ClientOverviewSection } from "@/components/ClientOverviewSection";
@@ -22,21 +22,34 @@ import type { PortalMeta } from "@/types";
 
 const PortalDetail = () => {
   const { hubId } = useParams<{ hubId: string }>();
+  const [searchParams] = useSearchParams();
   const { data: authData, isLoading } = useCurrentUser();
   const isStaff = authData?.user?.role === "staff";
+  const forcePublicPreview = searchParams.get("preview") === "client";
 
-  // Portal meta: staff uses portal-preview (no published filter), clients use public endpoint
-  // Wait for auth to settle before choosing endpoint to prevent staff briefly hitting public endpoint
+  // Portal meta:
+  // - normal staff mode: try staff preview endpoint first, then fallback to public endpoint
+  // - forced client preview mode: always use public endpoint
+  // - client mode: public endpoint
   type HubMetaBase = { id: string; companyName: string; hubType: string; isPublished: boolean };
   const { data: hubMeta, isLoading: hubLoading } = useQuery({
-    queryKey: ["portal-meta", hubId, isStaff],
+    queryKey: ["portal-meta", hubId, isStaff, forcePublicPreview],
     queryFn: async () => {
       if (!hubId) return null;
-      const endpoint = isStaff
-        ? `/hubs/${hubId}/portal-preview`
-        : `/public/hubs/${hubId}/portal-meta`;
-      const result = await api.get<{ data: HubMetaBase | PortalMeta }>(endpoint);
-      return result.data;
+      const publicEndpoint = `/public/hubs/${hubId}/portal-meta`;
+
+      if (!isStaff || forcePublicPreview) {
+        const result = await api.get<{ data: HubMetaBase | PortalMeta }>(publicEndpoint);
+        return result.data;
+      }
+
+      try {
+        const result = await api.get<{ data: HubMetaBase | PortalMeta }>(`/hubs/${hubId}/portal-preview`);
+        return result.data;
+      } catch {
+        const result = await api.get<{ data: HubMetaBase | PortalMeta }>(publicEndpoint);
+        return result.data;
+      }
     },
     enabled: !!hubId && !isMockApiEnabled() && !isLoading,
   });

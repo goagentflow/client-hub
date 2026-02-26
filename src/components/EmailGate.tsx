@@ -164,14 +164,16 @@ export function EmailGate({ hubId, companyName, onSuccess }: EmailGateProps) {
                 {isLoading ? "Verifying..." : "Verify Code"}
               </Button>
               <div className="text-center">
-                <button
+                <Button
                   type="button"
+                  variant="link"
+                  size="sm"
                   onClick={() => handleRequestCode()}
                   disabled={resendCooldown > 0}
-                  className="text-sm text-[hsl(var(--gradient-blue))] hover:underline disabled:opacity-50 disabled:no-underline"
+                  className="h-auto text-sm"
                 >
                   {resendCooldown > 0 ? `Resend code in ${resendCooldown}s` : "Resend code"}
-                </button>
+                </Button>
               </div>
             </form>
           )}

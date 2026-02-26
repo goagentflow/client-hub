@@ -42,7 +42,7 @@ function MessageItem({ message }: { message: FeedMessage }) {
     <button
       type="button"
       onClick={() => navigate(`/portal/${message.hubId}/messages`)}
-      className="w-full text-left p-3 rounded-lg hover:bg-muted/70 transition-colors focus:outline-none focus:ring-2 focus:ring-[hsl(var(--bold-royal-blue))] focus:ring-offset-2"
+      className="w-full border border-transparent bg-white text-left p-3 rounded-lg shadow-sm hover:border-border hover:bg-muted/70 transition-colors focus:outline-none focus:ring-2 focus:ring-[hsl(var(--bold-royal-blue))] focus:ring-offset-2 active:translate-y-px"
       aria-label={`${message.senderName}: ${truncate(message.body, 80)}`}
     >
       <div className="flex items-start gap-3">
