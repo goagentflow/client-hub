@@ -8,6 +8,7 @@ import type { Express } from 'express';
 import { loadApp, STAFF_HEADERS, mockRepo } from './test-setup.js';
 
 const mockProjectFindMany = vi.fn();
+const mockExecuteRawUnsafe = vi.fn();
 const mockMilestoneDeleteMany = vi.fn();
 const mockProjectDeleteMany = vi.fn();
 const mockVideoDeleteMany = vi.fn();
@@ -42,7 +43,7 @@ const mockPrisma = {
   hubCrmOrgMap: { deleteMany: mockCrmMapDeleteMany },
   hub: { delete: mockHubDelete },
   $queryRawUnsafe: vi.fn().mockResolvedValue([{ has_org: false, has_activity: false }]),
-  $executeRawUnsafe: vi.fn().mockResolvedValue(1),
+  $executeRawUnsafe: mockExecuteRawUnsafe,
   $transaction: mockTransaction,
 };
 
@@ -110,6 +111,7 @@ beforeEach(() => {
   mockRevocationDeleteMany.mockResolvedValue({ count: 0 });
   mockCrmMapDeleteMany.mockResolvedValue({ count: 0 });
   mockHubDelete.mockResolvedValue({ id: 'hub-1' });
+  mockExecuteRawUnsafe.mockResolvedValue(1);
 
   mockTransaction.mockImplementation(async (fn: (tx: typeof mockPrisma) => unknown) => fn(mockPrisma));
 });
@@ -134,5 +136,8 @@ describe('DELETE /hubs/:hubId', () => {
 
     expect(res.status).toBe(204);
     expect(mockHubDelete).toHaveBeenCalledOnce();
+    expect(mockExecuteRawUnsafe).toHaveBeenCalledWith(
+      "SET LOCAL agentflow.allow_status_update_delete = 'on'",
+    );
   });
 });

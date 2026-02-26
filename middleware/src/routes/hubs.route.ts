@@ -304,6 +304,8 @@ hubsRouter.delete('/:hubId', requireStaffAccess, async (req: Request, res: Respo
       await tx.portalContact.deleteMany({ where: { hubId, tenantId: hub.tenantId } });
       await tx.portalVerification.deleteMany({ where: { hubId } });
       await tx.portalDevice.deleteMany({ where: { hubId } });
+      // hub_status_update is append-only by default; allow delete in this transaction only.
+      await tx.$executeRawUnsafe("SET LOCAL agentflow.allow_status_update_delete = 'on'");
       await tx.hubStatusUpdate.deleteMany({ where: { hubId, tenantId: hub.tenantId } });
       await tx.hubMessage.deleteMany({ where: { hubId, tenantId: hub.tenantId } });
       await tx.hubMember.deleteMany({ where: { hubId, tenantId: hub.tenantId } });
