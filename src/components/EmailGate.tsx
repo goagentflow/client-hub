@@ -184,6 +184,12 @@ export function EmailGate({ hubId, companyName, onSuccess }: EmailGateProps) {
             ? "We'll send a verification code to your email if you have access."
             : "Check your inbox. The code expires in 10 minutes."}
         </p>
+        <p className="mt-2 text-center text-xs text-[hsl(var(--medium-grey))]">
+          By continuing, you confirm you're authorised by your organisation and agree to{" "}
+          <a href="/hub-terms.html" className="underline hover:no-underline">Hub Terms</a>{" "}
+          and{" "}
+          <a href="/hub-privacy.html" className="underline hover:no-underline">Hub Privacy Notice</a>.
+        </p>
       </div>
     </div>
   );

@@ -107,6 +107,12 @@ export function PasswordGate({ hubId, companyName, onSuccess }: PasswordGateProp
         <p className="mt-6 text-center text-xs text-[hsl(var(--medium-grey))]">
           Your password was included in your invitation email from AgentFlow.
         </p>
+        <p className="mt-2 text-center text-xs text-[hsl(var(--medium-grey))]">
+          By continuing, you confirm you're authorised by your organisation and agree to{" "}
+          <a href="/hub-terms.html" className="underline hover:no-underline">Hub Terms</a>{" "}
+          and{" "}
+          <a href="/hub-privacy.html" className="underline hover:no-underline">Hub Privacy Notice</a>.
+        </p>
       </div>
     </div>
   );

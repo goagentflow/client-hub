@@ -10,6 +10,8 @@ import { logger } from '../utils/logger.js';
 
 const RESEND_API_URL = 'https://api.resend.com/emails';
 const REPLY_TO_EMAIL = 'hamish@goagentflow.com';
+const HUB_PRIVACY_PATH = '/hub-privacy.html';
+const HUB_TERMS_PATH = '/hub-terms.html';
 
 function escapeHtml(str: string): string {
   return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
@@ -17,6 +19,32 @@ function escapeHtml(str: string): string {
 
 function sanitizeHeaderValue(value: string): string {
   return value.replace(/[\r\n]+/g, ' ').trim();
+}
+
+function absoluteHubLegalUrl(path: string): string {
+  try {
+    return new URL(path, env.CORS_ORIGIN).toString();
+  } catch {
+    return `https://www.goagentflow.com${path}`;
+  }
+}
+
+function buildEmailLegalFooter(extraLine?: string): string {
+  const privacyUrl = escapeHtml(absoluteHubLegalUrl(HUB_PRIVACY_PATH));
+  const termsUrl = escapeHtml(absoluteHubLegalUrl(HUB_TERMS_PATH));
+  const extra = extraLine
+    ? `<p style="color: #aaa; font-size: 12px; margin: 0 0 8px 0;">${extraLine}</p>`
+    : '';
+
+  return `
+      <hr style="border: none; border-top: 1px solid #eee; margin: 24px 0;" />
+      ${extra}
+      <p style="color: #aaa; font-size: 12px; margin: 0;">
+        <a href="${termsUrl}" style="color: #6b7280; text-decoration: underline;">Hub Terms</a>
+        &nbsp;|&nbsp;
+        <a href="${privacyUrl}" style="color: #6b7280; text-decoration: underline;">Hub Privacy Notice</a>
+      </p>
+    `.trim();
 }
 
 async function sendEmail(to: string, subject: string, html: string): Promise<void> {
@@ -182,8 +210,7 @@ function buildInviteHtml(hubName: string, inviterName: string, portalUrl: string
         <a href="${portalUrl}" style="display: inline-block; padding: 14px 32px; background: #6366f1; color: #fff; text-decoration: none; border-radius: 8px; font-weight: bold;">Open your hub</a>
       </div>
       <p style="color: #888; font-size: 14px;">You'll be asked to verify your email address when you open the hub.</p>
-      <hr style="border: none; border-top: 1px solid #eee; margin: 24px 0;" />
-      <p style="color: #aaa; font-size: 12px;">Questions? Just reply to this email.</p>
+      ${buildEmailLegalFooter('Questions? Just reply to this email.')}
     </div>
   `.trim();
 }
@@ -202,8 +229,7 @@ function buildVerificationCodeHtml(code: string, hubName: string): string {
       </div>
       <p style="color: #888; font-size: 14px; margin: 0 0 8px 0;">This code expires in 10 minutes.</p>
       <p style="color: #888; font-size: 14px; margin: 0;">If you didn't request this, you can ignore this email.</p>
-      <hr style="border: none; border-top: 1px solid #eee; margin: 24px 0;" />
-      <p style="color: #aaa; font-size: 12px;">AgentFlow</p>
+      ${buildEmailLegalFooter()}
     </div>
   `.trim();
 }
@@ -235,8 +261,7 @@ function buildMessageNotificationHtml({
       <div style="text-align: center; margin-bottom: 24px;">
         <a href="${ctaUrl}" style="display: inline-block; padding: 14px 32px; background: #6366f1; color: #fff; text-decoration: none; border-radius: 8px; font-weight: bold;">${ctaLabel}</a>
       </div>
-      <hr style="border: none; border-top: 1px solid #eee; margin: 24px 0;" />
-      <p style="color: #aaa; font-size: 12px;">AgentFlow</p>
+      ${buildEmailLegalFooter()}
     </div>
   `.trim();
 }
@@ -276,8 +301,7 @@ function buildPortalAccessRequestHtml({
       <p style="color: #888; font-size: 14px; margin: 0;">
         Add the teammate from Members/Invites to grant portal message access.
       </p>
-      <hr style="border: none; border-top: 1px solid #eee; margin: 24px 0;" />
-      <p style="color: #aaa; font-size: 12px;">AgentFlow</p>
+      ${buildEmailLegalFooter()}
     </div>
   `.trim();
 }
@@ -295,8 +319,7 @@ function buildAccessRecoveryHtml(accessUrl: string): string {
       </div>
       <p style="color: #888; font-size: 14px; margin: 0 0 8px 0;">This secure link expires in 20 minutes.</p>
       <p style="color: #888; font-size: 14px; margin: 0;">If you didn't request this, you can ignore this email.</p>
-      <hr style="border: none; border-top: 1px solid #eee; margin: 24px 0;" />
-      <p style="color: #aaa; font-size: 12px;">AgentFlow</p>
+      ${buildEmailLegalFooter()}
     </div>
   `.trim();
 }
