@@ -71,6 +71,7 @@ function parseSectionName(value: unknown): string | null {
 
 function toEventTitle(eventType: string): string {
   const labels: Record<string, string> = {
+    'portal.login': 'Client login',
     'hub.viewed': 'Hub viewed',
     'proposal.viewed': 'Proposal viewed',
     'proposal.slide_time': 'Proposal engagement',
@@ -109,6 +110,8 @@ function toResourceLink(hubId: string | null, eventType: string, metadata: Recor
     if (section === 'the questionnaire') return `/hub/${hubId}/questionnaire`;
   }
 
+  if (eventType === 'portal.login') return `/hub/${hubId}/overview`;
+
   if (eventType.startsWith('proposal.')) return `/hub/${hubId}/proposal`;
   if (eventType.startsWith('video.')) return `/hub/${hubId}/videos`;
   if (eventType.startsWith('document.')) return `/hub/${hubId}/documents`;
@@ -133,6 +136,13 @@ function toActivityDetails(eventType: string, metadata: Record<string, unknown>,
       description: section
         ? `${actorName} viewed ${section}.`
         : `${actorName} opened the hub.`,
+    };
+  }
+  if (eventType === 'portal.login') {
+    return {
+      type: 'join',
+      title: 'Client login',
+      description: `${actorName} logged into the client hub.`,
     };
   }
 

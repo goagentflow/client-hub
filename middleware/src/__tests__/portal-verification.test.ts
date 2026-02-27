@@ -18,6 +18,8 @@ const mockIncrementAttempts = vi.fn();
 const mockMarkVerificationUsed = vi.fn();
 const mockCreateDeviceRecord = vi.fn();
 const mockFindValidDevice = vi.fn();
+const mockHubMemberUpsert = vi.fn();
+const mockHubEventCreate = vi.fn();
 
 vi.mock('../db/portal-verification-queries.js', () => ({
   findHubAccessMethod: (...args: unknown[]) => mockFindHubAccessMethod(...args),
@@ -33,15 +35,22 @@ vi.mock('../db/portal-verification-queries.js', () => ({
 const mockSendVerificationCode = vi.fn().mockResolvedValue(undefined);
 vi.mock('../services/email.service.js', () => ({
   sendVerificationCode: (...args: unknown[]) => mockSendVerificationCode(...args),
+  sendAccessRecoveryEmail: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock('../db/prisma.js', () => ({ getPrisma: () => ({}) }));
+vi.mock('../db/prisma.js', () => ({
+  getPrisma: () => ({
+    hubMember: { upsert: (...args: unknown[]) => mockHubMemberUpsert(...args) },
+    hubEvent: { create: (...args: unknown[]) => mockHubEventCreate(...args) },
+  }),
+}));
 
 let app: Express;
 beforeAll(async () => { app = await loadApp(); });
 beforeEach(() => { vi.clearAllMocks(); });
 
 const EMAIL_HUB = { id: 'hub-e', companyName: 'Test', accessMethod: 'email', isPublished: true };
+const TENANT_EMAIL_HUB = { id: 'hub-e', companyName: 'Test', accessMethod: 'email', isPublished: true, tenantId: 'tenant-1' };
 const PW_HUB = { id: 'hub-pw', companyName: 'Test', accessMethod: 'password', isPublished: true };
 
 describe('GET /public/hubs/:hubId/access-method', () => {
@@ -127,6 +136,39 @@ describe('POST /public/hubs/:hubId/verify-code', () => {
     expect(res.body.data.valid).toBe(true);
     expect(typeof res.body.data.token).toBe('string');
     expect(typeof res.body.data.deviceToken).toBe('string');
+  });
+
+  it('records portal.login event after successful code verification', async () => {
+    const crypto = await import('node:crypto');
+    const hash = crypto.createHash('sha256').update('123456').digest('hex');
+
+    mockFindHubAccessMethod.mockResolvedValueOnce(TENANT_EMAIL_HUB);
+    mockFindActiveVerification.mockResolvedValueOnce({
+      id: 'v-1', codeHash: hash, attempts: 0, used: false,
+      expiresAt: new Date(Date.now() + 600000),
+    });
+    mockMarkVerificationUsed.mockResolvedValueOnce({});
+    mockFindPortalContact.mockResolvedValueOnce({ id: 'c-1', name: 'Test Client' });
+    mockCreateDeviceRecord.mockResolvedValueOnce({});
+    mockHubMemberUpsert.mockResolvedValueOnce({});
+    mockHubEventCreate.mockResolvedValueOnce({});
+
+    const res = await request(app)
+      .post('/api/v1/public/hubs/hub-vc-8/verify-code')
+      .send({ email: 'a@t.com', code: '123456' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.valid).toBe(true);
+    expect(mockHubEventCreate).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        hubId: 'hub-vc-8',
+        tenantId: 'tenant-1',
+        eventType: 'portal.login',
+        userEmail: 'a@t.com',
+        userName: 'Test Client',
+        metadata: { method: 'code' },
+      }),
+    }));
   });
 
   it('rejects correct code when hub switched to password (method enforcement)', async () => {
@@ -229,6 +271,31 @@ describe('POST /public/hubs/:hubId/verify-device', () => {
     expect(res.status).toBe(200);
     expect(res.body.data.valid).toBe(true);
     expect(res.body.data.token).toBeDefined();
+  });
+
+  it('records portal.login event after successful device verification', async () => {
+    mockFindHubAccessMethod.mockResolvedValueOnce(TENANT_EMAIL_HUB);
+    mockFindValidDevice.mockResolvedValueOnce({ id: 'd-1' });
+    mockFindPortalContact.mockResolvedValueOnce({ id: 'c-1', name: 'Client Name' });
+    mockHubMemberUpsert.mockResolvedValueOnce({});
+    mockHubEventCreate.mockResolvedValueOnce({});
+
+    const res = await request(app)
+      .post('/api/v1/public/hubs/hub-d-5/verify-device')
+      .send({ email: 'a@t.com', deviceToken: 'tok' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.valid).toBe(true);
+    expect(mockHubEventCreate).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        hubId: 'hub-d-5',
+        tenantId: 'tenant-1',
+        eventType: 'portal.login',
+        userEmail: 'a@t.com',
+        userName: 'Client Name',
+        metadata: { method: 'device' },
+      }),
+    }));
   });
 
   it('rejects device token when hub switched to password', async () => {

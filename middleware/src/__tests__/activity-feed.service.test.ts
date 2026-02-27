@@ -37,6 +37,23 @@ describe('activity-feed.service', () => {
     expect(item.resourceLink).toBe('/hub/hub-1/documents');
   });
 
+  it('maps portal.login to client login details', () => {
+    const item = mapHubEventToActivityFeedItem({
+      id: 'evt-4',
+      hubId: 'hub-1',
+      eventType: 'portal.login',
+      userName: 'Alex Torres',
+      userEmail: 'alex@client.com',
+      createdAt: new Date('2026-02-27T10:00:00.000Z'),
+      metadata: { method: 'code' },
+    });
+
+    expect(item.type).toBe('join');
+    expect(item.title).toBe('Client login');
+    expect(item.description).toContain('logged into the client hub');
+    expect(item.resourceLink).toBe('/hub/hub-1/overview');
+  });
+
   it('falls back gracefully for unknown events', () => {
     const item = mapHubEventToActivityFeedItem({
       id: 'evt-3',

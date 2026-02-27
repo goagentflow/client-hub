@@ -88,6 +88,32 @@ async function issuePortalToken(
   return builder.sign(secret);
 }
 
+async function recordPortalLoginEvent(params: {
+  hubId: string;
+  tenantId: string | null | undefined;
+  email: string;
+  name: string | null;
+  method: 'code' | 'device';
+}): Promise<void> {
+  const { hubId, tenantId, email, name, method } = params;
+  if (!tenantId) return;
+
+  try {
+    await getPrisma().hubEvent.create({
+      data: {
+        hubId,
+        tenantId,
+        eventType: 'portal.login',
+        userEmail: email,
+        userName: name,
+        metadata: { method },
+      },
+    });
+  } catch (err) {
+    logger.warn({ err, hubId, email }, 'Failed to record portal login event');
+  }
+}
+
 // GET /public/hubs/:hubId/access-method
 portalVerificationRouter.get(
   '/hubs/:hubId/access-method',
@@ -219,6 +245,14 @@ portalVerificationRouter.post(
         });
       }
 
+      await recordPortalLoginEvent({
+        hubId,
+        tenantId: hub.tenantId,
+        email,
+        name: contact.name || null,
+        method: 'code',
+      });
+
       res.json({ data: { valid: true, token, deviceToken: deviceTokenRaw } });
     } catch (err) { next(err); }
   },
@@ -272,6 +306,15 @@ portalVerificationRouter.post(
           lastActiveAt: new Date(),
         });
       }
+
+      await recordPortalLoginEvent({
+        hubId,
+        tenantId: hub.tenantId,
+        email,
+        name: contact.name || null,
+        method: 'device',
+      });
+
       res.json({ data: { valid: true, token } });
     } catch (err) { next(err); }
   },
