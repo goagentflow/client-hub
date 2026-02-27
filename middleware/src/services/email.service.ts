@@ -2,7 +2,7 @@
  * Email service — sends verification codes via Resend REST API.
  *
  * Fire-and-forget pattern: callers dispatch without awaiting.
- * If RESEND_API_KEY is not set, logs the code (dev/demo only).
+ * If RESEND_API_KEY is not set, email sends are skipped with non-sensitive logs.
  */
 
 import { env } from '../config/env.js';
@@ -45,10 +45,6 @@ export async function sendVerificationCode(
   code: string,
   hubName: string,
 ): Promise<void> {
-  if (!env.RESEND_API_KEY) {
-    logger.warn({ to, code, hubName }, '[Email] No RESEND_API_KEY — logging code instead of sending');
-  }
-
   await sendEmail(
     to,
     `Your access code for ${escapeHtml(hubName)}`,
@@ -143,6 +139,17 @@ export async function sendPortalAccessRequestNotification(
       hubUrl: escapeHtml(details.hubUrl),
       ...(details.requestNote ? { requestNote: escapeHtml(details.requestNote) } : {}),
     }),
+  );
+}
+
+export async function sendAccessRecoveryEmail(
+  to: string,
+  accessUrl: string,
+): Promise<void> {
+  await sendEmail(
+    to,
+    "Here's your way back in",
+    buildAccessRecoveryHtml(escapeHtml(accessUrl)),
   );
 }
 
@@ -249,6 +256,25 @@ function buildPortalAccessRequestHtml({
       <p style="color: #888; font-size: 14px; margin: 0;">
         Add the teammate from Members/Invites to grant portal message access.
       </p>
+      <hr style="border: none; border-top: 1px solid #eee; margin: 24px 0;" />
+      <p style="color: #aaa; font-size: 12px;">AgentFlow</p>
+    </div>
+  `.trim();
+}
+
+function buildAccessRecoveryHtml(accessUrl: string): string {
+  return `
+    <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">
+      Your AgentFlow links - all in one place.
+    </div>
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 560px; margin: 0 auto; padding: 32px;">
+      <h2 style="color: #1a1a2e; margin-bottom: 8px;">Your AgentFlow links</h2>
+      <p style="color: #555; margin-bottom: 24px;">Here are your AgentFlow links - all in one place.</p>
+      <div style="text-align: center; margin-bottom: 24px;">
+        <a href="${accessUrl}" style="display: inline-block; padding: 14px 32px; background: #6366f1; color: #fff; text-decoration: none; border-radius: 8px; font-weight: bold;">Open My AgentFlow</a>
+      </div>
+      <p style="color: #888; font-size: 14px; margin: 0 0 8px 0;">This secure link expires in 20 minutes.</p>
+      <p style="color: #888; font-size: 14px; margin: 0;">If you didn't request this, you can ignore this email.</p>
       <hr style="border: none; border-top: 1px solid #eee; margin: 24px 0;" />
       <p style="color: #aaa; font-size: 12px;">AgentFlow</p>
     </div>

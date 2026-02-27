@@ -15,6 +15,7 @@ import { healthRouter } from './routes/health.js';
 import { apiRouter } from './routes/index.js';
 import { publicRouter } from './routes/public.route.js';
 import { portalVerificationRouter } from './routes/portal-verification.route.js';
+import { accessRecoveryRouter } from './routes/access-recovery.route.js';
 
 const app = express();
 
@@ -58,6 +59,7 @@ app.use('/health', healthRouter);
 // Public routes (no auth, rate-limited)
 app.use('/api/v1/public', publicRouter);
 app.use('/api/v1/public', portalVerificationRouter);
+app.use('/api/v1/public', accessRecoveryRouter);
 
 // API v1 routes (auth required)
 app.use('/api/v1', authMiddleware, injectRepository, apiRouter);

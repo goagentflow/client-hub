@@ -191,7 +191,7 @@ export function RedirectByRole() {
 
   // Redirect based on role
   if (authData.user.role === "staff") {
-    return <Navigate to="/hubs" replace />;
+    return <Navigate to="/launcher" replace />;
   }
 
   // Client: redirect to their first hub

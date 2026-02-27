@@ -23,7 +23,7 @@ const Login = () => {
   // Redirect if already authenticated
   useEffect(() => {
     if (authData?.user) {
-      navigate(authData.user.role === "staff" ? "/hubs" : "/", { replace: true });
+      navigate(authData.user.role === "staff" ? "/launcher" : "/", { replace: true });
     }
   }, [authData, navigate]);
 

@@ -10,6 +10,7 @@ import HubList from "./pages/HubList";
 import HubDetail from "./pages/HubDetail";
 import PortalDetail from "./pages/PortalDetail";
 import LeadershipPortfolio from "./pages/LeadershipPortfolio";
+import StaffLauncher from "./pages/StaffLauncher";
 import NotFound from "./pages/NotFound";
 import { RequireStaff, RequireAdmin, RequireClient } from "./routes/guards";
 import { setUnauthorizedHandler, setTokenGetter, isMockApiEnabled, ApiRequestError } from "./services/api";
@@ -72,7 +73,7 @@ function MsalRedirectHandler() {
     completeMsalRedirect().then((user) => {
       if (user) {
         qc.invalidateQueries({ queryKey: ["auth"] });
-        navigate(user.role === "staff" ? "/hubs" : "/", { replace: true });
+        navigate(user.role === "staff" ? "/launcher" : "/", { replace: true });
       }
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -92,6 +93,14 @@ const App = () => (
         <Routes>
           <Route path="/" element={<Index />} />
           <Route path="/login" element={<Login />} />
+          <Route
+            path="/launcher"
+            element={
+              <RequireStaff>
+                <StaffLauncher />
+              </RequireStaff>
+            }
+          />
           <Route
             path="/hubs"
             element={

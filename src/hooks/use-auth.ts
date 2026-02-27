@@ -60,7 +60,7 @@ export function useLogin() {
       queryClient.invalidateQueries({ queryKey: authKeys.all });
 
       if (user.role === "staff") {
-        navigate("/hubs");
+        navigate("/launcher");
       } else {
         navigate("/");
       }
