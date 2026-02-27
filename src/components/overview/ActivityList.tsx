@@ -25,12 +25,26 @@ const formatTimeAgo = (isoDate: string) => {
 };
 
 export function ActivityList({ activities, clientDomain, onViewAll }: ActivityListProps) {
+  const normalisedDomain = clientDomain.toLowerCase();
+  const latestClientActivity = activities.find((activity) =>
+    activity.actor?.email?.toLowerCase().includes(normalisedDomain)
+  );
+
   return (
     <Card>
       <CardHeader>
         <CardTitle className="text-[hsl(var(--bold-royal-blue))]">
           Activity
         </CardTitle>
+        {latestClientActivity ? (
+          <p className="text-sm text-[hsl(var(--medium-grey))]">
+            Last client activity: {latestClientActivity.actor?.name || "Client"} · {formatTimeAgo(latestClientActivity.timestamp)}
+          </p>
+        ) : (
+          <p className="text-sm text-[hsl(var(--medium-grey))]">
+            No client activity tracked yet
+          </p>
+        )}
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
@@ -52,10 +66,14 @@ export function ActivityList({ activities, clientDomain, onViewAll }: ActivityLi
                     <CheckCircle className="w-5 h-5 text-[hsl(var(--sage-green))] mt-1" />
                   )}
                   <div className="flex-1">
-                    <p className="text-sm text-[hsl(var(--dark-grey))]">
-                      {activity.description}
+                    <p className="text-sm font-medium text-[hsl(var(--dark-grey))]">
+                      {activity.title}
                     </p>
-                    <div className="flex items-center gap-1 mt-1">
+                    <p className="mt-1 text-sm text-[hsl(var(--medium-grey))]">
+                      {activity.description || "Activity recorded"}
+                    </p>
+                    <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-[hsl(var(--medium-grey))]">
+                      {activity.actor?.name && <span>By {activity.actor.name}</span>}
                       <Clock className="w-3 h-3 text-[hsl(var(--medium-grey))]" />
                       <span className="text-xs text-[hsl(var(--medium-grey))]">
                         {formatTimeAgo(activity.timestamp)}

@@ -164,8 +164,14 @@ export function ClientHubOverviewSection({
                 >
                   <div className="w-2 h-2 rounded-full bg-[hsl(var(--gradient-blue))] mt-2" />
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm text-[hsl(var(--dark-grey))]">{item.description}</p>
+                    <p className="text-sm font-medium text-[hsl(var(--dark-grey))]">
+                      {item.title}
+                    </p>
+                    <p className="text-sm text-[hsl(var(--medium-grey))]">
+                      {item.description || "Activity recorded"}
+                    </p>
                     <p className="text-xs text-[hsl(var(--medium-grey))]">
+                      {item.actor?.name ? `By ${item.actor.name} · ` : ""}
                       {new Date(item.timestamp).toLocaleString("en-US", {
                         month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
                       })}

@@ -12,6 +12,7 @@ import { sendItem, sendList, send204 } from '../utils/response.js';
 import { parsePagination } from '../utils/pagination.js';
 import { Errors } from '../middleware/error-handler.js';
 import { revokePortalAccess } from '../services/access-revocation.service.js';
+import { mapHubEventToActivityFeedItem } from '../services/activity-feed.service.js';
 import { syncMemberActivityToCrm } from '../services/crm-sync.service.js';
 import { upsertStaffMember } from '../services/membership.service.js';
 import type { Request, Response, NextFunction } from 'express';
@@ -199,13 +200,7 @@ hubsRouter.get('/:hubId/activity', requireStaffAccess, async (req: Request, res:
       req.repo!.hubEvent.count({ where: { hubId } }),
     ]);
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const items = events.map((e: any) => ({
-      id: e.id, type: 'view', title: String(e.eventType || ''),
-      description: '', timestamp: e.createdAt,
-      actor: e.userName ? { name: e.userName, email: e.userEmail || '', avatarUrl: null } : null,
-      resourceLink: null,
-    }));
+    const items = events.map(mapHubEventToActivityFeedItem);
 
     sendList(res, items, { page, pageSize, totalItems, totalPages: Math.ceil(totalItems / pageSize) });
   } catch (err) {
