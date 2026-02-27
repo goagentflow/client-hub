@@ -3,6 +3,7 @@ import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { HubSidebar } from "./HubSidebar";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -45,7 +46,7 @@ export function HubLayout({
         {/* Header */}
         <header className="sticky top-0 z-50 flex h-16 items-center justify-between border-b bg-white px-4 md:px-6">
           <div className="flex items-center gap-4">
-            <SidebarTrigger className="md:hidden" />
+            <SidebarTrigger className="md:hidden" aria-label="Toggle sidebar navigation" />
             <img
               src="https://www.goagentflow.com/assets/images/AgentFlowLogo.svg"
               alt="AgentFlow"
@@ -72,11 +73,18 @@ export function HubLayout({
             
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Avatar className="h-9 w-9 cursor-pointer">
-                  <AvatarFallback className="bg-[hsl(var(--gradient-blue))] text-white">
-                    {initials}
-                  </AvatarFallback>
-                </Avatar>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Open user menu"
+                  className="h-9 w-9 rounded-full p-0"
+                >
+                  <Avatar className="h-9 w-9">
+                    <AvatarFallback className="bg-[hsl(var(--gradient-blue))] text-white">
+                      {initials}
+                    </AvatarFallback>
+                  </Avatar>
+                </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="bg-white">
                 <DropdownMenuItem className="text-[hsl(var(--medium-grey))] cursor-default">

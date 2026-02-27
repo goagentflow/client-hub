@@ -32,7 +32,7 @@ export function HubHeader({ hub, onSettings }: HubHeaderProps) {
         <Badge className={getStatusBadgeClass(hub.status)}>
           {hub.status.charAt(0).toUpperCase() + hub.status.slice(1)}
         </Badge>
-        <Button variant="ghost" size="icon" onClick={onSettings}>
+        <Button variant="ghost" size="icon" onClick={onSettings} aria-label="Open hub settings">
           <Settings className="w-5 h-5 text-[hsl(var(--medium-grey))]" />
         </Button>
       </div>

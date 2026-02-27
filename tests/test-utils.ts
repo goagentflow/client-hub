@@ -30,8 +30,8 @@ export async function loginAsStaff(page: Page): Promise<void> {
   await page.getByLabel(/password/i).fill(MOCK_STAFF_USER.password);
   await page.getByRole("button", { name: "Sign In", exact: true }).click();
 
-  // Wait for redirect to hubs list
-  await expect(page).toHaveURL(/\/hubs/);
+  // Staff can land on launcher (current flow) or hubs (legacy flow)
+  await expect(page).toHaveURL(/\/(launcher|hubs)/);
 }
 
 /**
@@ -106,8 +106,6 @@ export function expectNoConsoleErrors(errors: string[]): void {
  * Wait for loading spinner to disappear
  */
 export async function waitForLoading(page: Page): Promise<void> {
-  const spinner = page.locator('[class*="animate-spin"]');
-  if (await spinner.isVisible({ timeout: 1000 }).catch(() => false)) {
-    await spinner.waitFor({ state: "hidden", timeout: 10000 });
-  }
+  await page.waitForLoadState("networkidle");
+  await page.waitForTimeout(150);
 }

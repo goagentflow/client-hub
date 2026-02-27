@@ -27,7 +27,7 @@ export function VersionHistoryPanel({ versions, uploadedAt }: VersionHistoryPane
         {versions && versions.length > 0 ? (
           <>
             {versions.map((version, index) => (
-              <div key={version.id} className="flex items-center gap-2">
+              <div key={`${version.id}-${index}`} className="flex items-center gap-2">
                 {index === 0 && (
                   <Badge variant="secondary" className="text-xs">
                     Current

@@ -9,7 +9,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Search, Plus, ChevronDown, Loader2, BarChart3 } from "lucide-react";
 import { useHubs, useCurrentUser, useLogout } from "@/hooks";
 import { hasAdminAccess } from "@/types";
@@ -152,6 +152,12 @@ const HubList = () => {
               Client Hubs
             </TabsTrigger>
           </TabsList>
+          <TabsContent value="pitch" className="sr-only">
+            Pitch hubs selected
+          </TabsContent>
+          <TabsContent value="client" className="sr-only">
+            Client hubs selected
+          </TabsContent>
         </Tabs>
 
         {/* Search and Filter Bar */}
