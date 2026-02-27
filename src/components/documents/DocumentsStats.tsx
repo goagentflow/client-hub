@@ -41,7 +41,7 @@ export function DocumentsStats({ clientDocuments, internalDocuments }: Documents
     .slice(0, 3);
 
   return (
-    <div className="hidden xl:block fixed right-6 top-32 w-64 space-y-4">
+    <div className="w-64 space-y-4">
       <Card>
         <CardContent className="p-4 space-y-3">
           <h3 className="font-semibold text-[hsl(var(--dark-grey))]">Quick Stats</h3>

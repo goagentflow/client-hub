@@ -14,7 +14,6 @@ import type { Request, Response, NextFunction } from 'express';
 export const projectsRouter = Router({ mergeParams: true });
 
 projectsRouter.use(hubAccessMiddleware);
-projectsRouter.use(requireStaffAccess);
 
 // Verify project belongs to the hub (prevents cross-hub milestone access)
 async function verifyProjectOwnership(req: Request): Promise<void> {
@@ -86,7 +85,7 @@ projectsRouter.get('/:projectId', async (req: Request, res: Response, next: Next
 });
 
 // POST /hubs/:hubId/projects
-projectsRouter.post('/', async (req: Request, res: Response, next: NextFunction) => {
+projectsRouter.post('/', requireStaffAccess, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { name, description, status, startDate, targetEndDate, lead } = req.body;
     if (!name) throw Errors.badRequest('name is required');
@@ -112,7 +111,7 @@ projectsRouter.post('/', async (req: Request, res: Response, next: NextFunction)
 });
 
 // PATCH /hubs/:hubId/projects/:projectId
-projectsRouter.patch('/:projectId', async (req: Request, res: Response, next: NextFunction) => {
+projectsRouter.patch('/:projectId', requireStaffAccess, async (req: Request, res: Response, next: NextFunction) => {
   try {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const data: Record<string, any> = {};
@@ -147,7 +146,7 @@ projectsRouter.patch('/:projectId', async (req: Request, res: Response, next: Ne
 });
 
 // DELETE /hubs/:hubId/projects/:projectId (soft delete → cancelled)
-projectsRouter.delete('/:projectId', async (req: Request, res: Response, next: NextFunction) => {
+projectsRouter.delete('/:projectId', requireStaffAccess, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const existing = await req.repo!.hubProject.findFirst({
       where: { id: req.params.projectId, hubId: req.params.hubId },
@@ -167,7 +166,7 @@ projectsRouter.delete('/:projectId', async (req: Request, res: Response, next: N
 });
 
 // POST /hubs/:hubId/projects/:projectId/milestones
-projectsRouter.post('/:projectId/milestones', async (req: Request, res: Response, next: NextFunction) => {
+projectsRouter.post('/:projectId/milestones', requireStaffAccess, async (req: Request, res: Response, next: NextFunction) => {
   try {
     await verifyProjectOwnership(req);
     const { name, description, targetDate } = req.body;
@@ -196,7 +195,7 @@ projectsRouter.post('/:projectId/milestones', async (req: Request, res: Response
 });
 
 // PATCH /hubs/:hubId/projects/:projectId/milestones/:milestoneId
-projectsRouter.patch('/:projectId/milestones/:milestoneId', async (req: Request, res: Response, next: NextFunction) => {
+projectsRouter.patch('/:projectId/milestones/:milestoneId', requireStaffAccess, async (req: Request, res: Response, next: NextFunction) => {
   try {
     await verifyProjectOwnership(req);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -227,7 +226,7 @@ projectsRouter.patch('/:projectId/milestones/:milestoneId', async (req: Request,
 });
 
 // DELETE /hubs/:hubId/projects/:projectId/milestones/:milestoneId
-projectsRouter.delete('/:projectId/milestones/:milestoneId', async (req: Request, res: Response, next: NextFunction) => {
+projectsRouter.delete('/:projectId/milestones/:milestoneId', requireStaffAccess, async (req: Request, res: Response, next: NextFunction) => {
   try {
     await verifyProjectOwnership(req);
     // Verify milestone belongs to this project

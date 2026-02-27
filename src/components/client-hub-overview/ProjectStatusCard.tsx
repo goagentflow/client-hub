@@ -6,13 +6,10 @@
  * Handles 403 gracefully by hiding the card (RBAC).
  */
 
-import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   FolderKanban,
-  ChevronRight,
   CheckCircle2,
   AlertTriangle,
   Clock,
@@ -114,17 +111,9 @@ function ProjectMiniCard({ project }: { project: Project }) {
 }
 
 export function ProjectStatusCard({ hubId }: ProjectStatusCardProps) {
-  const navigate = useNavigate();
-
   const { data, isLoading, error } = useProjects(hubId, {
     status: "active", // Only show active projects on overview
   });
-
-  const handleViewAll = () => {
-    // Navigate to performance page (shows project-related narratives)
-    // No dedicated /projects route exists for portal clients
-    navigate(`/portal/${hubId}/performance`);
-  };
 
   // Handle 403 gracefully - hide card entirely (RBAC)
   // Check if error is a 403 (client doesn't have access to projects)
@@ -182,10 +171,10 @@ export function ProjectStatusCard({ hubId }: ProjectStatusCardProps) {
             </div>
             <div>
               <h3 className="font-semibold text-[hsl(var(--dark-grey))]">
-                No active projects
+                No active projects yet
               </h3>
               <p className="text-sm text-[hsl(var(--medium-grey))]">
-                Projects will appear here when they start
+                Your team is setting this up. Active projects will appear here soon.
               </p>
             </div>
           </div>
@@ -229,11 +218,12 @@ export function ProjectStatusCard({ hubId }: ProjectStatusCardProps) {
             ))}
           </div>
 
-          {/* View Performance CTA */}
-          <Button variant="outline" className="w-full" onClick={handleViewAll}>
-            View Project Performance
-            <ChevronRight className="h-4 w-4 ml-1" />
-          </Button>
+          {hasMore && (
+            <p className="text-sm text-[hsl(var(--medium-grey))]">
+              +{projects.length - MAX_PROJECTS_DISPLAY} more active project
+              {projects.length - MAX_PROJECTS_DISPLAY === 1 ? "" : "s"}.
+            </p>
+          )}
         </div>
       </CardContent>
     </Card>

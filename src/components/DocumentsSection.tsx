@@ -141,125 +141,131 @@ export function DocumentsSection() {
 
   return (
     <div className="flex-1 overflow-auto bg-background">
-      <div className="max-w-7xl mx-auto p-6 space-y-6">
-        {/* Top Bar */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <h1 className="text-3xl font-bold text-[hsl(var(--royal-blue))]">Documents</h1>
-          <Button
-            onClick={() => setUploadModalOpen(true)}
-            className="bg-[hsl(var(--gradient-blue))] hover:bg-[hsl(var(--gradient-blue))]/90 text-white"
-          >
-            <Upload className="h-4 w-4" />
-            Upload Document
-          </Button>
+      <div className="max-w-7xl mx-auto p-6">
+        <div className="xl:grid xl:grid-cols-[minmax(0,1fr)_16rem] xl:gap-6">
+          <div className="space-y-6">
+            {/* Top Bar */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <h1 className="text-3xl font-bold text-[hsl(var(--royal-blue))]">Documents</h1>
+              <Button
+                onClick={() => setUploadModalOpen(true)}
+                className="bg-[hsl(var(--gradient-blue))] hover:bg-[hsl(var(--gradient-blue))]/90 text-white"
+              >
+                <Upload className="h-4 w-4" />
+                Upload Document
+              </Button>
+            </div>
+
+            {/* Tabs */}
+            <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as DocumentVisibility)} className="w-full">
+              <TabsList className="w-full sm:w-auto">
+                <TabsTrigger value="client" className="flex-1 sm:flex-none">
+                  Client Documents
+                  <Badge variant="secondary" className="ml-2">
+                    {clientDocuments.length}
+                  </Badge>
+                </TabsTrigger>
+                <TabsTrigger value="internal" className="flex-1 sm:flex-none">
+                  Internal Documents
+                  <Badge variant="secondary" className="ml-2">
+                    {internalDocuments.length}
+                  </Badge>
+                </TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="client" className="space-y-6">
+                {/* Info Banner */}
+                <div className="bg-[hsl(var(--gradient-blue))]/10 border border-[hsl(var(--gradient-blue))]/20 rounded-lg p-4 flex items-center gap-3">
+                  <Eye className="h-5 w-5 text-[hsl(var(--gradient-blue))]" />
+                  <p className="text-sm text-[hsl(var(--dark-grey))]">
+                    These documents are visible to clients in the portal
+                  </p>
+                </div>
+
+                <Input
+                  placeholder="Search client documents..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+
+                <DocumentsTable
+                  documents={filteredDocs}
+                  visibility="client"
+                  selectedDocs={selectedDocs}
+                  onDocSelect={toggleDocSelection}
+                  onDocClick={setSelectedDocId}
+                  onDelete={handleDelete}
+                  onMoveVisibility={handleMoveVisibility}
+                  onDownload={handleDownload}
+                />
+              </TabsContent>
+
+              <TabsContent value="internal" className="space-y-6">
+                {/* Info Banner */}
+                <div className="bg-muted/50 border border-border rounded-lg p-4 flex items-center gap-3">
+                  <EyeOff className="h-5 w-5 text-[hsl(var(--medium-grey))]" />
+                  <p className="text-sm text-[hsl(var(--dark-grey))]">
+                    These documents are only visible to your team — clients cannot see them
+                  </p>
+                </div>
+
+                <Input
+                  placeholder="Search internal documents..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+
+                <DocumentsTable
+                  documents={filteredDocs}
+                  visibility="internal"
+                  selectedDocs={selectedDocs}
+                  onDocSelect={toggleDocSelection}
+                  onDocClick={setSelectedDocId}
+                  onDelete={handleDelete}
+                  onMoveVisibility={handleMoveVisibility}
+                  onDownload={handleDownload}
+                />
+              </TabsContent>
+            </Tabs>
+
+            <BulkActionsBar
+              selectedCount={selectedDocs.length}
+              currentVisibility={activeTab}
+              onDownload={handleBulkDownload}
+              onMoveVisibility={handleBulkMoveVisibility}
+              onChangeCategory={handleBulkChangeCategory}
+              onDelete={handleBulkDelete}
+            />
+
+            <UploadDocumentDialog
+              isOpen={uploadModalOpen}
+              onClose={() => setUploadModalOpen(false)}
+              onUpload={handleUpload}
+              defaultVisibility={activeTab}
+              isUploading={isUploading}
+            />
+
+            <DocumentDetailPanel
+              document={selectedDocument || null}
+              hubId={hubId}
+              engagement={engagement}
+              isOpen={!!selectedDocId}
+              onClose={() => setSelectedDocId(null)}
+              onSave={(updates) => updateDocument({ documentId: selectedDocId!, ...updates })}
+              onDelete={() => selectedDocId && handleDelete(selectedDocId)}
+              isSaving={isUpdating}
+              isDeleting={isDeleting}
+            />
+          </div>
+
+          <aside className="hidden xl:block">
+            <DocumentsStats
+              clientDocuments={clientDocuments}
+              internalDocuments={internalDocuments}
+            />
+          </aside>
         </div>
-
-        {/* Tabs */}
-        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as DocumentVisibility)} className="w-full">
-          <TabsList className="w-full sm:w-auto">
-            <TabsTrigger value="client" className="flex-1 sm:flex-none">
-              Client Documents
-              <Badge variant="secondary" className="ml-2">
-                {clientDocuments.length}
-              </Badge>
-            </TabsTrigger>
-            <TabsTrigger value="internal" className="flex-1 sm:flex-none">
-              Internal Documents
-              <Badge variant="secondary" className="ml-2">
-                {internalDocuments.length}
-              </Badge>
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="client" className="space-y-6">
-            {/* Info Banner */}
-            <div className="bg-[hsl(var(--gradient-blue))]/10 border border-[hsl(var(--gradient-blue))]/20 rounded-lg p-4 flex items-center gap-3">
-              <Eye className="h-5 w-5 text-[hsl(var(--gradient-blue))]" />
-              <p className="text-sm text-[hsl(var(--dark-grey))]">
-                These documents are visible to clients in the portal
-              </p>
-            </div>
-
-            <Input
-              placeholder="Search client documents..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-
-            <DocumentsTable
-              documents={filteredDocs}
-              visibility="client"
-              selectedDocs={selectedDocs}
-              onDocSelect={toggleDocSelection}
-              onDocClick={setSelectedDocId}
-              onDelete={handleDelete}
-              onMoveVisibility={handleMoveVisibility}
-              onDownload={handleDownload}
-            />
-          </TabsContent>
-
-          <TabsContent value="internal" className="space-y-6">
-            {/* Info Banner */}
-            <div className="bg-muted/50 border border-border rounded-lg p-4 flex items-center gap-3">
-              <EyeOff className="h-5 w-5 text-[hsl(var(--medium-grey))]" />
-              <p className="text-sm text-[hsl(var(--dark-grey))]">
-                These documents are only visible to your team — clients cannot see them
-              </p>
-            </div>
-
-            <Input
-              placeholder="Search internal documents..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-
-            <DocumentsTable
-              documents={filteredDocs}
-              visibility="internal"
-              selectedDocs={selectedDocs}
-              onDocSelect={toggleDocSelection}
-              onDocClick={setSelectedDocId}
-              onDelete={handleDelete}
-              onMoveVisibility={handleMoveVisibility}
-              onDownload={handleDownload}
-            />
-          </TabsContent>
-        </Tabs>
-
-        <BulkActionsBar
-          selectedCount={selectedDocs.length}
-          currentVisibility={activeTab}
-          onDownload={handleBulkDownload}
-          onMoveVisibility={handleBulkMoveVisibility}
-          onChangeCategory={handleBulkChangeCategory}
-          onDelete={handleBulkDelete}
-        />
-
-        <UploadDocumentDialog
-          isOpen={uploadModalOpen}
-          onClose={() => setUploadModalOpen(false)}
-          onUpload={handleUpload}
-          defaultVisibility={activeTab}
-          isUploading={isUploading}
-        />
-
-        <DocumentDetailPanel
-          document={selectedDocument || null}
-          hubId={hubId}
-          engagement={engagement}
-          isOpen={!!selectedDocId}
-          onClose={() => setSelectedDocId(null)}
-          onSave={(updates) => updateDocument({ documentId: selectedDocId!, ...updates })}
-          onDelete={() => selectedDocId && handleDelete(selectedDocId)}
-          isSaving={isUpdating}
-          isDeleting={isDeleting}
-        />
       </div>
-
-      <DocumentsStats
-        clientDocuments={clientDocuments}
-        internalDocuments={internalDocuments}
-      />
     </div>
   );
 }
