@@ -9,15 +9,31 @@ import { MeetingsSection } from "@/components/MeetingsSection";
 import { QuestionnaireSection } from "@/components/QuestionnaireSection";
 // Client hub components
 import { ProjectList } from "@/components/projects/ProjectList";
+import { ProjectDetailView } from "@/components/projects/ProjectDetailView";
 import { StaffDecisionsSection } from "@/components/StaffDecisionsSection";
 import { IntelligenceSection } from "@/components/IntelligenceSection";
-import { useLocation, useParams, Navigate } from "react-router-dom";
+import { useLocation, useParams, Navigate, useNavigate } from "react-router-dom";
 import { HubProvider } from "@/contexts/hub-context";
+
+function getProjectIdFromPath(path: string): string | null {
+  const marker = "/projects/";
+  const index = path.indexOf(marker);
+  if (index === -1) return null;
+  const rawProjectId = path.slice(index + marker.length).split("/")[0];
+  if (!rawProjectId) return null;
+  try {
+    return decodeURIComponent(rawProjectId);
+  } catch {
+    return rawProjectId;
+  }
+}
 
 export default function HubDetail() {
   const { hubId } = useParams<{ hubId: string }>();
   const location = useLocation();
+  const navigate = useNavigate();
   const path = location.pathname;
+  const projectId = getProjectIdFromPath(path);
 
   // Guard: hubId is required
   if (!hubId) {
@@ -31,7 +47,23 @@ export default function HubDetail() {
     if (path.includes('/videos')) return <VideosSection />;
     if (path.includes('/questionnaire')) return <QuestionnaireSection />;
     // Client hub sections
-    if (path.includes('/projects')) return <ProjectList hubId={hubId} />;
+    if (path.includes('/projects') && projectId) {
+      return (
+        <ProjectDetailView
+          hubId={hubId}
+          projectId={projectId}
+          onBack={() => navigate(`/hub/${hubId}/projects`)}
+        />
+      );
+    }
+    if (path.includes('/projects')) {
+      return (
+        <ProjectList
+          hubId={hubId}
+          onSelectProject={(selectedProjectId) => navigate(`/hub/${hubId}/projects/${selectedProjectId}`)}
+        />
+      );
+    }
     if (path.includes('/decisions')) return <StaffDecisionsSection />;
     if (path.includes('/intelligence')) return <IntelligenceSection />;
     // Shared sections (both hub types)
