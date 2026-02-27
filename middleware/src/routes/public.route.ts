@@ -55,19 +55,32 @@ function parsePitchPasswordHashMap(raw: string | undefined): Map<string, string>
   const map = new Map<string, string>();
   if (!raw || !raw.trim()) return map;
 
+  function addIfValid(key: string, value: string): void {
+    if (!SLUG_PATTERN.test(key)) return;
+    if (!HASH_PATTERN.test(value)) return;
+    map.set(key, value.toLowerCase());
+  }
+
   try {
     const parsed = JSON.parse(raw) as unknown;
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-      return map;
-    }
-
-    for (const [key, value] of Object.entries(parsed)) {
-      if (!SLUG_PATTERN.test(key)) continue;
-      if (typeof value !== 'string' || !HASH_PATTERN.test(value)) continue;
-      map.set(key, value.toLowerCase());
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      for (const [key, value] of Object.entries(parsed)) {
+        if (typeof value === 'string') {
+          addIfValid(key, value);
+        }
+      }
+      if (map.size > 0) {
+        return map;
+      }
     }
   } catch {
-    return map;
+    // Fall through: support a deploy-safe key=value;key=value format.
+  }
+
+  for (const pair of raw.split(';')) {
+    const [slug, hash] = pair.split('=');
+    if (!slug || !hash) continue;
+    addIfValid(slug.trim().toLowerCase(), hash.trim());
   }
 
   return map;

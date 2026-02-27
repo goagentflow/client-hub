@@ -43,7 +43,9 @@ steps:
     args:
       - '-c'
       - |
-        gcloud run deploy clienthub-api \
+        set -euo pipefail
+
+        SERVICE_URL=$$(gcloud run deploy clienthub-api \
           --image us-central1-docker.pkg.dev/$PROJECT_ID/agentflow-repo/clienthub-api:$BUILD_ID \
           --region us-central1 \
           --platform managed \
@@ -60,7 +62,7 @@ steps:
           --set-env-vars "AZURE_TENANT_ID=$$CLIENTHUB_AZURE_TENANT_ID" \
           --set-env-vars "STAFF_ROLE_NAME=Staff" \
           --set-env-vars "CORS_ORIGIN=https://www.goagentflow.com" \
-          --set-env-vars 'PITCH_PASSWORD_HASH_MAP={"dcm-ac17d8":"5e918d2","kao-7f3x9k":"51767b91"}' \
+          --set-env-vars "PITCH_PASSWORD_HASH_MAP=dcm-ac17d8=5e918d2;kao-7f3x9k=51767b91" \
           --set-env-vars "TRUST_PROXY=true" \
           --set-env-vars "LOG_LEVEL=info" \
           --set-secrets "DATABASE_URL=CLIENTHUB_DATABASE_URL:latest" \
@@ -68,8 +70,9 @@ steps:
           --set-secrets "RESEND_API_KEY=CLIENTHUB_RESEND_API_KEY:latest" \
           --set-secrets "SUPABASE_URL=CLIENTHUB_SUPABASE_URL:latest" \
           --set-secrets "SUPABASE_SERVICE_ROLE_KEY=CLIENTHUB_SUPABASE_SERVICE_ROLE_KEY:latest" \
-          --format "value(status.url)" | tail -1 > /workspace/service-url.txt
+          --format "value(status.url)")
 
+        echo "$$SERVICE_URL" > /workspace/service-url.txt
         echo "Deployed to: $(cat /workspace/service-url.txt)"
     waitFor: ['docker-push-immutable']
 
