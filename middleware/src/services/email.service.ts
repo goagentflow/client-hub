@@ -9,14 +9,19 @@ import { env } from '../config/env.js';
 import { logger } from '../utils/logger.js';
 
 const RESEND_API_URL = 'https://api.resend.com/emails';
+const REPLY_TO_EMAIL = 'hamish@goagentflow.com';
 
 function escapeHtml(str: string): string {
   return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
+function sanitizeHeaderValue(value: string): string {
+  return value.replace(/[\r\n]+/g, ' ').trim();
+}
+
 async function sendEmail(to: string, subject: string, html: string): Promise<void> {
   if (!env.RESEND_API_KEY) {
-    logger.warn({ to, subject }, '[Email] No RESEND_API_KEY — skipping email send');
+    logger.warn({ to }, '[Email] No RESEND_API_KEY — skipping email send');
     return;
   }
 
@@ -28,8 +33,9 @@ async function sendEmail(to: string, subject: string, html: string): Promise<voi
     },
     body: JSON.stringify({
       from: env.RESEND_FROM_EMAIL,
-      to: [to],
-      subject,
+      to: [to.trim().toLowerCase()],
+      subject: sanitizeHeaderValue(subject),
+      reply_to: [REPLY_TO_EMAIL],
       html,
     }),
   });
@@ -47,8 +53,8 @@ export async function sendVerificationCode(
 ): Promise<void> {
   await sendEmail(
     to,
-    `Your access code for ${escapeHtml(hubName)}`,
-    buildEmailHtml(code, escapeHtml(hubName)),
+    `Your AgentFlow sign-in code: ${code}`,
+    buildVerificationCodeHtml(code, escapeHtml(hubName)),
   );
 }
 
@@ -65,7 +71,7 @@ export async function sendPortalInvite(
 
   await sendEmail(
     to,
-    `You've been invited to ${escapeHtml(hubName)}`,
+    `You're invited to your AgentFlow hub for ${hubName}`,
     buildInviteHtml(
       escapeHtml(hubName),
       escapeHtml(inviterName),
@@ -84,13 +90,13 @@ export async function sendNewMessageNotification(
 ): Promise<void> {
   await sendEmail(
     to,
-    `New message from ${escapeHtml(senderName)} in ${escapeHtml(hubName)}`,
+    `New message in ${hubName}`,
     buildMessageNotificationHtml({
-      heading: 'New message from your agency team',
+      heading: 'You have a new message',
       senderName: escapeHtml(senderName),
       hubName: escapeHtml(hubName),
       messagePreview: escapeHtml(messagePreview),
-      ctaLabel: 'Open Portal',
+      ctaLabel: 'Open messages',
       ctaUrl: escapeHtml(portalUrl),
     }),
   );
@@ -155,33 +161,47 @@ export async function sendAccessRecoveryEmail(
 
 function buildInviteHtml(hubName: string, inviterName: string, portalUrl: string, message?: string): string {
   const messageBlock = message
-    ? `<p style="color: #555; margin-bottom: 24px; padding: 16px; background: #f9f9fb; border-radius: 8px; border-left: 3px solid #6366f1;"><em>"${message}"</em></p>`
+    ? `
+      <div style="margin-bottom: 24px; padding: 16px; background: #f9f9fb; border-radius: 8px; border-left: 3px solid #6366f1;">
+        <p style="color: #555; margin: 0 0 8px 0; font-size: 14px; font-weight: 600;">A note from ${inviterName}</p>
+        <p style="color: #444; margin: 0;"><em>"${message}"</em></p>
+      </div>
+    `
     : '';
 
   return `
+    <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">
+      ${inviterName} has shared your hub. Open it to see updates, docs, and messages.
+    </div>
     <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px;">
-      <h2 style="color: #1a1a2e; margin-bottom: 8px;">You've been invited</h2>
-      <p style="color: #555; margin-bottom: 24px;"><strong>${inviterName}</strong> has invited you to the <strong>${hubName}</strong> portal.</p>
+      <h2 style="color: #1a1a2e; margin-bottom: 8px;">You're in</h2>
+      <p style="color: #555; margin-bottom: 12px;"><strong>${inviterName}</strong> has invited you to your AgentFlow hub for <strong>${hubName}</strong>.</p>
+      <p style="color: #555; margin-bottom: 24px;">This is where we'll share progress, documents, and key updates.</p>
       ${messageBlock}
       <div style="text-align: center; margin-bottom: 24px;">
-        <a href="${portalUrl}" style="display: inline-block; padding: 14px 32px; background: #6366f1; color: #fff; text-decoration: none; border-radius: 8px; font-weight: bold;">Open Portal</a>
+        <a href="${portalUrl}" style="display: inline-block; padding: 14px 32px; background: #6366f1; color: #fff; text-decoration: none; border-radius: 8px; font-weight: bold;">Open your hub</a>
       </div>
-      <p style="color: #888; font-size: 14px;">You'll be asked to verify your email address when you open the portal.</p>
+      <p style="color: #888; font-size: 14px;">You'll be asked to verify your email address when you open the hub.</p>
       <hr style="border: none; border-top: 1px solid #eee; margin: 24px 0;" />
-      <p style="color: #aaa; font-size: 12px;">AgentFlow</p>
+      <p style="color: #aaa; font-size: 12px;">Questions? Just reply to this email.</p>
     </div>
   `.trim();
 }
 
-function buildEmailHtml(code: string, hubName: string): string {
+function buildVerificationCodeHtml(code: string, hubName: string): string {
   return `
+    <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">
+      Use this 6-digit code to sign in securely. Expires in 10 minutes.
+    </div>
     <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px;">
-      <h2 style="color: #1a1a2e; margin-bottom: 8px;">Your access code</h2>
-      <p style="color: #555; margin-bottom: 24px;">Use this code to access the <strong>${hubName}</strong> portal:</p>
+      <h2 style="color: #1a1a2e; margin-bottom: 8px;">Your sign-in code</h2>
+      <p style="color: #555; margin-bottom: 24px;">Enter this code to sign in to <strong>${hubName}</strong>:</p>
       <div style="background: #f4f4f8; border-radius: 8px; padding: 24px; text-align: center; margin-bottom: 24px;">
+        <p style="margin: 0 0 8px 0; color: #555; font-size: 13px; text-transform: uppercase; letter-spacing: .04em;">Verification code</p>
         <span style="font-size: 32px; letter-spacing: 8px; font-weight: bold; color: #1a1a2e;">${code}</span>
       </div>
-      <p style="color: #888; font-size: 14px;">This code expires in 10 minutes. If you didn't request this, you can safely ignore this email.</p>
+      <p style="color: #888; font-size: 14px; margin: 0 0 8px 0;">This code expires in 10 minutes.</p>
+      <p style="color: #888; font-size: 14px; margin: 0;">If you didn't request this, you can ignore this email.</p>
       <hr style="border: none; border-top: 1px solid #eee; margin: 24px 0;" />
       <p style="color: #aaa; font-size: 12px;">AgentFlow</p>
     </div>
@@ -265,13 +285,13 @@ function buildPortalAccessRequestHtml({
 function buildAccessRecoveryHtml(accessUrl: string): string {
   return `
     <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">
-      Your AgentFlow links - all in one place.
+      Use this secure link to open the hubs and reports shared with you.
     </div>
     <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 560px; margin: 0 auto; padding: 32px;">
-      <h2 style="color: #1a1a2e; margin-bottom: 8px;">Your AgentFlow links</h2>
-      <p style="color: #555; margin-bottom: 24px;">Here are your AgentFlow links - all in one place.</p>
+      <h2 style="color: #1a1a2e; margin-bottom: 8px;">Welcome back</h2>
+      <p style="color: #555; margin-bottom: 24px;">Use the link below to get back to everything shared with you.</p>
       <div style="text-align: center; margin-bottom: 24px;">
-        <a href="${accessUrl}" style="display: inline-block; padding: 14px 32px; background: #6366f1; color: #fff; text-decoration: none; border-radius: 8px; font-weight: bold;">Open My AgentFlow</a>
+        <a href="${accessUrl}" style="display: inline-block; padding: 14px 32px; background: #6366f1; color: #fff; text-decoration: none; border-radius: 8px; font-weight: bold;">Open my access</a>
       </div>
       <p style="color: #888; font-size: 14px; margin: 0 0 8px 0;">This secure link expires in 20 minutes.</p>
       <p style="color: #888; font-size: 14px; margin: 0;">If you didn't request this, you can ignore this email.</p>
