@@ -15,7 +15,6 @@ import {
   useHub,
 } from "@/hooks";
 import { PitchOverviewLayout } from "./client-overview";
-import { ClientWelcomeModal } from "./client-onboarding";
 import { ClientHubOverview } from "./client-hub-overview";
 import type { PortalMeta, PortalConfig, HeroContentType } from "@/types";
 
@@ -116,16 +115,13 @@ function StaffOverviewSection() {
 
   if (isClientHub) {
     return (
-      <>
-        <ClientWelcomeModal hubId={hubId} hubName={companyName} onDismiss={handleWelcomeClose} />
-        <ClientHubOverview
-          hubId={hubId}
-          hubName={companyName}
-          contactName={hub?.contactName}
-          welcomeHeadline={config?.welcomeHeadline}
-          welcomeMessage={config?.welcomeMessage}
-        />
-      </>
+      <ClientHubOverview
+        hubId={hubId}
+        hubName={companyName}
+        contactName={hub?.contactName}
+        welcomeHeadline={config?.welcomeHeadline}
+        welcomeMessage={config?.welcomeMessage}
+      />
     );
   }
 
@@ -216,16 +212,13 @@ function PortalOverviewSection({ hubMeta }: { hubMeta?: PortalMeta | null }) {
 
   if (isClientHubType) {
     return (
-      <>
-        <ClientWelcomeModal hubId={hubId} hubName={companyName} onDismiss={handleWelcomeClose} />
-        <ClientHubOverview
-          hubId={hubId}
-          hubName={companyName}
-          contactName={hubMeta?.contactName}
-          welcomeHeadline={config?.welcomeHeadline}
-          welcomeMessage={config?.welcomeMessage}
-        />
-      </>
+      <ClientHubOverview
+        hubId={hubId}
+        hubName={companyName}
+        contactName={hubMeta?.contactName}
+        welcomeHeadline={config?.welcomeHeadline}
+        welcomeMessage={config?.welcomeMessage}
+      />
     );
   }
 
