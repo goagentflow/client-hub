@@ -9,6 +9,8 @@ import { isMsalConfigured } from "@/config/msal";
 import { isMockApiEnabled } from "@/services/api";
 import { loginWithMsal } from "@/services/auth.service";
 
+const CURRENT_YEAR = new Date().getFullYear();
+
 const Login = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -171,7 +173,7 @@ const Login = () => {
               {/* Footer */}
               <div className="text-center pt-4">
                 <p className="text-sm text-medium-grey">
-                  © 2025 AgentFlow. All rights reserved.
+                  © {CURRENT_YEAR} AgentFlow. All rights reserved.
                 </p>
               </div>
             </div>

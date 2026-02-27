@@ -18,6 +18,8 @@ interface HubLayoutProps {
   viewMode?: "internal" | "client";
 }
 
+const CURRENT_YEAR = new Date().getFullYear();
+
 export function HubLayout({
   children,
   viewMode = "internal"
@@ -109,7 +111,7 @@ export function HubLayout({
             {/* Footer */}
             <footer className="mt-12 pt-6 border-t border-border/20">
               <p className="text-sm text-[hsl(var(--medium-grey))] text-center">
-                © 2024 AgentFlow. All rights reserved.
+                © {CURRENT_YEAR} AgentFlow. All rights reserved.
               </p>
             </footer>
           </main>
