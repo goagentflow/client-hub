@@ -82,7 +82,7 @@ steps:
     args:
       - '-c'
       - |
-        sleep 15
+        sleep 10
 
         SERVICE_URL=$$(cat /workspace/service-url.txt)
         if [ -z "$$SERVICE_URL" ]; then
@@ -91,7 +91,19 @@ steps:
         fi
 
         echo "Testing health endpoint at $$SERVICE_URL..."
-        curl -sf "$$SERVICE_URL/health" || exit 1
+        HEALTH_OK=0
+        for i in 1 2 3 4 5 6 7 8 9 10; do
+          if curl -sf "$$SERVICE_URL/health" >/dev/null; then
+            HEALTH_OK=1
+            break
+          fi
+          sleep 5
+        done
+
+        if [ "$$HEALTH_OK" != "1" ]; then
+          echo "FATAL: Health endpoint did not become ready in time"
+          exit 1
+        fi
 
         echo "Testing that auth rejects unauthenticated requests..."
         HTTP_CODE=$$(curl -s -o /dev/null -w "%{http_code}" "$$SERVICE_URL/api/v1/hubs")
