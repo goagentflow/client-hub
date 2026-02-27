@@ -38,7 +38,8 @@ describe('sendVerificationCode', () => {
     expect(mockWarn).toHaveBeenCalledOnce();
     const logged = JSON.stringify(mockWarn.mock.calls);
     expect(logged).not.toContain('123456');
-    expect(logged).toContain('client@example.com');
+    expect(logged).not.toContain('client@example.com');
+    expect(logged).toContain('example.com');
     expect(logged).toContain('No RESEND_API_KEY');
   });
 });

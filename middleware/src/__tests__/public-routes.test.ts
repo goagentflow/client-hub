@@ -174,3 +174,34 @@ describe('Public routes — verify-password contract', () => {
     expect(res.body.data.valid).toBe(false);
   });
 });
+
+describe('Public routes — pitch verify-password contract', () => {
+  it('returns valid=true for configured pitch slug with correct password', async () => {
+    const res = await request(app)
+      .post('/api/v1/public/pitch/dcm-ac17d8/verify-password')
+      .send({ password: 'hello' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.valid).toBe(true);
+    expect(typeof res.body.data.token).toBe('string');
+    expect(res.body.data.token.length).toBeGreaterThan(10);
+  });
+
+  it('returns valid=false for wrong password', async () => {
+    const res = await request(app)
+      .post('/api/v1/public/pitch/dcm-ac17d8/verify-password')
+      .send({ password: 'wrong-password' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data).toEqual({ valid: false });
+  });
+
+  it('returns valid=false for unknown slug (non-enumerating)', async () => {
+    const res = await request(app)
+      .post('/api/v1/public/pitch/unknown-slug/verify-password')
+      .send({ password: 'anything' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data).toEqual({ valid: false });
+  });
+});

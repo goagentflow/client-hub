@@ -32,6 +32,7 @@ const envSchema = z.object({
 
   // Portal auth
   PORTAL_TOKEN_SECRET: z.string().min(32).default('dev-portal-secret-change-in-production-min-32-chars'),
+  PITCH_PASSWORD_HASH_MAP: z.string().default('{}'),
 
   // Proxy trust (only enable behind a reverse proxy)
   TRUST_PROXY: z.coerce.boolean().default(false),

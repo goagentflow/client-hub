@@ -183,6 +183,7 @@ vi.mock('../config/env.js', () => ({
     AZURE_JWKS_URI: undefined,
     STAFF_ROLE_NAME: 'Staff',
     PORTAL_TOKEN_SECRET: 'test-portal-secret-must-be-at-least-32-chars-long',
+    PITCH_PASSWORD_HASH_MAP: '{"dcm-ac17d8":"5e918d2","kao-7f3x9k":"51767b91"}',
     TRUST_PROXY: false,
   },
 }));

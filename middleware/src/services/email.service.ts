@@ -21,6 +21,15 @@ function sanitizeHeaderValue(value: string): string {
   return value.replace(/[\r\n]+/g, ' ').trim();
 }
 
+function emailDomainForLogs(email: string): string {
+  const normalised = email.trim().toLowerCase();
+  const at = normalised.indexOf('@');
+  if (at < 0 || at === normalised.length - 1) {
+    return 'unknown';
+  }
+  return normalised.slice(at + 1);
+}
+
 function absoluteHubLegalUrl(path: string): string {
   try {
     return new URL(path, env.CORS_ORIGIN).toString();
@@ -49,7 +58,7 @@ function buildEmailLegalFooter(extraLine?: string): string {
 
 async function sendEmail(to: string, subject: string, html: string): Promise<void> {
   if (!env.RESEND_API_KEY) {
-    logger.warn({ to }, '[Email] No RESEND_API_KEY — skipping email send');
+    logger.warn({ emailDomain: emailDomainForLogs(to) }, '[Email] No RESEND_API_KEY — skipping email send');
     return;
   }
 
@@ -94,7 +103,10 @@ export async function sendPortalInvite(
   message?: string,
 ): Promise<void> {
   if (!env.RESEND_API_KEY) {
-    logger.warn({ to, hubName, inviterName }, '[Email] No RESEND_API_KEY — logging invite instead of sending');
+    logger.warn(
+      { emailDomain: emailDomainForLogs(to) },
+      '[Email] No RESEND_API_KEY — invite email skipped',
+    );
   }
 
   await sendEmail(

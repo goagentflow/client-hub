@@ -80,3 +80,21 @@ export async function consumeAccessRecoveryToken(
 
   return { status: 'expired_or_used' };
 }
+
+export async function pruneAccessRecoveryTokens(
+  retentionDays: number,
+): Promise<number> {
+  const safeDays = Number.isFinite(retentionDays) ? Math.max(1, Math.floor(retentionDays)) : 14;
+  const cutoff = new Date(Date.now() - safeDays * 24 * 60 * 60 * 1000);
+
+  const deleted = await getPrisma().$executeRaw`
+    DELETE FROM access_recovery_token
+    WHERE created_at < ${cutoff}
+      AND (
+        used_at IS NOT NULL
+        OR expires_at < now()
+      )
+  `;
+
+  return Number(deleted);
+}

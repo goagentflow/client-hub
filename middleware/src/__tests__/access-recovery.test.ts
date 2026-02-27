@@ -13,6 +13,7 @@ import { loadApp } from './test-setup.js';
 const mockFindAccessRecoveryHubsByEmail = vi.fn();
 const mockCreateAccessRecoveryToken = vi.fn();
 const mockConsumeAccessRecoveryToken = vi.fn();
+const mockPruneAccessRecoveryTokens = vi.fn();
 const mockSendAccessRecoveryEmail = vi.fn().mockResolvedValue(undefined);
 
 vi.mock('../db/access-recovery-queries.js', () => ({
@@ -22,6 +23,7 @@ vi.mock('../db/access-recovery-queries.js', () => ({
 vi.mock('../db/access-recovery-token-queries.js', () => ({
   createAccessRecoveryToken: (...args: unknown[]) => mockCreateAccessRecoveryToken(...args),
   consumeAccessRecoveryToken: (...args: unknown[]) => mockConsumeAccessRecoveryToken(...args),
+  pruneAccessRecoveryTokens: (...args: unknown[]) => mockPruneAccessRecoveryTokens(...args),
 }));
 
 vi.mock('../services/email.service.js', async (importOriginal) => {
@@ -45,6 +47,8 @@ beforeEach(() => {
   mockCreateAccessRecoveryToken.mockReset();
   mockCreateAccessRecoveryToken.mockResolvedValue(undefined);
   mockConsumeAccessRecoveryToken.mockReset();
+  mockPruneAccessRecoveryTokens.mockReset();
+  mockPruneAccessRecoveryTokens.mockResolvedValue(0);
   mockSendAccessRecoveryEmail.mockReset();
   mockSendAccessRecoveryEmail.mockResolvedValue(undefined);
 });
@@ -88,6 +92,7 @@ describe('POST /public/access/request-link', () => {
 
     expect(res.status).toBe(400);
     expect(res.body.code).toBe('BAD_REQUEST');
+    expect(mockPruneAccessRecoveryTokens).toHaveBeenCalledWith(14);
     expect(mockFindAccessRecoveryHubsByEmail).not.toHaveBeenCalled();
     expect(mockSendAccessRecoveryEmail).not.toHaveBeenCalled();
   });

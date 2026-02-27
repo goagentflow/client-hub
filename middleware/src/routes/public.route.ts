@@ -17,6 +17,10 @@ export const publicRouter = Router();
 const ISSUER = 'agentflow';
 const AUDIENCE = 'agentflow-portal';
 const secret = new TextEncoder().encode(env.PORTAL_TOKEN_SECRET);
+const PITCH_AUDIENCE = 'agentflow-pitch';
+const pitchSecret = new TextEncoder().encode(env.PORTAL_TOKEN_SECRET);
+const SLUG_PATTERN = /^[a-z0-9-]{3,80}$/;
+const HASH_PATTERN = /^[a-f0-9]{6,64}$/i;
 
 // Rate limiters
 const generalLimit = rateLimit({
@@ -36,6 +40,49 @@ const passwordLimit = rateLimit({
   keyGenerator: (req: Request) => `${req.ip || 'unknown'}:${req.params.hubId}`,
   message: { code: 'RATE_LIMITED', message: 'Too many attempts, please try again later' },
 });
+
+const pitchPasswordLimit = rateLimit({
+  windowMs: 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  validate: { keyGeneratorIpFallback: false },
+  keyGenerator: (req: Request) => `${req.ip || 'unknown'}:${req.params.slug || 'unknown'}:pitch`,
+  message: { code: 'RATE_LIMITED', message: 'Too many attempts, please try again later' },
+});
+
+function parsePitchPasswordHashMap(raw: string | undefined): Map<string, string> {
+  const map = new Map<string, string>();
+  if (!raw || !raw.trim()) return map;
+
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return map;
+    }
+
+    for (const [key, value] of Object.entries(parsed)) {
+      if (!SLUG_PATTERN.test(key)) continue;
+      if (typeof value !== 'string' || !HASH_PATTERN.test(value)) continue;
+      map.set(key, value.toLowerCase());
+    }
+  } catch {
+    return map;
+  }
+
+  return map;
+}
+
+function legacySimpleHash(input: string): string {
+  let hash = 0;
+  for (let i = 0; i < input.length; i += 1) {
+    hash = ((hash << 5) - hash) + input.charCodeAt(i);
+    hash |= 0;
+  }
+  return (hash >>> 0).toString(16);
+}
+
+const pitchPasswordHashes = parsePitchPasswordHashMap(env.PITCH_PASSWORD_HASH_MAP);
 
 // GET /public/hubs/:hubId/portal-meta — basic hub info (published only)
 publicRouter.get('/hubs/:hubId/portal-meta', generalLimit, async (req: Request, res: Response, next: NextFunction) => {
@@ -135,6 +182,50 @@ publicRouter.post('/hubs/:hubId/verify-password', passwordLimit, async (req: Req
       .setIssuedAt()
       .setExpirationTime('24h')
       .sign(secret);
+
+    res.json({ data: { valid: true, token } });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /public/pitch/:slug/verify-password — verify static pitch password (no UX change path)
+publicRouter.post('/pitch/:slug/verify-password', pitchPasswordLimit, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const slug = String(req.params.slug || '').trim().toLowerCase();
+    const password = typeof req.body?.password === 'string' ? req.body.password : '';
+
+    await new Promise(resolve => setTimeout(resolve, 100));
+
+    if (!SLUG_PATTERN.test(slug) || !password || password.length > 256) {
+      res.json({ data: { valid: false } });
+      return;
+    }
+
+    const expectedHash = pitchPasswordHashes.get(slug);
+    if (!expectedHash) {
+      res.json({ data: { valid: false } });
+      return;
+    }
+
+    const suppliedHash = legacySimpleHash(password).toLowerCase();
+    const stored = Buffer.from(expectedHash, 'utf8');
+    const supplied = Buffer.from(suppliedHash, 'utf8');
+    const valid = stored.length === supplied.length && timingSafeEqual(stored, supplied);
+
+    if (!valid) {
+      res.json({ data: { valid: false } });
+      return;
+    }
+
+    const token = await new SignJWT({ type: 'pitch', slug })
+      .setProtectedHeader({ alg: 'HS256' })
+      .setSubject(slug)
+      .setIssuer(ISSUER)
+      .setAudience(PITCH_AUDIENCE)
+      .setIssuedAt()
+      .setExpirationTime('12h')
+      .sign(pitchSecret);
 
     res.json({ data: { valid: true, token } });
   } catch (err) {

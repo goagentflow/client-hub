@@ -23,6 +23,7 @@ vi.mock('../db/portal-verification-queries.js', () => ({
 
 vi.mock('../services/email.service.js', () => ({
   sendVerificationCode: vi.fn().mockResolvedValue(undefined),
+  sendAccessRecoveryEmail: vi.fn().mockResolvedValue(undefined),
 }));
 
 const mockPrisma = {

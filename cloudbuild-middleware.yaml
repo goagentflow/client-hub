@@ -60,6 +60,7 @@ steps:
           --set-env-vars "AZURE_TENANT_ID=$$CLIENTHUB_AZURE_TENANT_ID" \
           --set-env-vars "STAFF_ROLE_NAME=Staff" \
           --set-env-vars "CORS_ORIGIN=https://www.goagentflow.com" \
+          --set-env-vars 'PITCH_PASSWORD_HASH_MAP={"dcm-ac17d8":"5e918d2","kao-7f3x9k":"51767b91"}' \
           --set-env-vars "TRUST_PROXY=true" \
           --set-env-vars "LOG_LEVEL=info" \
           --set-secrets "DATABASE_URL=CLIENTHUB_DATABASE_URL:latest" \

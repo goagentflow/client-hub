@@ -37,6 +37,7 @@ vi.mock('../db/prisma.js', () => ({ getPrisma: () => mockPrisma }));
 vi.mock('../services/email.service.js', () => ({
   sendVerificationCode: vi.fn().mockResolvedValue(undefined),
   sendPortalInvite: (...args: unknown[]) => mockSendPortalInvite(...args),
+  sendAccessRecoveryEmail: vi.fn().mockResolvedValue(undefined),
 }));
 vi.mock('../config/env.js', () => ({ env: INVITE_FIXTURES.ENV_MOCK }));
 vi.mock('../utils/logger.js', () => ({

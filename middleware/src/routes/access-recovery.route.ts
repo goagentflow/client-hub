@@ -12,7 +12,11 @@ import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
 import { env } from '../config/env.js';
 import { findAccessRecoveryHubsByEmail, type AccessRecoveryHubRow } from '../db/access-recovery-queries.js';
-import { createAccessRecoveryToken, consumeAccessRecoveryToken } from '../db/access-recovery-token-queries.js';
+import {
+  createAccessRecoveryToken,
+  consumeAccessRecoveryToken,
+  pruneAccessRecoveryTokens,
+} from '../db/access-recovery-token-queries.js';
 import { sendAccessRecoveryEmail } from '../services/email.service.js';
 import { logger } from '../utils/logger.js';
 import type { NextFunction, Request, Response } from 'express';
@@ -22,6 +26,8 @@ export const accessRecoveryRouter = Router();
 const TOKEN_EXPIRY_MS = 20 * 60 * 1000; // 20 minutes
 const ACTIVE_DAYS = 60;
 const RECOMMENDED_DAYS = 14;
+const RECOVERY_TOKEN_RETENTION_DAYS = 14;
+const RECOVERY_CLEANUP_INTERVAL_MS = 15 * 60 * 1000; // 15 minutes
 
 type ProductLabel = 'Client Hub' | 'Pitch Hub';
 
@@ -42,6 +48,9 @@ interface GroupedAccessItems {
   active: AccessItem[];
   past: AccessItem[];
 }
+
+let lastRecoveryCleanupAt = 0;
+let recoveryCleanupInFlight: Promise<void> | null = null;
 
 const requestLinkSchema = z.object({
   email: z.string().trim().toLowerCase().email().max(254),
@@ -145,6 +154,26 @@ function activeHubCount(groups: GroupedAccessItems): number {
   return groups.active.length + (groups.recommended ? 1 : 0);
 }
 
+function maybeRunRecoveryTokenCleanup(): void {
+  const now = Date.now();
+  if (recoveryCleanupInFlight) return;
+  if (now - lastRecoveryCleanupAt < RECOVERY_CLEANUP_INTERVAL_MS) return;
+
+  recoveryCleanupInFlight = pruneAccessRecoveryTokens(RECOVERY_TOKEN_RETENTION_DAYS)
+    .then((deleted) => {
+      if (deleted > 0) {
+        logger.info({ deleted }, 'Pruned access recovery tokens');
+      }
+      lastRecoveryCleanupAt = Date.now();
+    })
+    .catch((err) => {
+      logger.warn({ err }, 'Failed to prune access recovery tokens');
+    })
+    .finally(() => {
+      recoveryCleanupInFlight = null;
+    });
+}
+
 async function buildRecoveryDestination(email: string, groups: GroupedAccessItems): Promise<string> {
   if (hasSingleActiveHub(groups) && groups.recommended) {
     return groups.recommended.url;
@@ -197,6 +226,8 @@ accessRecoveryRouter.post(
   emailCooldownLimit,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
+      maybeRunRecoveryTokenCleanup();
+
       const parsed = requestLinkSchema.safeParse(req.body);
       if (!parsed.success) {
         res.status(400).json({ code: 'BAD_REQUEST', message: 'Valid email is required' });
@@ -242,6 +273,8 @@ accessRecoveryRouter.get(
   itemsLimit,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
+      maybeRunRecoveryTokenCleanup();
+
       const token = String(req.query.token || '').trim();
       if (!token) {
         res.status(400).json({ code: 'BAD_REQUEST', message: 'Token is required' });
