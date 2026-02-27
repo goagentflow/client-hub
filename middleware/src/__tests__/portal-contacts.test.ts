@@ -19,6 +19,7 @@ vi.mock('../db/portal-verification-queries.js', () => ({
   markVerificationUsed: vi.fn(),
   createDeviceRecord: vi.fn(),
   findValidDevice: vi.fn(),
+  pruneExpiredPortalAuthArtifacts: vi.fn().mockResolvedValue({ verificationsDeleted: 0, devicesDeleted: 0 }),
 }));
 
 vi.mock('../services/email.service.js', () => ({

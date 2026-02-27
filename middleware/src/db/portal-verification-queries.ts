@@ -86,3 +86,21 @@ export async function findValidDevice(
     },
   });
 }
+
+/** Remove expired verification/device artifacts */
+export async function pruneExpiredPortalAuthArtifacts(now: Date = new Date()) {
+  const prisma = getPrisma();
+  const [verificationResult, deviceResult] = await prisma.$transaction([
+    prisma.portalVerification.deleteMany({
+      where: { expiresAt: { lt: now } },
+    }),
+    prisma.portalDevice.deleteMany({
+      where: { expiresAt: { lt: now } },
+    }),
+  ]);
+
+  return {
+    verificationsDeleted: verificationResult.count,
+    devicesDeleted: deviceResult.count,
+  };
+}

@@ -8,6 +8,7 @@
 
 import { Request, Response, NextFunction } from 'express';
 import { logger } from '../utils/logger.js';
+import { emailDomainForLogs } from '../utils/email-log.js';
 import { getPrisma } from '../db/prisma.js';
 import { createTenantRepository } from '../db/tenant-repository.js';
 import type { HubAccess } from '../types/api.js';
@@ -67,7 +68,10 @@ export async function hubAccessMiddleware(req: Request, res: Response, next: Nex
       displayName: user.name,
       source: 'system',
       lastActiveAt: new Date(),
-    }).catch((err) => logger.warn({ err, hubId, email: user.email }, 'Failed to touch portal member activity'));
+    }).catch((err) => logger.warn(
+      { err, hubId, emailDomain: emailDomainForLogs(user.email) },
+      'Failed to touch portal member activity',
+    ));
 
     next();
     return;
@@ -88,7 +92,10 @@ export async function hubAccessMiddleware(req: Request, res: Response, next: Nex
       displayName: user.name,
       source: 'system',
       lastActiveAt: new Date(),
-    }).catch((err) => logger.warn({ err, hubId, email: user.email }, 'Failed to upsert staff member activity'));
+    }).catch((err) => logger.warn(
+      { err, hubId, emailDomain: emailDomainForLogs(user.email) },
+      'Failed to upsert staff member activity',
+    ));
 
     next();
     return;

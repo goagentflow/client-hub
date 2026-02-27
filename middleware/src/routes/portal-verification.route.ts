@@ -12,7 +12,9 @@ import { Router } from 'express';
 import { SignJWT } from 'jose';
 import { createHash, randomBytes, randomInt, timingSafeEqual } from 'node:crypto';
 import rateLimit from 'express-rate-limit';
+import { z } from 'zod';
 import { env } from '../config/env.js';
+import { emailDomainForLogs } from '../utils/email-log.js';
 import { logger } from '../utils/logger.js';
 import { getPrisma } from '../db/prisma.js';
 import { sendVerificationCode } from '../services/email.service.js';
@@ -26,6 +28,7 @@ import {
   markVerificationUsed,
   createDeviceRecord,
   findValidDevice,
+  pruneExpiredPortalAuthArtifacts,
 } from '../db/portal-verification-queries.js';
 import type { Request, Response, NextFunction } from 'express';
 
@@ -37,13 +40,47 @@ const secret = new TextEncoder().encode(env.PORTAL_TOKEN_SECRET);
 const CODE_EXPIRY_MS = 10 * 60 * 1000; // 10 minutes
 const DEVICE_EXPIRY_MS = 90 * 24 * 60 * 60 * 1000; // 90 days
 const MAX_CODE_ATTEMPTS = 5;
+const CLEANUP_INTERVAL_MS = 15 * 60 * 1000; // 15 minutes
+
+const requestCodeSchema = z.object({
+  email: z.string().trim().toLowerCase().email().max(254),
+});
+
+const verifyCodeSchema = z.object({
+  email: z.string().trim().toLowerCase().email().max(254),
+  code: z.string().regex(/^\d{6}$/),
+});
+
+const verifyDeviceSchema = z.object({
+  email: z.string().trim().toLowerCase().email().max(254),
+  deviceToken: z.string().regex(/^[a-f0-9]{64}$/i),
+});
+
+let lastCleanupAt = 0;
+let cleanupInFlight: Promise<void> | null = null;
 
 function sha256(input: string): string {
   return createHash('sha256').update(input).digest('hex');
 }
 
-function normaliseEmail(email: string): string {
-  return email.trim().toLowerCase();
+function maybeRunPortalAuthCleanup(): void {
+  const now = Date.now();
+  if (cleanupInFlight) return;
+  if (now - lastCleanupAt < CLEANUP_INTERVAL_MS) return;
+
+  cleanupInFlight = pruneExpiredPortalAuthArtifacts()
+    .then(({ verificationsDeleted, devicesDeleted }) => {
+      if (verificationsDeleted > 0 || devicesDeleted > 0) {
+        logger.info({ verificationsDeleted, devicesDeleted }, 'Pruned expired portal auth artifacts');
+      }
+      lastCleanupAt = Date.now();
+    })
+    .catch((err) => {
+      logger.warn({ err }, 'Failed to prune expired portal auth artifacts');
+    })
+    .finally(() => {
+      cleanupInFlight = null;
+    });
 }
 
 // Rate limiters
@@ -62,7 +99,11 @@ const codeRequestLimit = rateLimit({
 const emailCooldownLimit = rateLimit({
   windowMs: 60_000, max: 1, standardHeaders: true, legacyHeaders: false,
   validate: { keyGeneratorIpFallback: false },
-  keyGenerator: (req: Request) => `${req.params.hubId}:${(req.body?.email || '').trim().toLowerCase()}`,
+  keyGenerator: (req: Request) => {
+    const parsed = requestCodeSchema.safeParse(req.body);
+    const email = parsed.success ? parsed.data.email : 'invalid';
+    return `${req.params.hubId}:${email}`;
+  },
   message: { code: 'RATE_LIMITED', message: 'Please wait before requesting another code' },
 });
 
@@ -110,7 +151,7 @@ async function recordPortalLoginEvent(params: {
       },
     });
   } catch (err) {
-    logger.warn({ err, hubId, email }, 'Failed to record portal login event');
+    logger.warn({ err, hubId, emailDomain: emailDomainForLogs(email) }, 'Failed to record portal login event');
   }
 }
 
@@ -138,13 +179,15 @@ portalVerificationRouter.post(
   emailCooldownLimit,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const hubId = req.params.hubId as string;
-      const email = normaliseEmail(req.body?.email || '');
+      maybeRunPortalAuthCleanup();
 
-      if (!email) {
+      const hubId = req.params.hubId as string;
+      const parsedRequest = requestCodeSchema.safeParse(req.body);
+      if (!parsedRequest.success) {
         res.status(400).json({ code: 'BAD_REQUEST', message: 'Email is required' });
         return;
       }
+      const email = parsedRequest.data.email;
 
       // Production guard: email mode requires Resend config
       if (env.NODE_ENV === 'production' && !env.RESEND_API_KEY) {
@@ -165,7 +208,10 @@ portalVerificationRouter.post(
       if (contact && hub && hub.accessMethod === 'email') {
         await upsertVerification(hubId, email, codeHash, expiresAt);
         sendVerificationCode(email, code, hub.companyName)
-          .catch(err => logger.error({ err, hubId, email }, 'Failed to send verification email'));
+          .catch(err => logger.error(
+            { err, hubId, emailDomain: emailDomainForLogs(email) },
+            'Failed to send verification email',
+          ));
       }
 
       // Always return sent: true (enumeration prevention)
@@ -180,14 +226,15 @@ portalVerificationRouter.post(
   verifyLimit,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const hubId = req.params.hubId as string;
-      const email = normaliseEmail(req.body?.email || '');
-      const code = String(req.body?.code || '');
+      maybeRunPortalAuthCleanup();
 
-      if (!email || !code) {
+      const hubId = req.params.hubId as string;
+      const parsedRequest = verifyCodeSchema.safeParse(req.body);
+      if (!parsedRequest.success) {
         res.json({ data: { valid: false } });
         return;
       }
+      const { email, code } = parsedRequest.data;
 
       // Enforce email access method — reject if hub switched away
       const hub = await findHubAccessMethod(hubId);
@@ -264,14 +311,15 @@ portalVerificationRouter.post(
   verifyLimit,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const hubId = req.params.hubId as string;
-      const email = normaliseEmail(req.body?.email || '');
-      const deviceToken = String(req.body?.deviceToken || '');
+      maybeRunPortalAuthCleanup();
 
-      if (!email || !deviceToken) {
+      const hubId = req.params.hubId as string;
+      const parsedRequest = verifyDeviceSchema.safeParse(req.body);
+      if (!parsedRequest.success) {
         res.json({ data: { valid: false } });
         return;
       }
+      const { email, deviceToken } = parsedRequest.data;
 
       // Enforce email access method — reject if hub switched away
       const hub = await findHubAccessMethod(hubId);

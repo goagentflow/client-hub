@@ -30,6 +30,7 @@ import {
 } from '../services/membership.service.js';
 import { revokePortalAccess } from '../services/access-revocation.service.js';
 import { syncMemberActivityToCrm } from '../services/crm-sync.service.js';
+import { emailDomainForLogs } from '../utils/email-log.js';
 import { logger } from '../utils/logger.js';
 import { parsePagination } from '../utils/pagination.js';
 import { sendItem, sendList, send204, send501 } from '../utils/response.js';
@@ -557,7 +558,7 @@ invitesRouter.post('/', async (req: Request, res: Response, next: NextFunction) 
     // Fire-and-forget email
     const portalUrl = new URL('/clienthub/portal/' + hubId, env.CORS_ORIGIN).toString();
     sendPortalInvite(email, hub.companyName, req.user.name, portalUrl, message).catch((err) =>
-      logger.error({ err, email, hubId }, 'Failed to send invite email'),
+      logger.error({ err, hubId, emailDomain: emailDomainForLogs(email) }, 'Failed to send invite email'),
     );
 
     sendItem(res, invite, 201);

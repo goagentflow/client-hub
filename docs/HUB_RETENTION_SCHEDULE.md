@@ -13,8 +13,8 @@ This schedule defines default retention windows for hub-related data artifacts a
 | Data artifact | Purpose | Default retention | Enforcement |
 | --- | --- | --- | --- |
 | Access recovery token records (`access_recovery_token`) | One-time `/my-access` recovery links | 20 minute token lifetime; cleanup removes expired/used records older than 14 days | Automated cleanup in middleware (`pruneAccessRecoveryTokens`) |
-| Email verification codes (`portal_verification`) | Portal email login challenge/attempt control | Code lifetime 10 minutes | Expiry enforced at verification check; stale records retained for operational troubleshooting |
-| Remembered device records (`portal_device`) | "Remember this device" portal login shortcut | Device token lifetime 90 days | Expiry enforced at verification check; stale records retained for operational troubleshooting |
+| Email verification codes (`portal_verification`) | Portal email login challenge/attempt control | Code lifetime 10 minutes | Expiry enforced at verification check; expired records are periodically pruned |
+| Remembered device records (`portal_device`) | "Remember this device" portal login shortcut | Device token lifetime 90 days | Expiry enforced at verification check; expired records are periodically pruned |
 | Portal login events (`hub_event`, event type `portal.login`) | Security/audit visibility for client logins | 12 months default target | Manual review and periodic cleanup policy (Phase 2 technical automation) |
 | Hub message records (`hub_message`) | Client/staff communication record | Customer relationship lifecycle + contractual/legal needs | Managed by hub lifecycle/delete actions |
 | Hub status updates (`hub_status_update`) | Project reporting history | Customer relationship lifecycle + contractual/legal needs | Managed by hub lifecycle/delete actions |
@@ -34,7 +34,7 @@ This schedule defines default retention windows for hub-related data artifacts a
 
 2. Portal verification and device records:
 - Expiry is enforced on every login/verify request.
-- Additional scheduled cleanup can be added without UX change.
+- Expired artifacts are periodically pruned by middleware maintenance flow.
 
 3. Hub lifecycle delete:
 - Hub delete flows remove hub-scoped operational data access.

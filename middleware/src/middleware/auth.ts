@@ -14,6 +14,7 @@ import { Request, Response, NextFunction } from 'express';
 import { jwtVerify, createRemoteJWKSet, createLocalJWKSet } from 'jose';
 import { env } from '../config/env.js';
 import { logger } from '../utils/logger.js';
+import { emailDomainForLogs } from '../utils/email-log.js';
 import { resolveDisplayName } from '../utils/person-name.js';
 import type { UserContext } from '../types/api.js';
 import { isPortalTokenRevoked } from '../services/access-revocation.service.js';
@@ -199,7 +200,7 @@ function handleDemoAuth(req: Request, res: Response, next: NextFunction): void {
 
   const user = DEMO_USERS[email.toLowerCase()];
   if (!user) {
-    logger.warn({ email }, 'Unknown demo user');
+    logger.warn({ emailDomain: emailDomainForLogs(email) }, 'Unknown demo user');
     res.status(401).json({
       code: 'UNAUTHENTICATED',
       message: `Unknown demo user: ${email}`,

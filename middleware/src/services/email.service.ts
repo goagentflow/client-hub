@@ -7,6 +7,7 @@
 
 import { env } from '../config/env.js';
 import { logger } from '../utils/logger.js';
+import { emailDomainForLogs } from '../utils/email-log.js';
 
 const RESEND_API_URL = 'https://api.resend.com/emails';
 const REPLY_TO_EMAIL = 'hamish@goagentflow.com';
@@ -19,15 +20,6 @@ function escapeHtml(str: string): string {
 
 function sanitizeHeaderValue(value: string): string {
   return value.replace(/[\r\n]+/g, ' ').trim();
-}
-
-function emailDomainForLogs(email: string): string {
-  const normalised = email.trim().toLowerCase();
-  const at = normalised.indexOf('@');
-  if (at < 0 || at === normalised.length - 1) {
-    return 'unknown';
-  }
-  return normalised.slice(at + 1);
 }
 
 function absoluteHubLegalUrl(path: string): string {

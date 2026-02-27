@@ -18,6 +18,7 @@ import {
   pruneAccessRecoveryTokens,
 } from '../db/access-recovery-token-queries.js';
 import { sendAccessRecoveryEmail } from '../services/email.service.js';
+import { emailDomainForLogs } from '../utils/email-log.js';
 import { logger } from '../utils/logger.js';
 import type { NextFunction, Request, Response } from 'express';
 
@@ -55,11 +56,6 @@ let recoveryCleanupInFlight: Promise<void> | null = null;
 const requestLinkSchema = z.object({
   email: z.string().trim().toLowerCase().email().max(254),
 });
-
-function emailDomain(email: string): string {
-  const at = email.indexOf('@');
-  return at > -1 ? email.slice(at + 1) : 'unknown';
-}
 
 function productForHubType(hubType: string): ProductLabel {
   return hubType === 'client' ? 'Client Hub' : 'Pitch Hub';
@@ -249,12 +245,12 @@ accessRecoveryRouter.post(
         const destination = await buildRecoveryDestination(email, groups);
 
         sendAccessRecoveryEmail(email, destination).catch((err) => {
-          logger.error({ err, emailDomain: emailDomain(email) }, 'Failed to send access recovery email');
+          logger.error({ err, emailDomain: emailDomainForLogs(email) }, 'Failed to send access recovery email');
         });
       }
 
       logger.info({
-        emailDomain: emailDomain(email),
+        emailDomain: emailDomainForLogs(email),
         totalHubCount: items.length,
         activeHubCount: activeHubCount(groups),
       }, 'Access recovery link requested');
@@ -296,7 +292,7 @@ accessRecoveryRouter.get(
       const groups = groupAccessItems(items);
 
       logger.info({
-        emailDomain: emailDomain(consumed.email),
+        emailDomain: emailDomainForLogs(consumed.email),
         totalHubCount: items.length,
       }, 'Access recovery items requested');
 

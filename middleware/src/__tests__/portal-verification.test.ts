@@ -18,6 +18,7 @@ const mockIncrementAttempts = vi.fn();
 const mockMarkVerificationUsed = vi.fn();
 const mockCreateDeviceRecord = vi.fn();
 const mockFindValidDevice = vi.fn();
+const mockPruneExpiredPortalAuthArtifacts = vi.fn();
 const mockHubMemberUpsert = vi.fn();
 const mockHubEventCreate = vi.fn();
 
@@ -30,6 +31,7 @@ vi.mock('../db/portal-verification-queries.js', () => ({
   markVerificationUsed: (...args: unknown[]) => mockMarkVerificationUsed(...args),
   createDeviceRecord: (...args: unknown[]) => mockCreateDeviceRecord(...args),
   findValidDevice: (...args: unknown[]) => mockFindValidDevice(...args),
+  pruneExpiredPortalAuthArtifacts: (...args: unknown[]) => mockPruneExpiredPortalAuthArtifacts(...args),
 }));
 
 const mockSendVerificationCode = vi.fn().mockResolvedValue(undefined);
@@ -47,7 +49,10 @@ vi.mock('../db/prisma.js', () => ({
 
 let app: Express;
 beforeAll(async () => { app = await loadApp(); });
-beforeEach(() => { vi.clearAllMocks(); });
+beforeEach(() => {
+  vi.clearAllMocks();
+  mockPruneExpiredPortalAuthArtifacts.mockResolvedValue({ verificationsDeleted: 0, devicesDeleted: 0 });
+});
 
 const EMAIL_HUB = { id: 'hub-e', companyName: 'Test', accessMethod: 'email', isPublished: true };
 const TENANT_EMAIL_HUB = { id: 'hub-e', companyName: 'Test', accessMethod: 'email', isPublished: true, tenantId: 'tenant-1' };
@@ -111,6 +116,13 @@ describe('POST /public/hubs/:hubId/request-code', () => {
     const res = await request(app)
       .post('/api/v1/public/hubs/hub-rc-4/request-code')
       .send({});
+    expect(res.status).toBe(400);
+  });
+
+  it('returns 400 for malformed email', async () => {
+    const res = await request(app)
+      .post('/api/v1/public/hubs/hub-rc-5/request-code')
+      .send({ email: 'bad-email' });
     expect(res.status).toBe(400);
   });
 });
@@ -267,7 +279,7 @@ describe('POST /public/hubs/:hubId/verify-device', () => {
 
     const res = await request(app)
       .post('/api/v1/public/hubs/hub-d-1/verify-device')
-      .send({ email: 'a@t.com', deviceToken: 'tok' });
+      .send({ email: 'a@t.com', deviceToken: 'a'.repeat(64) });
     expect(res.status).toBe(200);
     expect(res.body.data.valid).toBe(true);
     expect(res.body.data.token).toBeDefined();
@@ -282,7 +294,7 @@ describe('POST /public/hubs/:hubId/verify-device', () => {
 
     const res = await request(app)
       .post('/api/v1/public/hubs/hub-d-5/verify-device')
-      .send({ email: 'a@t.com', deviceToken: 'tok' });
+      .send({ email: 'a@t.com', deviceToken: 'a'.repeat(64) });
 
     expect(res.status).toBe(200);
     expect(res.body.data.valid).toBe(true);
@@ -303,7 +315,7 @@ describe('POST /public/hubs/:hubId/verify-device', () => {
 
     const res = await request(app)
       .post('/api/v1/public/hubs/hub-d-2/verify-device')
-      .send({ email: 'a@t.com', deviceToken: 'tok' });
+      .send({ email: 'a@t.com', deviceToken: 'a'.repeat(64) });
     expect(res.status).toBe(200);
     expect(res.body.data.valid).toBe(false);
   });
@@ -325,7 +337,7 @@ describe('POST /public/hubs/:hubId/verify-device', () => {
 
     const res = await request(app)
       .post('/api/v1/public/hubs/hub-d-4/verify-device')
-      .send({ email: 'a@t.com', deviceToken: 'tok' });
+      .send({ email: 'a@t.com', deviceToken: 'a'.repeat(64) });
     expect(res.body.data.valid).toBe(false);
   });
 });
