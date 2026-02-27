@@ -17,6 +17,7 @@ const mockContactDeleteMany = vi.fn();
 const mockVerificationDeleteMany = vi.fn();
 const mockDeviceDeleteMany = vi.fn();
 const mockHubMemberUpdateMany = vi.fn();
+const mockHubMemberFindMany = vi.fn();
 const mockAccessRevokeUpsert = vi.fn();
 const mockTransaction = vi.fn();
 
@@ -24,7 +25,7 @@ const mockPrisma = {
   hub: { findFirst: vi.fn(), update: vi.fn() },
   hubInvite: { create: vi.fn(), update: mockInviteUpdate, findMany: mockInviteFindMany, findFirst: mockInviteFindFirst },
   portalContact: { upsert: vi.fn(), deleteMany: mockContactDeleteMany },
-  hubMember: { upsert: vi.fn(), updateMany: mockHubMemberUpdateMany, findMany: vi.fn(), count: vi.fn() },
+  hubMember: { upsert: vi.fn(), updateMany: mockHubMemberUpdateMany, findMany: mockHubMemberFindMany, count: vi.fn() },
   hubAccessRevocation: { upsert: mockAccessRevokeUpsert, findMany: vi.fn(), deleteMany: vi.fn() },
   hubCrmOrgMap: { findUnique: vi.fn(), upsert: vi.fn(), deleteMany: vi.fn() },
   portalVerification: { deleteMany: mockVerificationDeleteMany },
@@ -36,6 +37,7 @@ vi.mock('../db/prisma.js', () => ({ getPrisma: () => mockPrisma }));
 vi.mock('../services/email.service.js', () => ({
   sendVerificationCode: vi.fn().mockResolvedValue(undefined),
   sendPortalInvite: vi.fn().mockResolvedValue(undefined),
+  sendAccessRecoveryEmail: vi.fn().mockResolvedValue(undefined),
 }));
 vi.mock('../config/env.js', () => ({ env: INVITE_FIXTURES.ENV_MOCK }));
 vi.mock('../utils/logger.js', () => ({
@@ -54,6 +56,7 @@ beforeAll(async () => { app = await loadApp(); });
 beforeEach(() => {
   vi.clearAllMocks();
   mockTransaction.mockImplementation(async (fn: (tx: typeof mockPrisma) => unknown) => fn(mockPrisma));
+  mockHubMemberFindMany.mockResolvedValue([]);
 });
 
 // --- Tests ---
@@ -61,6 +64,7 @@ beforeEach(() => {
 describe('GET /hubs/:hubId/invites', () => {
   it('returns only pending non-expired invites', async () => {
     mockInviteFindMany.mockResolvedValueOnce([INVITE_RESULT]);
+    mockHubMemberFindMany.mockResolvedValueOnce([]);
 
     const res = await request(app).get(API).set(STAFF_HEADERS);
 
@@ -73,8 +77,19 @@ describe('GET /hubs/:hubId/invites', () => {
     expect(queryArg?.where?.expiresAt).toBeDefined();
   });
 
+  it('hides pending invites when the same email already has active client access', async () => {
+    mockInviteFindMany.mockResolvedValueOnce([INVITE_RESULT]);
+    mockHubMemberFindMany.mockResolvedValueOnce([{ email: INVITE_RESULT.email }]);
+
+    const res = await request(app).get(API).set(STAFF_HEADERS);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual([]);
+  });
+
   it('excludes expired pending invites via query filter', async () => {
     mockInviteFindMany.mockResolvedValueOnce([]);
+    mockHubMemberFindMany.mockResolvedValueOnce([]);
 
     const res = await request(app).get(API).set(STAFF_HEADERS);
 
@@ -86,6 +101,7 @@ describe('GET /hubs/:hubId/invites', () => {
 
   it('uses select clause that excludes token field', async () => {
     mockInviteFindMany.mockResolvedValueOnce([INVITE_RESULT]);
+    mockHubMemberFindMany.mockResolvedValueOnce([]);
 
     await request(app).get(API).set(STAFF_HEADERS);
 

@@ -572,18 +572,36 @@ invitesRouter.get('/', async (req: Request, res: Response, next: NextFunction) =
     const hubId = req.params.hubId as string;
     const prisma = getPrisma();
 
-    const invites = await prisma.hubInvite.findMany({
-      where: {
-        hubId,
-        tenantId: req.user.tenantId,
-        status: 'pending',
-        expiresAt: { gt: new Date() },
-      },
-      orderBy: { invitedAt: 'desc' },
-      select: INVITE_SELECT,
-    });
+    const [invites, activeClientMembers] = await Promise.all([
+      prisma.hubInvite.findMany({
+        where: {
+          hubId,
+          tenantId: req.user.tenantId,
+          status: 'pending',
+          expiresAt: { gt: new Date() },
+        },
+        orderBy: { invitedAt: 'desc' },
+        select: INVITE_SELECT,
+      }),
+      prisma.hubMember.findMany({
+        where: {
+          hubId,
+          tenantId: req.user.tenantId,
+          role: 'client',
+          status: 'active',
+        },
+        select: { email: true },
+      }),
+    ]);
 
-    res.json(invites);
+    const activeEmails = new Set(
+      activeClientMembers.map((member) => member.email.trim().toLowerCase()),
+    );
+    const visibleInvites = invites.filter((invite) =>
+      !activeEmails.has(invite.email.trim().toLowerCase()),
+    );
+
+    res.json(visibleInvites);
   } catch (err) {
     next(err);
   }
