@@ -70,8 +70,7 @@ async function sendEmail(to: string, subject: string, html: string): Promise<voi
   });
 
   if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`Resend API error ${res.status}: ${body}`);
+    throw new Error(`Resend API error ${res.status}`);
   }
 }
 

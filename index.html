@@ -27,6 +27,47 @@
       function gtag(){dataLayer.push(arguments);}
       window.gtag = gtag;
       gtag('js', new Date());
+      gtag('consent', 'default', {
+        ad_storage: 'denied',
+        analytics_storage: 'denied',
+        ad_user_data: 'denied',
+        ad_personalization: 'denied',
+        functionality_storage: 'granted',
+        security_storage: 'granted',
+        wait_for_update: 500
+      });
+
+      function updateGoogleConsent(consentState) {
+        const analyticsGranted = Boolean(consentState && consentState.analytics);
+        gtag('consent', 'update', {
+          ad_storage: analyticsGranted ? 'granted' : 'denied',
+          analytics_storage: analyticsGranted ? 'granted' : 'denied',
+          ad_user_data: analyticsGranted ? 'granted' : 'denied',
+          ad_personalization: analyticsGranted ? 'granted' : 'denied'
+        });
+      }
+
+      function bindTermlyConsent(attemptsLeft) {
+        if (window.Termly && typeof window.Termly.on === 'function') {
+          window.Termly.on('consent', function onConsent(data) {
+            updateGoogleConsent(data && data.consentState ? data.consentState : null);
+          });
+
+          if (typeof window.Termly.getConsentState === 'function') {
+            updateGoogleConsent(window.Termly.getConsentState());
+          }
+          return;
+        }
+
+        if (attemptsLeft > 0) {
+          window.setTimeout(function retryTermlyBind() {
+            bindTermlyConsent(attemptsLeft - 1);
+          }, 250);
+        }
+      }
+
+      bindTermlyConsent(20);
+
       gtag('config', 'G-LHY2J56X46', {
         send_page_view: false,
         anonymize_ip: true,
