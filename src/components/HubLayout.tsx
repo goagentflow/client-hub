@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useCurrentUser, useLogout, useHub } from "@/hooks";
 import { useHubId } from "@/contexts/hub-context";
+import { ProductSwitcher } from "./ProductSwitcher";
 
 interface HubLayoutProps {
   children: React.ReactNode;
@@ -47,7 +48,7 @@ export function HubLayout({
       <div className="min-h-screen flex w-full flex-col">
         {/* Header */}
         <header className="sticky top-0 z-50 flex h-16 items-center justify-between border-b bg-white px-4 md:px-6">
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
             <SidebarTrigger className="md:hidden" aria-label="Toggle sidebar navigation" />
             <img
               src="https://www.goagentflow.com/assets/images/AgentFlowLogo.svg"
@@ -55,6 +56,9 @@ export function HubLayout({
               className="h-8 cursor-pointer hidden md:block"
               onClick={() => navigate("/hubs")}
             />
+            <div className="hidden md:block">
+              <ProductSwitcher current="clienthub" />
+            </div>
           </div>
           
           <h1 className="text-lg md:text-xl font-semibold text-[hsl(var(--bold-royal-blue))] absolute left-1/2 transform -translate-x-1/2">

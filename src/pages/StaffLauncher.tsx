@@ -1,12 +1,12 @@
 import { useNavigate } from "react-router-dom";
-import { Building2, Compass, ClipboardList, ExternalLink } from "lucide-react";
+import { Building2, Compass, ClipboardList, ExternalLink, PieChart } from "lucide-react";
 import type { ComponentType } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useCurrentUser, useLogout } from "@/hooks";
 
 interface ToolCard {
-  key: "clienthub" | "copilot" | "discovery";
+  key: "clienthub" | "copilot" | "discovery" | "crm";
   title: string;
   description: string;
   icon: ComponentType<{ className?: string }>;
@@ -40,6 +40,13 @@ const StaffLauncher = () => {
       icon: Compass,
       onOpen: () => window.location.assign("/discovery/admin/login"),
     },
+    {
+      key: "crm",
+      title: "CRM & Pipeline",
+      description: "Revenue tracking, deal pipeline, and client CRM.",
+      icon: PieChart,
+      onOpen: () => window.location.assign("/assess/admin"),
+    },
   ];
 
   return (
@@ -71,7 +78,7 @@ const StaffLauncher = () => {
             Where do you need to be?
           </p>
 
-          <div className="mt-8 grid grid-cols-1 gap-4 md:grid-cols-3">
+          <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {tools.map((tool) => {
               const Icon = tool.icon;
               return (
