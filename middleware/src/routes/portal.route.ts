@@ -19,6 +19,7 @@ import { queryStatusUpdates, mapStatusUpdateForPortal } from '../services/status
 import { queryMessages, mapMessageForPortal } from '../services/message-queries.js';
 import { getMessageAudience } from '../services/message-audience.service.js';
 import { logger } from '../utils/logger.js';
+import { emailDomainForLogs } from '../utils/email-log.js';
 import { Errors } from '../middleware/error-handler.js';
 import { env } from '../config/env.js';
 import { resolveDisplayName } from '../utils/person-name.js';
@@ -396,7 +397,10 @@ portalRouter.post('/messages', portalPostLimiter, async (req: Request, res: Resp
       displayName: senderName,
       source: 'message',
       lastActiveAt: new Date(),
-    }).catch((err) => logger.error({ err, hubId, senderEmail }, 'Failed to upsert member activity from portal message'));
+    }).catch((err) => logger.error(
+      { err, hubId, senderEmailDomain: emailDomainForLogs(senderEmail) },
+      'Failed to upsert member activity from portal message',
+    ));
 
     const hub = await req.repo!.hub.findFirst({
       where: { id: hubId },

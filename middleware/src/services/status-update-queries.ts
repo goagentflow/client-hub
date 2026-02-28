@@ -34,8 +34,9 @@ export async function queryStatusUpdates(
 }
 
 /** Strip internal fields (tenantId, createdSource) for portal/client responses */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function mapStatusUpdateForPortal(item: Record<string, any>): Record<string, unknown> {
-  const { tenantId: _tenantId, createdSource: _createdSource, ...rest } = item;
+export function mapStatusUpdateForPortal(item: Record<string, unknown>): Record<string, unknown> {
+  const rest = { ...item };
+  delete rest.tenantId;
+  delete rest.createdSource;
   return rest;
 }

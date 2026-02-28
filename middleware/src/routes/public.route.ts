@@ -5,7 +5,7 @@
 
 import { Router } from 'express';
 import { SignJWT } from 'jose';
-import { timingSafeEqual } from 'node:crypto';
+import { scryptSync, timingSafeEqual } from 'node:crypto';
 import rateLimit from 'express-rate-limit';
 import { findPublishedHub, findHubForPasswordVerify } from '../db/public-queries.js';
 import { env } from '../config/env.js';
@@ -20,7 +20,10 @@ const secret = new TextEncoder().encode(env.PORTAL_TOKEN_SECRET);
 const PITCH_AUDIENCE = 'agentflow-pitch';
 const pitchSecret = new TextEncoder().encode(env.PORTAL_TOKEN_SECRET);
 const SLUG_PATTERN = /^[a-z0-9-]{3,80}$/;
-const HASH_PATTERN = /^[a-f0-9]{6,64}$/i;
+const LEGACY_HASH_PATTERN = /^[a-f0-9]{6,64}$/i;
+const SCRYPT_PATTERN = /^scrypt\$(\d+)\$(\d+)\$(\d+)\$([A-Za-z0-9+/=]+)\$([A-Za-z0-9+/=]+)$/;
+const HASH_VALUE_PATTERN = /^[A-Za-z0-9+/=$.-]{6,300}$/;
+const MAX_PITCH_PASSWORD_LENGTH = 256;
 
 // Rate limiters
 const generalLimit = rateLimit({
@@ -57,8 +60,9 @@ function parsePitchPasswordHashMap(raw: string | undefined): Map<string, string>
 
   function addIfValid(key: string, value: string): void {
     if (!SLUG_PATTERN.test(key)) return;
-    if (!HASH_PATTERN.test(value)) return;
-    map.set(key, value.toLowerCase());
+    if (!HASH_VALUE_PATTERN.test(value)) return;
+    if (!LEGACY_HASH_PATTERN.test(value) && !SCRYPT_PATTERN.test(value)) return;
+    map.set(key, value);
   }
 
   try {
@@ -93,6 +97,50 @@ function legacySimpleHash(input: string): string {
     hash |= 0;
   }
   return (hash >>> 0).toString(16);
+}
+
+function verifyLegacyPitchHash(password: string, expectedHash: string): boolean {
+  const suppliedHash = legacySimpleHash(password).toLowerCase();
+  const stored = Buffer.from(expectedHash.toLowerCase(), 'utf8');
+  const supplied = Buffer.from(suppliedHash, 'utf8');
+  return stored.length === supplied.length && timingSafeEqual(stored, supplied);
+}
+
+function verifyScryptPitchHash(password: string, expectedHash: string): boolean {
+  const match = SCRYPT_PATTERN.exec(expectedHash);
+  if (!match) return false;
+
+  const nRaw = match[1] ?? '';
+  const rRaw = match[2] ?? '';
+  const pRaw = match[3] ?? '';
+  const saltB64 = match[4] ?? '';
+  const hashB64 = match[5] ?? '';
+  const n = Number(nRaw);
+  const r = Number(rRaw);
+  const p = Number(pRaw);
+  if (!Number.isFinite(n) || !Number.isFinite(r) || !Number.isFinite(p) || n <= 1 || r <= 0 || p <= 0) {
+    return false;
+  }
+
+  const salt = Buffer.from(saltB64, 'base64');
+  const stored = Buffer.from(hashB64, 'base64');
+  if (salt.length === 0 || stored.length === 0) return false;
+
+  const maxmem = Math.max(32 * n * r + 1024 * 1024, 64 * 1024 * 1024);
+  const derived = scryptSync(password, salt, stored.length, { N: n, r, p, maxmem });
+  return stored.length === derived.length && timingSafeEqual(stored, derived);
+}
+
+function verifyPitchPassword(password: string, expectedHash: string): boolean {
+  if (expectedHash.startsWith('scrypt$')) {
+    return verifyScryptPitchHash(password, expectedHash);
+  }
+
+  if (LEGACY_HASH_PATTERN.test(expectedHash)) {
+    return verifyLegacyPitchHash(password, expectedHash);
+  }
+
+  return false;
 }
 
 const pitchPasswordHashes = parsePitchPasswordHashMap(env.PITCH_PASSWORD_HASH_MAP);
@@ -210,7 +258,7 @@ publicRouter.post('/pitch/:slug/verify-password', pitchPasswordLimit, async (req
 
     await new Promise(resolve => setTimeout(resolve, 100));
 
-    if (!SLUG_PATTERN.test(slug) || !password || password.length > 256) {
+    if (!SLUG_PATTERN.test(slug) || !password || password.length > MAX_PITCH_PASSWORD_LENGTH) {
       res.json({ data: { valid: false } });
       return;
     }
@@ -221,10 +269,7 @@ publicRouter.post('/pitch/:slug/verify-password', pitchPasswordLimit, async (req
       return;
     }
 
-    const suppliedHash = legacySimpleHash(password).toLowerCase();
-    const stored = Buffer.from(expectedHash, 'utf8');
-    const supplied = Buffer.from(suppliedHash, 'utf8');
-    const valid = stored.length === supplied.length && timingSafeEqual(stored, supplied);
+    const valid = verifyPitchPassword(password, expectedHash);
 
     if (!valid) {
       res.json({ data: { valid: false } });
