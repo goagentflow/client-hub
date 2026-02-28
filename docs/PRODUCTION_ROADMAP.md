@@ -1,1121 +1,186 @@
-# AgentFlow Client Hub — Production Roadmap v5.4
+# AgentFlow Client Hub - Production Roadmap (v6)
 
-**Date:** 25 Feb 2026
-**Author:** Hamish Nicklin / Claude Code
-**Status:** v5.5 — Messages MVP feed implemented (staff + portal GET/POST feed endpoints with notifications). Endpoint inventory: 115 contract endpoints (56 real, 59 placeholder), plus 11 non-contract real endpoints (9 Phase 1.5 + 2 preview). Actual mounted surface: 129 endpoints (70 real, 59 placeholders). See `docs/CURRENT_STATE.md`.
-**Audience:** Senior developer reviewing for feasibility and sequencing
-
----
-
-## Architecture Decision: Azure-Hosted (supersedes prior docs)
-
-**Decision:** Host all infrastructure in AgentFlow's own Azure subscription.
-
-**This supersedes:**
-- `docs/archive/ARCHITECTURE_V3_FINAL.md` (customer-hosted Azure + SharePoint lists)
-- `docs/archive/ARCHITECTURE_DECISIONS.md` (self-hosted in customer Azure)
-
-**Rationale for change:**
-- Original architecture assumed enterprise SaaS with per-customer Azure deployments — premature for current stage
-- AgentFlow needs to ship a working product for real clients now, not build a multi-tenant deployment platform
-- Azure-hosted (target state) gives DPA compliance under a single Microsoft agreement
-- Migration to customer-hosted Azure or SharePoint-backed storage remains possible later (adapter pattern preserved)
-
-**Data residency and compliance (MVP vs target state):**
-
-| Concern | MVP (Cloud Run + Supabase) | Target (Azure, Phase 0a) |
-|---------|---------------------------|--------------------------|
-| Database hosting | Supabase (AWS US region) | Azure Database for PostgreSQL (EU region) |
-| File storage | OneDrive links (Microsoft-hosted) | Azure Blob Storage (EU region) |
-| Auth | Azure AD (Microsoft-hosted) | Azure AD (Microsoft-hosted) |
-| Middleware hosting | Google Cloud Run | Azure App Service (EU region) |
-| DPA coverage | Supabase DPA + Google Cloud DPA | Microsoft DPA (single agreement) |
-| GDPR position | Hub metadata in Supabase; no PII beyond hub names and contact emails. Right to deletion enforced. Acceptable for MVP scale. | All data in EU Azure region under Microsoft DPA. Full GDPR posture. |
-
-**MVP compliance note:** The MVP stores hub metadata (hub names, project names, activity logs) in Supabase PostgreSQL. No sensitive client documents are stored — documents are shared as OneDrive links, which remain in Microsoft's infrastructure. For the MVP's single-client scope, this is acceptable. The migration to Azure PostgreSQL (EU region, Microsoft DPA) happens before scaling to additional clients.
-
-**Production stack:**
-
-| Component | Azure Service | Notes |
-|-----------|--------------|-------|
-| Middleware (Node.js) | Azure App Service (Linux, B1 tier) | Auto-restart, deployment slots for zero-downtime |
-| Frontend (React) | Azure Static Web Apps | Free tier, global CDN, custom domain + HTTPS |
-| Database | Azure Database for PostgreSQL (Flexible Server) | Burstable B1ms tier, EU region, automated backups |
-| File storage | Azure Blob Storage | Private container, no public access |
-| Auth | Azure AD (existing) | Already implemented |
-| Logs | Azure Monitor + Log Analytics | Native integration, no third-party needed |
-| DNS | Azure DNS or existing provider | Custom domains for hub + API |
-
-**Cost estimate at launch scale (<50 users):** ~£30-50/month (App Service B1 + PostgreSQL B1ms + Blob storage).
-
-**What changes in the codebase:**
-- Supabase JS client → PostgreSQL client (`pg` or Prisma) for database queries
-- Supabase Storage → Azure Blob Storage SDK (`@azure/storage-blob`) for file operations
-- Supabase adapter becomes a PostgreSQL adapter (same interface, different implementation)
-- No frontend changes required (API contract unchanged)
+**Last updated:** 28 February 2026  
+**Audience:** Product, engineering, and new developers onboarding to active delivery  
+**Companion docs:** `docs/README.md`, `docs/CURRENT_STATE.md`, `docs/UAT_PLAN_LIVE_CLIENT_HUB_RELEASE.md`
 
 ---
 
-## MVP Deployment (Pre-Phase 0a)
+## 1. Roadmap Purpose
 
-**Status:** Live in production (23 Feb 2026). Both services deployed to Cloud Run.
+This roadmap tracks delivery from the current live baseline to a broader production-ready feature set.
 
-**Business driver:** A real pharma comms client is starting a project now. Rather than waiting for the full Azure infrastructure (Phase 0a, ~£30-50/month), we're deploying an MVP using infrastructure AgentFlow already pays for — near-zero additional cost.
+It is intentionally focused on:
 
-**MVP architecture:**
-
-| Component | Service | Notes |
-|-----------|---------|-------|
-| Frontend (React) | Google Cloud Run | Added to existing goagentflow.com deployment (alongside marketing site, /assess/, /discovery/) |
-| Middleware (Node.js) | Google Cloud Run | Separate service, free tier at low usage |
-| Database | Supabase PostgreSQL | Existing paid instance — Prisma connects directly to Supabase's PostgreSQL |
-| Documents | OneDrive links | No file uploads for MVP — staff share OneDrive links within hubs |
-| Auth (staff) | Azure AD | `AUTH_MODE=azure_ad` with `NODE_ENV=production` — same MSAL auth as the full plan |
-| Auth (portal) | Portal JWT | Password-protected portal access works as-is |
-
-**Containerisation (complete):**
-
-Both services have multi-stage Dockerfiles optimised for Cloud Run:
-
-| File | Purpose |
-|------|---------|
-| `middleware/Dockerfile` | Node 20 + pnpm + Prisma generate + tsup build → non-root runtime (uid 1001) |
-| `middleware/.dockerignore` | Excludes node_modules, dist, .env, tests |
-| `Dockerfile` (root) | Standalone/local builds only. Vite build with `VITE_*` build args → `nginxinc/nginx-unprivileged` runtime |
-| `.dockerignore` (root) | Excludes node_modules, dist, middleware/, .env |
-| `nginx.conf.template` (root) | SPA routing, gzip, `${PORT}` substitution via envsubst at startup |
-
-Key design decisions:
-- **Mock API disabled by default** — `ARG VITE_USE_MOCK_API=false` ensures production builds use real middleware
-- **Cloud Run PORT compliance** — nginx uses `${PORT}` template (default 8080); middleware reads `process.env.PORT` (default 3001)
-- **Non-root containers** — middleware runs as `appuser:1001`, frontend uses `nginx-unprivileged` (uid 101)
-- **Prisma client preserved** — `@prisma/client` is a production dependency, so `pnpm prune --prod` keeps the generated client intact within the pnpm store
-- **Layer caching** — lockfile + package.json copied before source for efficient rebuilds
-
-**Cloud Build pipelines (complete):**
-
-Production deploys use Google Cloud Build, not the local Dockerfiles. Two pipelines:
-
-| Pipeline | Repo | File | What it deploys |
-|----------|------|------|-----------------|
-| Assembler (frontend) | `goagentflow/AFv2` | `cloudbuild.yaml` | Builds marketing site + assess + discovery + **clienthub** into a single nginx image → `agentflow-site` Cloud Run service |
-| Middleware (API) | `goagentflow/client-hub` | `cloudbuild-middleware.yaml` | Builds Express API → `clienthub-api` Cloud Run service |
-
-**Assembler pipeline** — the frontend is built as step 3b alongside the other apps:
-1. Assemble static marketing site
-2. Build assess app (parallel)
-3. Build discovery app (parallel)
-3b. Build client hub app (parallel) — clones `goagentflow/client-hub`, runs `npm ci && npm run build` with `VITE_BASE_PATH=/clienthub/`, `VITE_API_BASE_URL`, `VITE_USE_MOCK_API=false`, and MSAL Azure AD env vars
-4. Write version manifest (waits for all builds)
-5. Docker build → nginx image with all apps
-6. Push to Artifact Registry
-7. Deploy to Cloud Run (`agentflow-site`)
-8. Smoke tests (HTML pages, JS/CSS bundles with integrity checks, version.json)
-
-**Middleware pipeline:**
-1. Docker build from `./middleware`
-2. Push to Artifact Registry (`clienthub-api`)
-3. Deploy to Cloud Run with env vars and secrets (Azure AD values from Secret Manager, not hardcoded)
-4. Smoke tests (health endpoint + auth rejection test on `/api/v1/hubs`)
-
-**nginx routing** (`nginx.conf` in AFv2 repo) serves the client hub SPA at `/clienthub/` with `try_files` fallback to `/clienthub/index.html` — same pattern as `/assess/` and `/discovery/`.
-
-**GCP Secret Manager (complete):**
-
-All secrets created in project `agentflow-456021` with Cloud Build SA access granted:
-
-| Secret | Purpose | Status |
-|--------|---------|--------|
-| `VITE_API_BASE_URL` | Client Hub middleware URL (baked into frontend at build time) | Created with placeholder — **update after first middleware deploy** |
-| `CLIENTHUB_DATABASE_URL` | Supabase PostgreSQL connection string | Created |
-| `CLIENTHUB_PORTAL_TOKEN_SECRET` | HMAC secret for portal JWT tokens (64-char random) | Created |
-| `CLIENTHUB_AZURE_CLIENT_ID` | Azure AD app registration client ID | Created |
-| `CLIENTHUB_AZURE_TENANT_ID` | Azure AD tenant ID | Created |
-| `VITE_AZURE_CLIENT_ID` | Same client ID, baked into frontend for MSAL | Created |
-| `VITE_AZURE_TENANT_ID` | Same tenant ID, baked into frontend for MSAL | Created |
-| `VITE_AZURE_BACKEND_CLIENT_ID` | Backend client ID for MSAL scope URI (same app registration) | Created |
-| `CLIENTHUB_RESEND_API_KEY` | Resend transactional email API key (Phase 1.5 email verification) | Created |
-| `GITHUB_TOKEN` | Cloning repos during Cloud Build (pre-existing) | Already existed |
-
-**Azure AD app registration (complete):**
-
-| Setting | Value |
-|---------|-------|
-| App name | AgentFlow Client Hub |
-| Application (client) ID | `afc0d82d-a186-40ff-bc41-8e0af308c915` |
-| Directory (tenant) ID | `81fb6fd6-e413-4b3f-bdd5-2bd9049fd45f` |
-| Application ID URI | `api://afc0d82d-a186-40ff-bc41-8e0af308c915` |
-| Delegated scope | `api://afc0d82d-a186-40ff-bc41-8e0af308c915/access_as_user` |
-| App role | `Staff` (value: "Staff", Users/Groups, enabled) |
-| Redirect URIs (SPA) | `https://goagentflow.com`, `http://localhost:5173` |
-| Hamish Nicklin | Assigned Staff role via Enterprise Application |
-
-**Vite sub-path configuration (complete):**
-- `vite.config.ts` reads `VITE_BASE_PATH` env var (default `/`)
-- `App.tsx` sets `BrowserRouter basename={import.meta.env.BASE_URL}`
-- Assembler pipeline sets `VITE_BASE_PATH="/clienthub/"` at build time
-
-**Auth:** Staff authenticate via Azure AD (Microsoft login), using the MSAL auth code already built and approved. This is the same auth that the full Azure deployment uses — no throwaway work. The Azure AD app registration must be configured before MVP goes live (see "What Hamish Needs to Do" below).
-
-**Cost:** ~£0-10/month new spend (Cloud Run free tier at low usage).
-
-**What this unlocks:**
-- Hub management (create, edit, overview, notes, activity)
-- Projects with milestones
-- Document links (OneDrive URLs, not file uploads)
-- Video sharing (external links)
-- Portal access for clients (password-protected)
-- All 52 currently-implemented contract endpoints
-
-**What MVP does NOT include:**
-- File uploads (no Azure Blob Storage — Phase 1)
-- Email integration (no Graph API — Phase 6)
-- Meetings integration (no Graph API — Phase 7)
-- AI features (no AI provider — Phase 8)
-
-**How MVP connects to the long-term plan:**
-
-This is a stepping stone, not a detour. Everything built for MVP is forward-compatible:
-
-1. **Database:** Prisma ORM works with any PostgreSQL. Migration from Supabase PG to Azure PG is a config change (`DATABASE_URL` in environment variables). No code changes needed.
-2. **Middleware:** Same Express/TypeScript codebase deploys to Cloud Run now and Azure App Service later. No code changes needed.
-3. **Frontend:** Same React build. Swap the hosting platform, not the code.
-4. **Schema:** Same Prisma schema, same TenantRepository pattern. Works identically on both databases.
-
-**Migration path (Supabase → Azure PostgreSQL):**
-
-When ready to move beyond MVP, Phase 0a creates Azure services and we migrate the database:
-
-1. **Snapshot:** Export Supabase database using `pg_dump` (full schema + data)
-2. **Provision:** Create Azure Database for PostgreSQL (Flexible Server, B1ms, EU region)
-3. **Import:** Restore the dump to Azure PG using `pg_restore`
-4. **Verify:** Run `prisma db pull` against Azure PG to confirm schema matches. Run full test suite against new database.
-5. **Switch:** Update `DATABASE_URL` in Cloud Run (or Azure App Service) environment to point at Azure PG
-6. **Validate:** Smoke test all endpoints. Verify hub data is accessible.
-7. **Rollback criteria:** If any endpoint fails or data is missing, revert `DATABASE_URL` to Supabase. Supabase remains read-only during cutover as a safety net.
-8. **Downtime:** Brief (<5 minutes) during the `DATABASE_URL` switch. Schedule during low-usage window.
-9. **Cleanup:** Once Azure PG is confirmed stable (24-48 hours), decommission the Supabase schema (keep the Supabase instance for other AgentFlow uses).
-
-The `DATA_BACKEND` config stays as `azure_pg` throughout — it means "real PostgreSQL via Prisma", not a specific host.
-
-### MVP Readiness Gate
-
-The MVP cannot go live until ALL of these pass:
-
-| Check | Criteria | Owner | Status |
-|-------|----------|-------|--------|
-| Route migration | All route handlers use injected Prisma repository | Dev | **DONE** (v4.5) |
-| Dockerfiles | Multi-stage Docker builds for middleware + frontend, Cloud Run PORT compliance, non-root, reviewed | Dev | **DONE** (v4.6) |
-| Health endpoint | `GET /health` returns 200 when DB reachable, 503 when DB unreachable. `/health/ready` checks DB. `/health/live` confirms process is running. | Dev | **DONE** (v4.6) |
-| Cloud Build pipelines | Assembler pipeline (frontend) + middleware pipeline configured and reviewed | Dev | **DONE** (v4.7) |
-| GCP secrets | All secrets created in Secret Manager with Cloud Build SA access | Dev | **DONE** (v4.7) |
-| Azure AD app registration | App registration with scope, Staff role, redirect URIs | Hamish | **DONE** (v4.7) |
-| Database schema | Prisma schema pushed to Supabase PG | Dev | **DONE** (v4.6) |
-| HTTPS enforced | Cloud Run service accessible only via HTTPS | Infra | **Auto** (Cloud Run enforces HTTPS by default) |
-| Azure AD login | Staff can sign in via Microsoft and access hub management | Dev | **DONE** (deployed, MSAL configured) |
-| Portal access | Client can access portal via password-protected link | Dev | **DONE** (deployed) |
-| Email verification | Email-verified portal access (Phase 1.5) | Dev | **DONE** (deployed and smoke-tested) |
-| Azure AD redirect URI | Add `https://www.goagentflow.com` to SPA redirect URIs | Hamish | **DONE** (v4.8) |
-| VITE_API_BASE_URL secret | Update with real middleware Cloud Run URL | Dev | **DONE** (v4.8 — `clienthub-api-axiw2ydgeq-uc.a.run.app`) |
-| Secrets management | All secrets in Cloud Run environment variables (not in code) | Dev | **DONE** (v4.7) |
-| TRUST_PROXY | `TRUST_PROXY=true` set in Cloud Run env vars | Infra | **DONE** (in cloudbuild-middleware.yaml) |
-| Security headers | Helmet defaults: CSP, HSTS, X-Frame-Options, X-Content-Type-Options | Dev | **DONE** (middleware has Helmet) |
-| CORS locked | `CORS_ORIGIN` set to exact production domain (no wildcards) | Dev | **DONE** (`https://www.goagentflow.com` in pipeline) |
-| Rate limiting | Rate-limit on auth and public endpoints (already configured) | Dev | **DONE** |
-| All tests pass | `pnpm test` passes (159 tests across 11 files) | Dev | **DONE** |
-| Clean build | Fresh `pnpm build` with no stale dist artefacts | Dev | **DONE** (verified by senior dev) |
-
-**Not required for MVP** (required for full Azure deployment in Phase 0a):
-- Deployment slots / staging environment
-- Azure Monitor + Log Analytics
-- Backup/restore testing (Supabase has automated backups)
-- Rollback runbook (Cloud Run revisions provide instant rollback)
+1. What has already shipped
+2. What is next and why
+3. What "production ready" means for each new feature phase
 
 ---
 
-## Objective
+## 2. Baseline (Already Shipped)
 
-Ship the AgentFlow Client Hub as a production application for use with real clients. This means:
+These capabilities are live in production today:
 
-1. Deploy to a public URL with HTTPS (MVP: Google Cloud Run; Production: Azure App Service)
-2. Connect to PostgreSQL (MVP: Supabase; Production: Azure Database for PostgreSQL)
-3. Implement all 63 remaining placeholder endpoints
-4. Integrate Microsoft Graph API for email and calendar features
-5. Add AI-powered client intelligence features
+- Hub lifecycle (create/update/publish/unpublish/delete)
+- Portal access modes (`email`, `password`, `open`)
+- Portal contacts and access-method controls
+- Client invite, revoke, and member removal flows
+- Status updates (staff create, portal read)
+- Documents upload/download/preview via Supabase Storage signed URLs
+- Message feed (staff + portal), message audience visibility, teammate access request
+- Public access recovery API (`POST /api/v1/public/access/request-link`, `GET /api/v1/public/access/items`)
+- Staff launcher route (`/clienthub/launcher`) with product routing links
+- Hub legal baseline (`/hub-privacy.html`, `/hub-terms.html`, `/hub-cookie-notice.html`, `/hub-subprocessors.html`)
+- Access-recovery retention cleanup for used/expired token artifacts
+- Consent-managed GA4 tracking with Termly controls across marketing/access/clienthub/assess
+- GA4 + consent UAT execution completed with production `GO` decision
 
----
+Quality baseline currently validated:
 
-## Assumptions
-
-| Assumption | Value | Impact |
-|-----------|-------|--------|
-| Tenancy at launch | Single-tenant, tenant guards enforced | One Azure AD tenant, one database. `tenant_id` column + TenantRepository guard on all hub-linked tables from Phase 0b. Hard launch requirement. |
-| Compliance (MVP) | GDPR-aware, minimal PII | Hub metadata in Supabase (US region). No sensitive documents stored (OneDrive links only). Right to deletion enforced. Acceptable for single-client MVP. See compliance table above. |
-| Compliance (target) | GDPR/DPA-compliant | All data in Azure EU region. Microsoft DPA covers infrastructure. Right to deletion enforced. No unnecessary PII sent to AI. |
-| Scale | Small (<50 users, <100 hubs) | Single App Service instance. No distributed cache needed at launch. |
-| Multi-tenant expansion | Designed for, not tested at launch | Schema supports multiple tenants. Multi-tenant onboarding (provisioning, billing, tenant admin UI) is post-launch scope. |
-
----
-
-## Endpoint Inventory (Source of Truth)
-
-Audited by reading route registrations in `middleware/src/routes/*.ts` and classifying each as real (has logic) or placeholder (returns 501/send501).
-
-**Scope note:** This table tracks the 115-endpoint contract surface for planning continuity. It intentionally excludes:
-- 9 Phase 1.5 endpoints (`portal-contacts.route.ts` + `portal-verification.route.ts`)
-- legacy `POST /hubs/:hubId/portal/invite` placeholder in `portal.route.ts`
-- `/health` operational endpoints
-
-**Integrity rule:** This table MUST be re-verified before each phase ships. A CI check (`npm run verify-endpoints`) counts `send501`/`res.status(501)` in route files and fails if this table drifts from the codebase. The CI check is a Phase 0b deliverable (required before Phase 1 execution, not required for MVP go-live).
-
-| Route File | Real | 501 Stub | Total | Notes |
-|-----------|------|----------|-------|-------|
-| auth.route.ts | 1 | 0 | 1 | GET /me |
-| hubs.route.ts | 9 | 0 | 9 | Full CRUD + overview/notes/activity/publish/portal-preview |
-| documents.route.ts | 5 | 2 | 7 | Upload + engagement stubbed |
-| proposals.route.ts | 3 | 2 | 5 | Upload + engagement stubbed |
-| videos.route.ts | 6 | 2 | 8 | Upload + engagement stubbed |
-| projects.route.ts | 8 | 0 | 8 | Fully implemented (incl. milestones) |
-| portal.route.ts | 6 | 4 | 10 | GET videos/documents/proposal/messages/status-updates real; contract stubs: comment, meetings, members, questionnaires. `POST /portal/invite` exists in file as a legacy 501 endpoint but is excluded from contract totals. |
-| status-updates.route.ts | 2 | 0 | 2 | POST + GET (staff-only, append-only) |
-| portal-config.route.ts | 2 | 0 | 2 | Fully implemented |
-| events.route.ts | 3 | 0 | 3 | Fully implemented (incl. leadership event) |
-| public.route.ts | 3 | 1 | 4 | Invite accept stubbed |
-| messages.route.ts | 2 | 3 | 5 | Feed list/create real; thread detail/notes/update remain 501 (threading deferred) |
-| meetings.route.ts | 0 | 9 | 9 | All 501 (Graph Calendar + Teams) |
-| members.route.ts | 3 | 5 | 8 | 3 invite endpoints real (POST/GET/DELETE); 4 member + 1 share-link still 501. Invite-accept lives in public.route.ts. |
-| questionnaires.route.ts | 0 | 6 | 6 | All 501 |
-| client-intelligence.route.ts | 0 | 18 | 18 | All 501 (answers 3, prep 4, performance 3, decisions 5, history 1, alerts 2) |
-| intelligence.route.ts | 0 | 3 | 3 | All 501 (relationship health + expansion) |
-| leadership.route.ts | 2 | 3 | 5 | Portfolio/clients real; at-risk/expansion/refresh stubbed |
-| conversion.route.ts | 1 | 1 | 2 | POST convert real; POST rollback stubbed |
-| **TOTAL** | **56** | **59** | **115** | **49% real, 51% stubbed** |
-
-Including excluded routes, mounted `/api/v1` surface today is **129 endpoints** (**70 real**, **59 placeholders**). Adding `/health` yields 132 total route handlers.
-
-**Corrections from v3:** projects (8 not 9), documents (5/2/7 not 5/3/8), videos (6/2/8 not 6/3/9), portal (3/7/10 not 3/5/8), meetings (0/9/9 not 0/10/10), members (0/8/8 not 0/11/11 — dead `acceptInviteRouter` deleted, live version in public.route.ts), questionnaires (0/6/6 not 0/7/7). Net at v4.1: 67 stubs (from 72 in v3). Current (v5.5): 59 contract placeholders.
-
-**v5.2 changes:** Added status-updates.route.ts (2 new real endpoints). Portal status-updates endpoint moved from stub to real (portal contract counts: 4 real / 6 placeholder). Total contract inventory: 115 endpoints (52 real, 63 placeholders).
-
-**Stub-to-phase assignment** (every stub accounted for):
-
-| Phase | Route file stubs owned | Count |
-|-------|----------------------|-------|
-| Phase 1 (Files) | documents:upload, proposals:upload, videos:upload | 3 |
-| Phase 2 (Members) | members:4 member + 1 share-link (invite 3 done), portal:members, public:invite-accept | 7 |
-| Phase 3 (Questionnaires) | questionnaires:all 6, portal:questionnaires | 7 |
-| Phase 4 (Engagement) | documents:engagement, proposals:engagement, videos:engagement, leadership:at-risk+expansion+refresh | 6 |
-| Phase 6 (Messages) | messages:thread detail + notes + update | 3 |
-| Phase 7 (Meetings) | meetings:all 9, portal:meetings | 10 |
-| Phase 8 (AI) | client-intelligence:all 18, intelligence:all 3 | 21 |
-| Phase 9 (Intelligence) | (uses intelligence.route.ts endpoints — counted in Phase 8) | 0 |
-| Phase 10 (Polish) | conversion:rollback, portal:proposal/comment | 2 |
-| **TOTAL** | | **59** |
+- Backend tests: `232/232` passing
+- Frontend production build: passing
 
 ---
 
-## Configuration Model
+## 3. Delivery Phases
 
-Two orthogonal controls replace the original `DEMO_MODE` boolean:
+## Phase A - Stabilization and Hardening (Immediate)
 
-| Variable | Values | Purpose |
-|----------|--------|---------|
-| `AUTH_MODE` | `azure_ad` / `demo` | Controls whether real JWT validation or X-Dev-User-Email headers are used |
-| `DATA_BACKEND` | `azure_pg` | All data access via Prisma ORM against PostgreSQL |
+### Goal
 
-`DATABASE_URL` is always required. For local dev, point it at a local PostgreSQL instance or Supabase hosted PG. Tests mock at the repository layer and do not require a running database.
+Close high-risk behavior gaps in already-live areas before wider client rollout.
 
-**Production guardrail:**
+### Scope
 
-| NODE_ENV | AUTH_MODE | Allowed? |
-|----------|-----------|----------|
-| production | azure_ad | **Yes** (production config) |
-| production | demo | **BLOCKED** — demo auth not allowed in production |
-| development | demo | Yes (default dev config) |
-| development | azure_ad | Yes (real auth testing) |
+1. Replace or remove legacy portal invite path usage (`POST /hubs/:hubId/portal/invite` is 501).
+2. Harden password access mode with explicit password lifecycle management.
+3. Add stronger operational visibility for notification failures (Resend failures are currently mostly log-only).
+4. Tighten client-share UX so all visible actions map to working backend routes.
 
-**Phase 0b status:** Configuration model implemented. All routes use Prisma via TenantRepository. The previous `DATA_BACKEND=mock` mode (backed by Supabase JS adapter) was removed when route migration completed — the Supabase adapter is retained only for reference but is no longer called by any route handler.
+### Production-ready exit criteria
 
----
-
-## Tenant Isolation Architecture
-
-**Chosen model: Service-role with centralised tenant guards + DB constraints.**
-
-The middleware uses a service-role connection to PostgreSQL (full access). Tenant isolation is enforced at the application layer via a centralised repository pattern, reinforced by database-level constraints.
-
-**Application layer:**
-- A centralised `TenantRepository` wrapper adds `WHERE tenant_id = :tenantId` to every query — no direct database calls outside this wrapper
-- `tenant_id` is extracted from `req.user.tenantId` (set by auth middleware) — never from client input
-- Admin/leadership queries that aggregate across tenants use a separate `AdminRepository` with explicit `bypassTenant: true` flag, logged on every call
-
-**Database layer (defence in depth):**
-- `tenant_id NOT NULL` constraint on all hub-linked tables
-- `FOREIGN KEY` on `tenant_id` referencing a `tenant` table (prevents orphaned tenant IDs)
-- Unique constraints include `tenant_id` where applicable (e.g. `UNIQUE(tenant_id, hub_slug)`)
-- Database-level function: `verify_tenant_access(tenant_id, expected_tenant_id)` — callable from triggers or as a query-time assertion for critical operations
-
-**Security invariant:** No table access without tenant guard abstraction. Any database query that touches hub-linked data MUST go through `TenantRepository`. Direct database calls outside the repository layer are a CI lint failure.
-
-**Mandatory security tests (per phase):**
-- Negative test: User A cannot read User B's hub data (cross-tenant denial at repository layer)
-- Negative test: Portal token for Hub X cannot access Hub Y data
-- Negative test: Client user cannot access staff-only endpoints
-- Negative test: Direct database query without tenant guard is rejected (lint/grep check)
-- These tests run in CI — phase cannot ship without passing
-
-**Launch posture:** App-layer isolation is the enforced boundary. DB constraints provide defence in depth. Full RLS or row-level DB policies deferred to multi-tenant expansion phase.
+1. No visible UI path points to a 501 endpoint.
+2. Password mode cannot be enabled in an unsafe/unconfigured state.
+3. Notification failure path has clear observability (logs + alerting/monitoring hook).
+4. UAT P0/P1 cases for invites, revocation, and messaging notifications all pass.
 
 ---
 
-## Production Readiness Gate
+## Phase B - Collaboration Completeness
 
-Phase 0a (full Azure deployment) cannot ship until ALL of these pass:
+### Goal
 
-### Hard Pass/Fail Checks
+Complete core collaboration feature set still in placeholder state.
 
-| Check | Criteria | Owner |
-|-------|----------|-------|
-| HTTPS enforced | All endpoints accessible only via HTTPS (App Service enforces) | Infra |
-| Secrets management | All secrets in Azure App Service Application Settings, not in code or .env files | Dev |
-| Error monitoring | Pino logs shipped to Azure Monitor / Log Analytics | Dev |
-| Health endpoint | `GET /health` returns 200 when DB reachable, 503 when DB unreachable | Dev |
-| Backup/restore | Azure PostgreSQL daily backups enabled; manual restore tested once | Hamish |
-| Rollback runbook | Document: how to swap deployment slots to revert in <5 minutes | Dev |
-| Security headers | Helmet defaults: CSP, HSTS, X-Frame-Options, X-Content-Type-Options | Dev |
-| Rate limiting | Express rate-limit on auth and public endpoints (already configured) | Dev |
-| CORS locked | `CORS_ORIGIN` set to exact production domain (no wildcards) | Dev |
-| Dependency audit | `npm audit` with zero critical/high vulnerabilities | CI |
-| Secret rotation | `PORTAL_TOKEN_SECRET` is production-grade (32+ chars, no dev- prefix) | Dev |
-| Endpoint inventory CI | `npm run verify-endpoints` passes — roadmap matches codebase | CI |
-| Staging environment | Staging App Service + staging DB snapshot deployed and accessible | Dev |
+### Scope
 
-### Schema Migration Gate (per phase, not just Phase 0)
+1. Proposal upload endpoint implementation.
+2. Video file upload endpoint implementation.
+3. Meetings endpoint family implementation.
+4. Questionnaire endpoint family implementation.
+5. Document engagement analytics endpoint implementation.
 
-| Check | Criteria | Owner |
-|-------|----------|-------|
-| Migration dry-run | Every schema migration tested against staging DB snapshot before production | Dev |
-| Roll-forward script | Migration script runs idempotently (safe to re-run) | Dev |
-| Rollback script | Reverse migration tested and documented for each schema change | Dev |
-| No destructive migration | `DROP TABLE`, `DROP COLUMN`, or data-deleting migrations require a backup checkpoint before execution. Backup verified restorable. | Dev |
+### Production-ready exit criteria
 
-### Alerting (Minimum Viable)
-
-| Alert | Condition | Channel |
-|-------|-----------|---------|
-| API down | Health check fails for >2 minutes | Email to Hamish |
-| Error spike | >10 5xx errors in 5 minutes | Email to Hamish |
-| Auth failures | >20 401s in 5 minutes (brute force indicator) | Email to Hamish |
-
-### On-Call
-
-At launch scale (<50 users), Hamish is the escalation point. No 24/7 on-call required. App Service auto-restarts on crash. Deployment slots enable instant rollback.
+1. No placeholder behavior for proposal/video upload paths.
+2. Meetings and questionnaire flows are end-to-end testable in both staff and portal UX.
+3. Engagement analytics data is accurate and non-breaking for existing document flows.
+4. Contract/integration tests updated and passing for each endpoint family.
 
 ---
 
-## Release Strategy
+## Phase C - Intelligence Feature Activation
 
-| Control | Policy |
-|---------|--------|
-| Feature flags | Each phase ships behind a feature flag (env var). Enable per-phase after smoke test on staging. |
-| Rollback window | 24 hours after each phase enable. If issues found, swap deployment slot to roll back immediately. |
-| Canary | Not needed at launch scale. Single instance serves all traffic. |
-| Compatibility | Backward-compatible for one release window. Schema/API changes follow: (1) additive change ships first, (2) frontend migrates to new API, (3) old API removed in next release behind feature flag. Coordinated deploys allowed when unavoidable but must be documented in the phase plan. |
-| CI gating | **Minimum CI gate (Phases 0-9):** Unit tests + integration tests + endpoint inventory check + lint. **Full CI gate (Phase 10+):** All of the above + Playwright E2E against real API. Playwright E2E is built in Phase 10 and becomes mandatory for all subsequent deploys. |
+### Goal
 
----
+Move intelligence sections from placeholders to working flows.
 
-## Phased Roadmap
+### Scope
 
-### Phase 0: Deploy to Azure (0a: infrastructure, 0b: codebase refactor)
+1. Relationship intelligence endpoints.
+2. Client intelligence endpoints (instant answers, decisions, performance, history, risk alerts).
+3. Leadership intelligence rollups for at-risk and expansion views.
 
-**Objective:** Get the existing working app on a public URL with HTTPS, passing all production readiness checks.
+### Production-ready exit criteria
 
-**What's built:**
-
-Phase 0a — Infrastructure (DEFERRED — MVP deployed on Google Cloud Run + Supabase in the interim):
-- **Status:** Resource group `rg-agentflow-hub` created in UK South. All other Azure resources deferred. MVP is live on Google Cloud Run + Supabase PostgreSQL (see "MVP Deployment" section above). Full Azure deployment happens when scaling beyond MVP.
-- Azure App Service (middleware) with deployment slots (staging + production)
-- Azure Static Web Apps (frontend) with custom domain
-- Azure Database for PostgreSQL (Flexible Server, Burstable B1ms) with schema migration
-- Azure Blob Storage (private container for future file uploads)
-- Azure Monitor + Log Analytics for logging and alerting
-- Custom domains (e.g. `hub.goagentflow.com` + `api.goagentflow.com`)
-- Azure AD redirect URIs updated for production domain
-- Staging environment: staging App Service slot + staging DB snapshot
-
-Phase 0b — Codebase refactor (COMPLETE):
-- Replace Supabase JS client with PostgreSQL client (`pg` or Prisma) ✓
-- Replace `DEMO_MODE` with `AUTH_MODE` + `DATA_BACKEND` config model ✓
-- Rewrite `env.ts` validation to match new truth table ✓
-- Rewrite `supabase.adapter.ts` production guard (→ `pg.adapter.ts`) ✓
-- Implement `TenantRepository` wrapper with tenant guard abstraction ✓
-- Implement `AdminRepository` with `bypassTenant` logging ✓
-- All routes migrated to injected Prisma repository ✓
-- Cloud Run Dockerfiles for middleware + frontend (multi-stage, non-root, reviewed) ✓
-- Health endpoint with DB connectivity check (200/503) ✓
-- Cloud Build pipelines for both services (assembler + middleware) ✓
-- GCP Secret Manager secrets created with Cloud Build SA access ✓
-- Azure AD app registration (scope, Staff role, redirect URIs) ✓
-- Vite sub-path config for `/clienthub/` deployment ✓
-- nginx SPA routing for `/clienthub/` ✓
-- Prisma schema pushed to Supabase PostgreSQL ✓
-- Build `npm run verify-endpoints` CI check (deferred — not required for MVP go-live, required before Phase 1)
-- Rollback runbook (deferred — Cloud Run revisions provide instant rollback for MVP)
-
-**Success criteria:**
-- All production readiness gate checks pass (table above)
-- App accessible at public URL with HTTPS
-- Azure AD login works end-to-end (existing flow, no changes)
-- Portal access works (password-protected)
-- CI deploys automatically on merge to main
-- Staging environment accessible with seeded test data
-- Rollback tested: deployment slot swap reverts in <2 minutes
-- Endpoint inventory CI check passes
-
-**Dependencies:** Azure subscription access, Azure AD app registration complete, DNS access
-
-**Complexity:** High (~7-8 days — increased from v3 to account for Supabase→PostgreSQL migration, staging setup, and TenantRepository)
+1. No intelligence route returns placeholder responses in the target release slice.
+2. Evidence and explanation metadata is consistently returned and rendered.
+3. Latency and failure behavior are acceptable for client-facing surfaces.
+4. UAT scenarios for intelligence sections are added and passed.
 
 ---
 
-### Phase 1: File Storage — Document & Proposal Upload
+## Phase D - Infrastructure Migration Track (Parallel Workstream)
 
-**Objective:** Staff can upload real documents and proposals to hubs.
+### Goal
 
-**MVP execution note (current infra):** While Azure Blob remains the long-term target, the near-term implementation plan for the live Cloud Run + Supabase stack is documented in `docs/PHASE_1_DOCUMENT_UPLOAD_SUPABASE_PLAN.md`.
+Prepare migration from MVP runtime stack to target Azure-hosted production stack when scaling requires it.
 
-**What's built:**
-- Azure Blob Storage container (`hub-files`) with folder structure: `{tenant_id}/{hub_id}/{type}/`
-- `POST /hubs/:hubId/documents` — multipart upload to Blob Storage
-- `POST /hubs/:hubId/proposal` — same pattern for proposals
-- `POST /hubs/:hubId/videos` — video file upload
-- Backend download proxy endpoint (auth-checked, streams from Blob Storage)
-- File deletion cleans up both DB row and stored blob
-- 50MB file size limit enforced at middleware level
+### Scope
 
-**Content security controls:**
-- MIME type allowlist: PDF, DOCX, XLSX, PPTX, PNG, JPG, MP4 (no executables, no HTML, no SVG)
-- File extension must match MIME type (reject mismatches)
-- Filename sanitisation (strip path traversal, special characters)
-- Storage path includes `tenant_id` prefix (isolation)
-- AV scanning: uploaded files go to a `quarantine/` prefix first. A post-upload Azure Function (or ClamAV sidecar) scans the file. Only files that pass scanning are moved to `approved/` prefix. Files that fail are deleted and the upload is marked as rejected.
-- Fail-closed: files in `quarantine/` are never served to users. Download proxy only streams from `approved/`.
+1. Azure PostgreSQL migration planning and dry-run.
+2. Azure hosting target hardening (App Service / Static Web Apps equivalent cutover plan).
+3. File-storage target strategy review (Supabase Storage to Azure Blob if required by compliance/scale).
 
-**File download approach:**
-- Backend download proxy: `GET /api/v1/hubs/:hubId/documents/:docId/download`
-- Middleware verifies auth + hub access on every download request, then streams from Blob Storage
-- No direct storage URLs exposed to the client
-- Every download is auth-checked — no link-leakage risk
+### Production-ready exit criteria
 
-**Success criteria:**
-- Staff uploads documents/proposals through the UI
-- Files download via authenticated proxy endpoint (not direct storage URLs)
-- Deleting removes both DB record and stored blob
-- Rejected: .exe, .html, .svg, .js, MIME/extension mismatch
-- Files in quarantine are not downloadable
-- AV-rejected files return clear error message
-- Unauthenticated download attempts return 401
-- Cross-hub file access denied (negative test)
-
-**Stub endpoints resolved:** documents:upload (1), proposals:upload (1), videos:upload (1) = **3 stubs**
-
-**Dependencies:** Phase 0a, Azure Blob Storage configured
-
-**Complexity:** Medium-high (~5-6 days, increased for AV scanning pipeline)
+1. Dry-run migration completed with rollback procedure documented.
+2. Data integrity and auth behavior validated in a non-production environment.
+3. Cutover runbook and ownership approved.
 
 ---
 
-### Phase 1.5: Portal Email Verification (COMPLETE — deployed 23 Feb 2026)
+## 4. Active Risks and Gaps
 
-**Objective:** Replace open-link portal access with email-verified access. Clients enter their email, receive a 6-digit code, and are granted a long-lived device token — no password to remember, but only authorised contacts can access the hub.
+1. **Legacy invite endpoint mismatch**
+Backend route `POST /hubs/:hubId/portal/invite` is still 501, and some older client sharing flows still rely on this path.
 
-**Status: DEPLOYED AND SMOKE-TESTED** — 3 rounds automated review + 3 rounds external senior dev review. All findings resolved. Browser smoke test passed (23 Feb 2026): staff setup, email verification flow, device remember-me, negative tests (unauthorised email, wrong code lockout), backwards compatibility all confirmed working.
+2. **Password mode hardening**
+Access method switching exists, but password lifecycle controls are incomplete.
 
-**Full implementation plan:** `docs/PHASE_1_5_EMAIL_VERIFICATION_PLAN.md`
+3. **Placeholder surface still substantial**
+Meetings/questionnaires/intelligence remain largely non-live.
 
-**What was built:**
-
-Database:
-- 3 new Prisma models: `PortalContact`, `PortalVerification`, `PortalDevice`
-- `Hub.accessMethod` field (`password` | `email` | `open`, defaults to `password`)
-
-Middleware — public endpoints (no auth, rate-limited):
-- `GET /public/hubs/:hubId/access-method` — which gate to show
-- `POST /public/hubs/:hubId/request-code` — send 6-digit code (always returns `{ sent: true }` for enumeration prevention)
-- `POST /public/hubs/:hubId/verify-code` — validate code → issue portal JWT + device token
-- `POST /public/hubs/:hubId/verify-device` — validate device token → issue portal JWT
-
-Middleware — staff endpoints (auth required):
-- `GET /hubs/:hubId/portal-contacts` — list contacts
-- `POST /hubs/:hubId/portal-contacts` — add contact
-- `DELETE /hubs/:hubId/portal-contacts/:id` — remove contact + cascade revoke
-- `GET /hubs/:hubId/access-method` — get current method
-- `PATCH /hubs/:hubId/access-method` — set method (with side-effects: clears passwordHash on open, revokes devices/verifications on method switch away from email)
-
-Frontend:
-- `EmailGate.tsx` — client email → code verification UI
-- `PortalContactsCard.tsx` — staff contact management + access method toggle
-- `PortalDetail.tsx` updated — routes to correct gate based on access method
-
-Email:
-- Resend REST API via native `fetch()` (zero new npm packages)
-- XSS-safe HTML templates with `escapeHtml()`
-- Fire-and-forget sending (prevents timing-based enumeration)
-
-Security:
-- SHA-256 hashed codes + timing-safe comparison
-- Per-code attempt lockout (5 failures)
-- Rate limits: 3 code requests/min, 1 per email/min cooldown, 5 verify attempts/min
-- Tenant isolation via `verifyTenant()` on all staff endpoints
-- Contact existence required before JWT minting
-- Device tokens: 32 random bytes, SHA-256 hashed in DB, 90-day expiry
-
-Tests: 159 tests across 11 files (includes Phase 2b status update coverage)
-
-**Dependencies:** Resend API key (configured in GCP Secret Manager). No dependency on Phase 0a or Phase 5.
-
-**Complexity:** Medium (~3-4 days planned, ~1 day actual).
+4. **Operational observability depth**
+Some asynchronous failure paths are currently best-effort logging only.
 
 ---
 
-### Phase 2: Members & Access Management
+## 5. Recommended Sequencing (Next 6-8 Weeks)
 
-**Objective:** Staff can invite client contacts to view their hub. Runs alongside (not replacing) password portal access during migration. Phase 1.5 (email verification) provides the lightweight version; Phase 2 adds full member management, role-based access, and proactive invite flows.
+1. Phase A (stabilization/hardening)
+2. Phase B (collaboration completeness)
+3. Phase C (intelligence activation)
+4. Phase D infrastructure cutover planning in parallel after Phase A starts
 
-#### Phase 2a: Portal Invite Endpoints (COMPLETE — deployed 24 Feb 2026)
+Rationale:
 
-**What was built:**
-
-Staff can invite clients by email. Client clicks the portal link in the invite email, lands on the existing EmailGate, verifies their email, and they're in. No magic links or member sessions — uses the Phase 1.5 email verification flow.
-
-Database:
-- `HubInvite` model in Prisma schema — `id`, `hubId`, `tenantId`, `email`, `accessLevel`, `message`, `invitedBy`, `invitedByName`, `invitedAt`, `expiresAt`, `token`, `status`
-- Unique constraint on `(hubId, email)` — re-invites handled via create + P2002 catch → update
-- Composite index on `(hubId, tenantId, status)` for query performance
-- `hub_invite` table created in Supabase via raw SQL (not `prisma db push` — see note below)
-
-Middleware — 3 invite endpoints in `members.route.ts`:
-- `POST /hubs/:hubId/invites` — Create invite + auto-add portal contact + send invite email via Resend
-  - Production email guard: returns 500 if `NODE_ENV=production` and no `RESEND_API_KEY`
-  - Zod validation: email (normalised to lowercase), accessLevel (enum), message (max 500 chars, optional)
-  - Hub lookup with tenant check (404/403)
-  - Access method guard: rejects unless `hub.accessMethod === 'email'` (400)
-  - Domain validation: email domain must match `hub.clientDomain` or `goagentflow.com` (400)
-  - Interactive transaction: create invite + upsert portal contact + increment `clientsInvited` (only on first invite, not re-invite)
-  - Fire-and-forget email after transaction commits
-  - `INVITE_SELECT` constant excludes `token` from response
-- `GET /hubs/:hubId/invites` — List pending non-expired invites (newest first)
-- `DELETE /hubs/:hubId/invites/:id` — Revoke with cascade (delete PortalContact + PortalVerification + PortalDevice)
-
-Email:
-- `sendPortalInvite()` in `email.service.ts` — branded HTML email with hub name, inviter name, optional message, "Open Portal" button
-- Portal URL: `new URL('/clienthub/portal/' + hubId, env.CORS_ORIGIN)`
-
-Frontend:
-- `src/types/member.ts` — removed `token` from HubInvite type, added `message` field
-- `src/services/member.service.ts` — updated mock data to match
-
-Tests: 21 tests across 2 new files + 1 shared fixture file:
-- `members-invites-fixtures.ts` — shared test data
-- `members-invites.test.ts` — 15 POST tests (create, re-invite, email normalisation, all 4 access levels, message length, tenant mismatch, 404, access method guard, domain mismatch, null clientDomain, production guard)
-- `members-invites-list-delete.test.ts` — 6 GET/DELETE tests (pending filter, expired filter, select excludes token, cascade revoke, 404, hub-mismatch)
-
-Cloud Build:
-- `RESEND_API_KEY` added to `cloudbuild-middleware.yaml` (secret from GCP Secret Manager)
-
-**Note on `prisma db push`:** The `prisma db push` command fails with P4002 due to cross-schema references from the CRM's `activity_log` table to `auth.users` in the shared Supabase instance. The `hub_invite` table was created via raw SQL instead. Future schema changes may also need raw SQL — check if `prisma db push` works first, fall back to raw SQL if it doesn't.
-
-**Bug fix included:** `hubs.route.ts` portal-preview endpoint fixed to use `sendItem()` instead of `res.json({ data: {...} })` — resolved a pre-existing test failure.
-
-#### Phase 2b: Full Members & Access (PARTIALLY IMPLEMENTED)
-
-**What remains (after current implementation):**
-
-**Client authentication — magic link:**
-- Staff invites a client by email address → system generates a time-limited magic link token
-- Client clicks the link → middleware validates token, issues a short-lived session JWT (type: `member`, 7-day expiry)
-- Session JWT is stored in a cookie with full security attributes:
-  - `HttpOnly` — not accessible to JavaScript (XSS protection)
-  - `Secure` — only sent over HTTPS
-  - `SameSite=Lax` — CSRF protection for GET requests; state-changing routes (POST/PATCH/DELETE) additionally require a CSRF token in the `X-CSRF-Token` header (double-submit cookie pattern)
-  - `Path=/api/v1` — scoped to API routes only
-- Session fixation prevention: on magic link redemption, any existing session cookie is invalidated before issuing a new one
-- Token lifecycle:
-  - Magic link token: single-use, expires after 15 minutes
-  - Session JWT: 7 days, refresh on activity, revocable by staff
-  - Replay prevention: each magic link token has a unique `jti` claim, marked as used on first redemption
-  - Revocation: staff can revoke a member's access, which invalidates all active sessions (revocation list checked on each request)
-- Audit: every magic link generation, redemption, and session creation is logged in `hub_event`
-
-**Portal migration plan:**
-- **Dual-run period:** Both password access and member-based magic link access work simultaneously
-- **Feature flag:** `MEMBER_ACCESS_ENABLED=true` enables the new member system
-- **No breaking change:** Password portal continues to work throughout migration
-- **Migration path:** Once member system is proven, password access can be deprecated (separate decision, not in this phase)
-- **Rollback:** Disable feature flag. Password access is unaffected.
-
-**What's to be built:**
-- New tables: `hub_session` (for magic-link session cookies) — `hub_member` is now live
-- Remaining endpoint placeholders in members.route.ts: member activity + share-link
-- `portal:members` is now live (`portal:invite` remains a legacy/deprecated 501 route)
-- Plus 1 public stub: public:invite-accept (the live invite-accept handler)
-- Hub access middleware updated to check member session (alongside existing password check)
-
-**Success criteria:**
-- Client receives magic link and gains hub access after clicking
-- Magic links are single-use and expire after 15 minutes
-- Sessions expire after 7 days of inactivity
-- Staff can revoke access (immediate effect)
-- Password portal still works (dual-run)
-- Cross-hub member access denied (negative test)
-- Replayed magic link tokens rejected (negative test)
-
-**Stub endpoints resolved (contract inventory):** members:4 member + 1 share-link (5), portal:members (1), public:invite-accept (1) = **7 stubs**
-
-**Dependencies:** Phase 0a. Soft dependency on Phase 5 (OBO) or transactional email API key (already configured for Resend).
-
-**Complexity:** Medium (~4-5 days, reduced from 6-7 since invite infrastructure is done)
+- Stabilization first reduces risk in already-live workflows.
+- Collaboration completeness closes visible user-facing product gaps.
+- Intelligence should follow once core collaboration surfaces are fully reliable.
 
 ---
 
-### Phase 3: Questionnaires
+## 6. Definition of Done (Cross-Phase)
 
-**Objective:** Staff can create questionnaires; clients can fill them in and submit responses.
+Every phase is done only when all are true:
 
-**What's built:**
-- New tables: `hub_questionnaire`, `hub_questionnaire_response` (JSONB for flexibility, with `tenant_id`)
-- 6 endpoints in questionnaires.route.ts: list, get, create, update, delete, get responses
-- 1 endpoint in portal.route.ts: portal questionnaire view/submit
-- Portal-facing questionnaire view and submit
-
-**Success criteria:**
-- Staff creates/edits questionnaires
-- Clients fill in and submit via portal
-- Staff views aggregated responses
-- Cross-hub questionnaire access denied (negative test)
-
-**Stub endpoints resolved:** questionnaires:all 6, portal:questionnaires (1) = **7 stubs**
-
-**Dependencies:** Phase 0
-
-**Complexity:** Medium (~4-5 days)
+1. Backend tests pass and include new endpoint coverage.
+2. Frontend build passes.
+3. UAT scenarios for the released scope pass with evidence.
+4. `docs/CURRENT_STATE.md` is updated.
+5. `progress/STATUS.md` is updated.
+6. No new UI path points to placeholder/501 endpoints unless explicitly labeled as Coming Soon.
 
 ---
 
-### Phase 4: Engagement Analytics
-
-**Objective:** Staff can see who viewed what and when. Leadership dashboard shows portfolio-wide insights.
-
-**What's built:**
-- Document engagement endpoint (aggregates from `hub_event`)
-- Proposal engagement endpoint
-- Video engagement endpoint
-- Hub-level engagement summary (total views, unique visitors)
-- Leadership: at-risk clients (no activity in 14+ days)
-- Leadership: expansion candidates (high engagement volume)
-- Leadership: refresh (recalculate metrics)
-
-**Measurable acceptance criteria:**
-- Engagement query latency: p95 < 500ms for hubs with <10,000 events
-- Data freshness: engagement data reflects events within 60 seconds of logging
-- At-risk detection: flags 100% of hubs with zero events in 14+ days (no false negatives)
-- False positive ceiling for expansion: <30% of flagged hubs should be irrelevant (validated by Hamish manual review of first 20 flags)
-
-**Stub endpoints resolved:** documents:engagement (1), proposals:engagement (1), videos:engagement (1), leadership:at-risk+expansion+refresh (3) = **6 stubs**
-
-**Dependencies:** Phase 0a. Enhanced by Phase 2 (member identity enriches engagement data, but portal-level identity works without it — not a hard blocker)
-
-**Complexity:** Low-medium (~3-4 days)
-
----
-
-### Phase 5: OBO Token Flow (Graph API Foundation)
-
-**Objective:** Enable the middleware to call Microsoft Graph API on behalf of the signed-in user. This is infrastructure — it unlocks Messages and Meetings.
-
-**What's built:**
-- OBO token exchange using `@azure/msal-node` (already in package.json)
-- Graph client factory using `@microsoft/microsoft-graph-client` (already in package.json)
-- `AZURE_CLIENT_SECRET` added to env config (required when `AUTH_MODE=azure_ad`)
-
-**Token caching strategy:**
-- At launch scale (single instance, <50 users): in-memory cache keyed by user OID + requested scopes
-- Tokens cached until 5 minutes before expiry
-- Tokens are NOT persisted — server restart clears cache and tokens are re-acquired on demand (acceptable at launch scale)
-- Cache miss: acquire new token via OBO exchange with retry + exponential backoff (max 3 retries)
-- CAE (Continuous Access Evaluation) handling: if Graph returns 401 with `claims` challenge, clear cached token and re-acquire with the claims parameter
-- **Multi-instance note:** If/when scaling to multiple instances, replace in-memory cache with Redis. The cache interface is abstracted to make this a config change, not a code rewrite.
-
-**Success criteria:**
-- OBO exchange works: user token in, Graph token out
-- Graph client can call `GET /me` successfully
-- Token caching prevents redundant exchanges (verified by log inspection)
-- CAE claims challenge triggers re-acquisition (unit test)
-- Error handling: consent not granted returns clear error message to frontend
-
-**Dependencies:** Phase 0a, Azure AD app needs Graph API permissions + admin consent + client secret
-
-**Complexity:** Medium (~3-4 days)
-
----
-
-### Phase 6: Messages (MVP Feed)
-
-**Objective:** Ship a production-safe, non-threaded message feed in-app for staff and portal clients.
-
-**What's built:**
-- New `hub_message` table (tenant-scoped, hub-scoped, ordered by `created_at DESC`)
-- Staff endpoints: `GET/POST /hubs/:hubId/messages`
-- Portal endpoints: `GET/POST /hubs/:hubId/portal/messages`
-- Sender identity is server-derived from auth context
-- Email notifications via Resend (staff post → portal contacts; portal post → hub contact email)
-- Frontend feed UI replaces portal Messages “Coming Soon” state
-
-**Success criteria:**
-- Staff can post and list messages for a hub
-- Portal clients can post and list messages for their hub
-- Messages are tenant-isolated and hub-scoped
-- Portal POST requires verified-email portal session
-- Notifications are sent best-effort without blocking message creation
-
-**Stub endpoints resolved:** staff feed GET+POST (2), portal feed GET+POST (2) = **4 stubs**  
-**Remaining in messages.route.ts:** thread detail, thread notes, thread update (3 stubs)
-
-**Dependencies:** none beyond existing auth + database + Resend integration
-
-**Complexity:** Medium (~3-4 days)
-
----
-
-### Phase 7: Meetings (Graph Calendar + Teams)
-
-**Objective:** Staff can schedule, manage, and track meetings related to a hub.
-
-**Hub scoping — explicit linkage, not heuristics:**
-- New table: `hub_meeting` (`id`, `hub_id`, `graph_event_id`, `agenda`, `notes`, `linked_by`, `linked_at`, `tenant_id`)
-- Meetings are scoped to a hub via explicit linked event IDs
-- When staff creates a meeting from within a hub, it's auto-linked
-- Staff can also manually link existing calendar events to a hub
-
-**What's built:**
-- 9 endpoints in meetings.route.ts: list, get, create, update, cancel (delete), agenda, notes, recording, transcript
-- 1 endpoint in portal.route.ts: portal meetings GET
-- Meeting creation generates Teams meeting link via Graph
-- Agenda and notes stored in database (augments Graph Calendar data)
-- Explicit hub-to-meeting linkage
-
-**Success criteria:**
-- Staff schedules meetings with Teams links
-- Meetings appear on their Outlook calendar
-- Agendas, notes, recordings, and transcripts accessible
-- Cross-hub meeting access denied (negative test)
-
-**Stub endpoints resolved:** meetings:all 9, portal:meetings (1) = **10 stubs**
-
-**Dependencies:** Phase 5 (OBO), Azure AD `Calendars.ReadWrite` + `OnlineMeetings.ReadWrite` permissions
-
-**Complexity:** High (~6-7 days)
-
----
-
-### Phase 8: Client Intelligence (AI)
-
-**Objective:** AI-powered features that differentiate AgentFlow — instant answers, meeting prep, performance narratives, decision tracking, risk alerts.
-
-**Architecture:**
-- AI provider called server-side only (API key in middleware env, never on frontend)
-- Async job pattern: POST creates job → GET polls for result
-- New tables: `hub_ai_job`, `hub_decision`, `hub_decision_history`, `hub_risk_alert` (all with `tenant_id`)
-- DB indexes: `hub_ai_job(hub_id, created_at)`, `hub_decision(hub_id, status)` for query performance
-
-**AI governance and safety controls:**
-
-| Control | Implementation |
-|---------|---------------|
-| PII redaction | Strip email addresses, phone numbers, and names from AI context before sending. Use hub/project IDs instead of names where possible. |
-| Prompt injection defence | System prompt is hardcoded server-side. User input is passed as a separate `user` message, never interpolated into the system prompt. Input length capped at 2,000 chars. |
-| Model pinning | Pin to a specific model version (e.g. `claude-sonnet-4-6-20250514`). No auto-upgrades. Version changes require explicit config update + regression test. |
-| Moderation | AI responses are checked for refusal/error patterns before storing. Failed generations stored with `status: 'failed'` and a safe error message. |
-| Fallback on failure | If AI call fails after 3 retries, return `status: 'failed'` with message "Unable to generate — please try again later". Never expose raw API errors to frontend. |
-| Rate limiting | Max 30 AI requests per user per hour, per feature type (prevents abuse while allowing normal workflow). |
-| Audit trail | Every AI job logged in `hub_ai_job` with input hash, model version, token count, latency. |
-| Incident debugging | Redacted prompt/response snippets (PII-stripped, first 500 chars) stored in `hub_ai_job` with 14-day auto-expiry. Encrypted at rest (Azure column encryption or Key Vault). Access to snippet columns requires admin role and is itself audit-logged. |
-| Full debug mode | `AI_DEBUG_MODE` stores full raw prompts/responses. Requires: (1) explicit approval logged in audit trail with approver identity, (2) time-bound activation via signed token (max 24 hours, auto-expires), (3) enable/disable events written to immutable audit log. Cannot be enabled via env var alone. |
-| GDPR | Right to deletion: deleting a hub cascades to all AI jobs (including snippets). No AI provider data retention (use API, not fine-tuning). 14-day snippet expiry enforced by scheduled Azure Function. |
-
-**Batch 8a — Instant Answers + Performance:**
-- 6 endpoints: submit question, get answer, recent answers, generate narrative, get narrative, latest
-- AI context: hub data, projects, events, engagement history
-
-**Batch 8b — Meeting Prep + Follow-up:**
-- 4 endpoints: generate prep, get prep, generate follow-up, get follow-up
-- AI context: meeting agenda/notes, recent hub activity, previous meetings
-
-**Batch 8c — Decisions + History + Risk Alerts:**
-- 8 endpoints: decision CRUD (state machine), institutional memory, risk alerts
-- Decision queue is primarily CRUD; risk alerts use AI for signal detection
-
-**Also resolves:** intelligence.route.ts (3 stubs for relationship health + expansion) — these are the data endpoints that feed Phase 9's UI. Implemented here as part of the AI batch.
-
-**Measurable acceptance criteria:**
-- AI response latency: p95 < 15 seconds (async job, not blocking)
-- Instant answer relevance: >70% rated "useful" by Hamish in first 20 test queries
-- Risk alert false positive ceiling: <40% of alerts are irrelevant (validated by manual review)
-- Performance narrative accuracy: covers all active projects and recent engagement (spot-checked against real hub data)
-- Error budget: <5% of AI jobs fail after retries
-
-**Stub endpoints resolved:** client-intelligence:all 18, intelligence:all 3 = **21 stubs**
-
-**Dependencies:** Phase 4 (engagement data), Phase 7 (meetings), AI provider API key
-
-**Complexity:** High (~8-10 days across 3 batches)
-
----
-
-### Phase 9: Relationship Intelligence + Leadership Completion
-
-**Objective:** Health dashboard, expansion radar, and complete leadership portfolio UI.
-
-**What's built:**
-- Frontend components for relationship health score (0-100) per client hub — uses intelligence.route.ts endpoints built in Phase 8
-- Expansion radar UI (upsell/cross-sell signal display)
-- Leadership at-risk and expansion views (aggregated across hubs)
-- No new backend stubs — this phase is frontend + integration of Phase 8 endpoints
-
-**Measurable acceptance criteria:**
-- Health score latency: p95 < 1 second per hub
-- Health score correlation: score of 0-30 should correspond to hubs with declining engagement (validated against event data)
-- Expansion radar precision: >50% of flagged opportunities are actionable (Hamish validates first 10)
-
-**Stub endpoints resolved:** 0 (all backend stubs resolved in Phase 8)
-
-**Dependencies:** Phase 4 (engagement), Phase 8 (AI)
-
-**Complexity:** Medium (~4-5 days)
-
----
-
-### Phase 10: Conversion Rollback + End-to-End Polish
-
-**Objective:** Zero 501 stubs remaining. Full Playwright E2E test coverage against real API.
-
-**What's built:**
-- Hub conversion rollback endpoint
-- Portal proposal comment endpoint
-- Playwright E2E tests against real API (becomes mandatory CI gate for all future deploys)
-- Error handling audit
-- Query performance review + indexing
-
-**Success criteria:**
-- Zero 501 stubs remaining (verified by `npm run verify-endpoints`)
-- All Playwright tests pass against real API
-- Consistent error responses across all endpoints
-- Tenant isolation negative tests pass for every hub-scoped endpoint
-
-**Stub endpoints resolved:** conversion:rollback (1), portal:proposal/comment (1) = **2 stubs**
-
-**Dependencies:** All above
-
-**Complexity:** Low-medium (~3-4 days)
-
----
-
-## Summary Timeline
-
-| Phase | Name | Est. Duration | Blocked By | Track |
-|-------|------|--------------|------------|-------|
-| MVP | Cloud Run + Supabase deployment | 1-2 days | Phase 0b | MVP — **LIVE** (deployed + smoke-tested 23 Feb 2026) |
-| 0b | Codebase Refactor (PG migration, config, TenantRepo, Dockerfiles, pipelines) | 4-5 days | Nothing (**COMPLETE**) | MVP |
-| 0a | Azure Infrastructure + Staging | 3-4 days | Nothing (deferred) | Azure cutover |
-| 1 | File Storage (Upload + AV Scanning) | 5-6 days | Phase 0a | Azure cutover |
-| 2 | Members & Access (Magic Link + Dual-Run) | 6-7 days | Phase 0a | Azure cutover |
-| 3 | Questionnaires | 4-5 days | Phase 0a | Azure cutover |
-| 4 | Engagement Analytics | 3-4 days | Phase 0a | Azure cutover |
-| 5 | OBO Token Flow | 3-4 days | Phase 0a | Azure cutover |
-| 6 | Messages (MVP Feed) | 3-4 days | None | MVP — **COMPLETE** (v5.5) |
-| 7 | Meetings (Explicit Linkage) | 6-7 days | Phase 5 | Azure cutover |
-| 8 | Client Intelligence (AI + Governance) | 8-10 days | Phase 4, 7 | Azure cutover |
-| 9 | Relationship Intelligence (Frontend) | 4-5 days | Phase 8 | Azure cutover |
-| 10 | Polish + Zero 501s + E2E | 3-4 days | All above | Azure cutover |
-
-**Total: ~15-16 weeks sequential, ~11-12 weeks with parallelisation**
-
-**Two tracks:** MVP track (0b → MVP deployment) is independent of the Azure cutover track (0a → Phase 1+). Phase 0b is complete. MVP deployment is the current focus — Azure AD app registration, Cloud Run service creation, and environment variable configuration are the remaining blockers (see "What Hamish Needs to Do"). Phases 1+ require Phase 0a (Azure infrastructure). Phases 1, 2, 3, 4, 5 can run in parallel after Phase 0a. Phases 6 + 7 can partially overlap after Phase 5.
-
-**Conditional dependencies in timeline:**
-- Phase 2 has a soft dependency on Phase 5 (OBO for invite emails) OR a transactional email API key. If neither is available, invites are manual copy-paste only.
-- Phase 4 is enhanced by Phase 2 (member identity enriches engagement data) but works without it (portal-level identity is sufficient).
-
----
-
-## Key Technical Decisions
-
-| Decision | Choice | Rationale |
-|----------|--------|-----------|
-| Hosting (target) | AgentFlow's own Azure subscription | DPA compliance under single Microsoft agreement. All data in EU Azure region. MVP uses Cloud Run + Supabase (see MVP section). |
-| Database (target) | Azure Database for PostgreSQL | Managed PostgreSQL, automated backups, EU region. MVP uses Supabase PostgreSQL (same Prisma schema). |
-| File storage | Azure Blob Storage | Same Azure subscription, private container, AV scanning via Azure Function |
-| AI provider | Server-side only (Claude/OpenAI) | API key stays in middleware; async job pattern handles latency |
-| Graph API auth | OBO (On-Behalf-Of) | Emails sent from user's mailbox; proper audit trail |
-| Config model | `AUTH_MODE` + `DATA_BACKEND` (orthogonal) | Prevents insecure auth/data combinations |
-| Hub scoping (Graph) | Explicit linkage tables | Eliminates email/domain heuristic data leakage risk |
-| Tenant isolation | Service-role + TenantRepository + DB constraints | App-layer guards + DB NOT NULL/FK defence in depth |
-| Client auth | Magic link (email-based sessions) | Simple UX for external clients, no Microsoft account required |
-| AI safety | PII redaction, prompt isolation, model pinning, signed debug toggle | GDPR-aware, no data leakage to provider |
-
----
-
-## What's Left to Do (Pickup Guide for New Developer)
-
-### Current state (as of 24 Feb 2026)
-
-**Both services are LIVE on Cloud Run.** The MVP is deployed and working. Status updates (Phase 2b) are the most recent addition — deployed 24 Feb 2026.
-
-**Repos:**
-- Frontend assembler: `goagentflow/AFv2` (builds the unified nginx image)
-- Client Hub app + middleware: `goagentflow/client-hub`
-- GCP project: `agentflow-456021`
-
-**Live URLs:**
-- Frontend: `https://www.goagentflow.com/clienthub/`
-- Middleware: `https://clienthub-api-axiw2ydgeq-uc.a.run.app`
-
-**Test status:** 159 tests across 11 files, all passing.
-
-### IMMEDIATE NEXT STEP: Browser test invite + status-update flows
-
-Invite endpoints and status-update workflows are deployed; run an end-to-end browser pass to verify happy-path UX and regressions in production.
-
-**Test plan:**
-1. Log in at `https://www.goagentflow.com/clienthub/` via Azure AD (Microsoft login)
-2. Navigate to an existing hub (or create one)
-3. Set the hub's access method to "email" via the portal contacts card
-4. Set the hub's `clientDomain` to a domain you can receive email at
-5. Open the invite dialog and invite a client email address
-6. Check the invited email's inbox for the invite email from Resend
-7. Click the "Open Portal" link in the email
-8. Verify the EmailGate appears and the email verification flow works
-9. Test revoke: revoke the invite and confirm the client can no longer verify
-
-**Negative tests:**
-- Invite an email from a non-matching domain → should get 400
-- Invite to a hub without `accessMethod: 'email'` → should get 400
-
-### How to deploy
-
-**Deploy middleware only** (most common — backend changes):
-```bash
-# From the client-hub repo root
-gcloud builds submit --config=cloudbuild-middleware.yaml --project=agentflow-456021
-```
-- Builds Docker image → pushes to Artifact Registry → deploys to Cloud Run
-- Smoke tests: `/health` returns 200, unauthenticated `/api/v1/hubs` returns 401
-- Secrets (DATABASE_URL, PORTAL_TOKEN_SECRET, RESEND_API_KEY, Azure AD) injected from GCP Secret Manager
-
-**Deploy frontend** (frontend changes — requires AFv2 repo):
-```bash
-# From the AFv2 repo root
-gcloud builds submit --config=cloudbuild.yaml --project=agentflow-456021
-```
-- Builds all four apps (marketing + assess + discovery + clienthub) into one nginx image
-
-**Database schema changes:**
-- Try `npx prisma db push` first (from `middleware/` directory)
-- If it fails with P4002 (cross-schema reference from CRM's `activity_log` to `auth.users`), create the table via raw SQL using a Node.js script with PrismaClient `$executeRawUnsafe()`
-- Column types must match existing tables: `hub.id` and `hub.tenant_id` are `TEXT` not `UUID`
-- Always run `npx prisma generate` after schema changes
-
-### If something goes wrong
-
-- **Middleware deploy fails:** Check Cloud Build logs in GCP Console. Most likely: a secret doesn't exist or Cloud Build SA lacks access.
-- **Frontend deploy fails:** Set `_SKIP_CLIENTHUB=true` as a substitution to deploy without clienthub.
-- **Login doesn't work:** Check Azure AD redirect URI matches exactly (`https://www.goagentflow.com` with www). Check browser console for MSAL errors.
-- **API calls fail (CORS):** Middleware `CORS_ORIGIN` is `https://www.goagentflow.com`. Mismatched domain = CORS block.
-- **Rollback:** `gcloud run services update-traffic clienthub-api --to-revisions=<previous-revision>=100 --region=us-central1 --project=agentflow-456021`
-
-### Key files for invite endpoints (Phase 2a)
-
-| File | Purpose |
-|------|---------|
-| `middleware/prisma/schema.prisma` | HubInvite model (lines 170-189) |
-| `middleware/src/routes/members.route.ts` | POST/GET/DELETE invite handlers |
-| `middleware/src/services/email.service.ts` | `sendPortalInvite()` + `buildInviteHtml()` |
-| `middleware/src/__tests__/members-invites-fixtures.ts` | Shared test data |
-| `middleware/src/__tests__/members-invites.test.ts` | 15 POST tests |
-| `middleware/src/__tests__/members-invites-list-delete.test.ts` | 6 GET/DELETE tests |
-| `src/types/member.ts` | Frontend HubInvite type (no token, has message) |
-| `cloudbuild-middleware.yaml` | RESEND_API_KEY added to deploy config |
-
-### Key files for status updates (Phase 2b)
-
-| File | Purpose |
-|------|---------|
-| `middleware/prisma/schema.prisma` | HubStatusUpdate model (lines 233-256) |
-| `middleware/prisma/sql/001_hub_status_update.sql` | Raw SQL: table, composite FK, CHECK constraints, append-only triggers |
-| `middleware/src/routes/status-updates.route.ts` | Staff-only POST + GET with validation |
-| `middleware/src/services/status-update-queries.ts` | Shared query helper + portal field mapper |
-| `middleware/src/routes/portal.route.ts` | Portal GET /status-updates (strips tenantId + createdSource) |
-| `middleware/src/__tests__/status-updates.test.ts` | 15 tests (validation, auth, portal redaction) |
-| `src/components/status-updates/CreateStatusUpdateDialog.tsx` | Staff creation form |
-| `src/components/client-hub-overview/StatusUpdateCard.tsx` | Portal card with load-more pagination |
-| `src/hooks/use-status-updates.ts` | React Query hooks (staff + portal + create mutation) |
-| `src/services/status-update.service.ts` | API service (staff + portal + mock) |
-
-### Claude Code direct SQL write method
-
-```sql
-INSERT INTO hub_status_update (hub_id, tenant_id, period, completed, in_progress, next_period, needed_from_client, on_track, created_by, created_source)
-VALUES ('<hub-id>', '<tenant-id>', 'Week X (w/c DD Mon)', 'Item 1\nItem 2', 'Item 3', 'Item 4', 'Approval needed', 'on_track', 'Claude Code', 'claude_sql');
-```
-
-Note: `created_source` must be `'claude_sql'` (not default `'staff_ui'`). Composite FK, CHECK constraints, and append-only triggers all apply.
-
-### Hamish's remaining manual tasks
-
-### For full Azure deployment (Phase 0a, when scaling)
-1. **Azure subscription** — Ensure an Azure subscription is available with sufficient quota
-2. **Azure AD permissions** — Grant admin consent for Graph API scopes when Phase 5 begins
-3. **Azure AD client secret** — Generate one for the backend app registration (Phase 5)
-4. **DNS** — Point chosen domain at Azure services
-5. **AI provider** — Choose Claude API or OpenAI and create an API key (Phase 8)
-
----
-
-## Resolved Questions
-
-| Question | Decision |
-|----------|----------|
-| Hosting platform | AgentFlow's own Azure (App Service + Static Web Apps + PostgreSQL + Blob Storage) |
-| Architecture docs | v4 supersedes ARCHITECTURE_V3_FINAL.md and ARCHITECTURE_DECISIONS.md |
-| Config model | `AUTH_MODE` + `DATA_BACKEND` (orthogonal controls) |
-| Graph scoping | Explicit linkage tables, not email/domain heuristics |
-| AI provider | Defer choice to Phase 8. Interface is provider-agnostic. |
-| File storage limits | 50MB per file. Per-hub quota deferred to post-launch. |
-| Client authentication | Magic link (email-based), session JWT in httpOnly cookie |
-| Tenant isolation at launch | App-layer (TenantRepository) + DB constraints. Full RLS deferred. |
-
----
-
-## Changelog
-
-| Version | Date | Changes |
-|---------|------|---------|
-| v1 | 21 Feb 2026 | Initial draft |
-| v2 | 21 Feb 2026 | Addressed 12 senior dev findings: production readiness gate, tenant isolation, explicit Graph scoping, orthogonal config, endpoint inventory, invite delivery, OBO cache, content security, AI governance, measurable acceptance criteria, portal migration, release strategy |
-| v3 | 21 Feb 2026 | Addressed 7 findings: corrected endpoint inventory (47/72/119), TenantRepository pattern, tenancy contradiction resolved, backend download proxy, relaxed compatibility rule, schema migration gate, AI incident debugging |
-| v4 | 21 Feb 2026 | Addressed 8 findings: (1) resolved architecture conflict — Azure-hosted, supersedes ARCHITECTURE_V3_FINAL + ARCHITECTURE_DECISIONS; (2) re-audited endpoint inventory — 46 real / 68 stub / 114 total, added stub-to-phase assignment ensuring all 68 accounted for; (3) added DB-level tenant constraints (NOT NULL, FK, verify function) alongside app-layer guards; (4) specified magic link auth for client members (token lifecycle, replay prevention, revocation, audit); (5) added AV scanning + quarantine for file uploads; (6) split CI gating into minimum (unit+integration) and full (+ Playwright E2E from Phase 10); (7) added staging environment as explicit Phase 0 deliverable; (8) tightened AI debug mode — requires signed approval token, immutable audit log, cannot enable via env var alone |
-| v4.1 | 22 Feb 2026 | Addressed 4 findings from v4 review: (1) BLOCKER resolved — updated AGENTS.md canon to match Azure-hosted architecture, superseded old docs with deprecation banners, updated CLAUDE.md references; (2) added full cookie security (Secure, SameSite=Lax, CSRF double-submit, session fixation prevention) to magic link auth; (3) deleted dead `acceptInviteRouter` from members.route.ts, corrected inventory to 46/67/113; (4) stale route file comments noted for Phase 0b cleanup |
-| v4.2 | 22 Feb 2026 | Added "MVP Deployment (Pre-Phase 0a)" section — Google Cloud Run + Supabase PostgreSQL for first client. Updated Phase 0a status. Long-term Azure plan unchanged. |
-| v4.3 | 22 Feb 2026 | Senior dev review round 1: (1) MVP uses Azure AD auth (not demo mode); (2) compliance narrative split MVP vs target-state; (3) Supabase→Azure migration runbook; (4) MVP readiness gate (11 checks); (5) phase dependency table fixed (MVP track vs Azure cutover); (6) verify-endpoints timing clarified; (7) test counts updated; (8) clean build requirement. |
-| v4.4 | 22 Feb 2026 | Senior dev review round 2: (1) route migration completion added as go-live blocker in MVP readiness gate — unmigrated routes crash in production PG mode; (2) normalised "Phase 0" → "Phase 0a" in timeline table and STATUS.md; (3) key decisions table marked hosting/database rows as "(target)" with MVP cross-reference. |
-| v4.5 | 22 Feb 2026 | Phase 0b sub-phase 4 (route migration) complete: all 9 route files migrated from Supabase adapter to Prisma TenantRepository. `DATA_BACKEND=mock` removed — `azure_pg` is now the only backend, `DATABASE_URL` always required. New Prisma-native mappers in `db/`. Public routes use direct Prisma queries. 3 rounds of external senior dev review, all findings addressed. |
-| v4.6 | 22 Feb 2026 | Cloud Run Dockerfiles + production readiness: (1) middleware multi-stage Dockerfile (Node 20 + pnpm + Prisma generate + tsup → non-root runtime); (2) frontend multi-stage Dockerfile (Vite build with VITE_* build args → nginx-unprivileged with PORT envsubst); (3) VITE_USE_MOCK_API=false default ensures production builds use real middleware; (4) Prisma generated client preserved across pnpm prune --prod; (5) nginx.conf.template with ${PORT} for Cloud Run compliance; (6) health endpoint rewritten with DB connectivity check (200/503); (7) health endpoint tests added (5 tests — 89 total across 6 files); (8) TRUST_PROXY added to MVP readiness gate and operator checklist; (9) readiness gate table reformatted with Status column. 3 rounds of senior dev review, all findings addressed. |
-| v4.7 | 23 Feb 2026 | Cloud Build pipelines, GCP secrets, and Azure AD complete: (1) assembler pipeline updated — new `build-clienthub` step in `cloudbuild.yaml` (AFv2 repo) clones client-hub, builds with VITE_BASE_PATH, MSAL env vars, and VITE_USE_MOCK_API=false, adds to nginx image; (2) nginx.conf updated with `/clienthub/` SPA routing; (3) `cloudbuild-middleware.yaml` created for separate `clienthub-api` Cloud Run service with all env vars from Secret Manager; (4) 8 GCP secrets created (Azure AD IDs, database URL, portal token, API base URL) with Cloud Build SA access; (5) Azure AD app registration complete (client ID, tenant ID, scope `access_as_user`, Staff role, Hamish assigned); (6) Vite base path configured (`vite.config.ts` + `BrowserRouter basename`); (7) smoke tests with bundle integrity checks (non-empty guards prevent false-pass); (8) middleware smoke test validates `/health` + auth rejection on `/api/v1/hubs`; (9) Dockerfile updated with `VITE_BASE_PATH` arg and standalone-use comment; (10) "What's Left to Deploy" pickup guide added for new developer onboarding. 3 rounds of senior dev review (2 internal + 1 external), all findings addressed. |
-| v5.0 | 23 Feb 2026 | Phase 1.5 smoke test complete + two bug fixes deployed: (1) Browser smoke test passed all 5 checks — staff setup, email verification flow, device remember-me auto-unlock, negative tests (unauthorised email uniform response, wrong code rejection, lockout after 3 failures), backwards compatibility; (2) Fixed portal-preview endpoint response shape (wrapped in `{data: ...}` to match public portal-meta); (3) Fixed UnauthorizedHandler redirecting portal routes to /login (now skips `/portal/` paths); (4) Seeded production tenant record for Azure AD tenant; (5) Both middleware and frontend redeployed to Cloud Run. |
-| v5.1 | 24 Feb 2026 | Phase 2a (Portal Invite Endpoints) implemented, reviewed, and deployed: (1) HubInvite model added to Prisma schema with unique(hubId, email) and composite index; (2) hub_invite table created in Supabase via raw SQL (prisma db push fails due to CRM cross-schema refs); (3) 3 invite endpoints in members.route.ts — POST (create/re-invite with zod validation, domain check, email normalisation, interactive transaction, fire-and-forget email), GET (pending non-expired), DELETE (revoke with cascade); (4) sendPortalInvite() added to email.service.ts with branded HTML; (5) INVITE_SELECT excludes token from responses; (6) RESEND_API_KEY added to cloudbuild-middleware.yaml; (7) Frontend type updated (token removed, message added); (8) 21 new tests across 2 files + shared fixtures (141 total, 10 files); (9) hubs.route.ts portal-preview bug fixed; (10) 3 rounds automated review + external senior dev review, all findings addressed (hub-scoped DELETE, frontend type drift, test coverage, pre-existing test failure); (11) Middleware redeployed to Cloud Run. Browser test of invite flow pending. |
-| v5.2 | 24 Feb 2026 | Phase 2b (Status Updates) implemented, reviewed, and deployed: (1) HubStatusUpdate model added to Prisma schema; (2) Raw SQL migration (`prisma/sql/001_hub_status_update.sql`) with composite FK `(hub_id, tenant_id)`, CHECK constraints (non-empty fields, length limits ≤200/≤5000, on_track enum), and append-only triggers (UPDATE/DELETE blocked); (3) `db:migrate:sql` and `db:migrate:all` scripts added to package.json with fail-fast error handling; (4) Staff-only POST + GET routes in `status-updates.route.ts` with `requireString()` type guard, length limits, strict onTrack validation, server-derived createdBy/createdSource; (5) Portal GET route added to `portal.route.ts` with `mapStatusUpdateForPortal()` stripping tenantId + createdSource; (6) Shared query service `status-update-queries.ts` (neutral module, no auth/HTTP); (7) Frontend: `CreateStatusUpdateDialog.tsx` (staff form), `StatusUpdateCard.tsx` (portal card with accumulative load-more pagination, stale-state reset on hub change), React Query hooks with broadened cache invalidation; (8) `QuickStatCard.tsx` and `ClientHubOverviewPage.tsx` extracted for file-length compliance; (9) 15 status-update tests (validation, auth, portal positive-path with field redaction assertion); (10) 159 total tests across 11 files; (11) 3 rounds internal review + 2 rounds external review, all findings addressed; (12) Both services redeployed to Cloud Run + SQL migration run against prod. |
-| v5.3 | 24 Feb 2026 | Documentation sync pass: (1) added `docs/CURRENT_STATE.md` as canonical live-vs-aspirational source; (2) aligned README + STATUS + roadmap references; (3) corrected stale counts/phrasing (tests, latest phase wording, remaining placeholder count); (4) added historical banners on outdated planning docs to prevent cold-dev confusion. |
-| v5.5 | 25 Feb 2026 | Messages MVP feed implemented: (1) new `hub_message` raw SQL migration + Prisma model + TenantRepository scope; (2) staff `GET/POST /hubs/:hubId/messages` with strict body validation and non-blocking notifications; (3) portal `GET/POST /hubs/:hubId/portal/messages` with verified-email posting requirement; (4) new message query service and Resend notification templates/functions; (5) 15 message tests added + contract stub assertions updated; (6) frontend message feed components/hooks/services wired for staff + portal routes; (7) portal Messages “Soon” placeholder removed; (8) docs inventory updated to 56 real / 59 placeholder contract endpoints. |
-| v5.6 | 25 Feb 2026 | Hub lifecycle + membership hardening delivered: (1) additive SQL migration `003_hub_membership_access.sql` adds `hub_member`, `hub_access_revocation`, `hub_crm_org_map` (non-breaking); (2) immediate portal-token revocation check added to auth middleware; (3) staff endpoints `POST /hubs/:hubId/unpublish` and `DELETE /hubs/:hubId` implemented; (4) members endpoints `GET/PATCH/DELETE /hubs/:hubId/members` and portal `GET /hubs/:hubId/portal/members` implemented; (5) invite/contact revoke paths now invalidate existing sessions instantly; (6) CRM activity sync added (best-effort, non-blocking) for membership changes; (7) portal client message notifications now fan out to all known staff recipients (not just hub owner); (8) frontend portal management adds Unpublish + Delete Hub actions; (9) 4 new backend test files + updates, total `207/207` passing, middleware typecheck clean, frontend build clean. |
-| v4.9 | 23 Feb 2026 | Phase 1.5 (Portal Email Verification) implemented and deployed: (1) 3 new Prisma models (PortalContact, PortalVerification, PortalDevice) + Hub.accessMethod field; (2) 4 public endpoints (access-method, request-code, verify-code, verify-device) with rate limiting and enumeration prevention; (3) 5 staff endpoints (portal contacts CRUD + access method management) with tenant isolation; (4) Email via Resend REST API (fire-and-forget, XSS-safe templates); (5) Frontend EmailGate + PortalContactsCard + PortalDetail access-method routing; (6) SHA-256 hashed codes, timing-safe comparison, per-code lockout; (7) Device token remember-me (90-day, localStorage); (8) Method-switch side-effects (clear passwordHash on open, revoke artifacts on method change); (9) 120 tests across 7 files; (10) 3 rounds automated review + 3 rounds external senior dev review; (11) CLIENTHUB_RESEND_API_KEY added to GCP Secret Manager; (12) Both services redeployed to Cloud Run. Browser smoke test pending. |
+## 7. Historical Docs Policy
+
+These files are retained for historical planning context and should not be treated as live implementation truth:
+
+- `docs/archive/historical-plans/API_SPECIFICATION.md`
+- `docs/archive/historical-plans/PHASE_1_5_EMAIL_VERIFICATION_PLAN.md`
+- `docs/archive/historical-plans/PHASE_1_DOCUMENT_UPLOAD_SUPABASE_PLAN.md`
+- `docs/archive/historical-plans/PHASE_2_CLIENT_HUBS.md`
+- `docs/archive/historical-plans/UAT_PITCH_HUB_STAFF_CLIENT_FLOW.md`

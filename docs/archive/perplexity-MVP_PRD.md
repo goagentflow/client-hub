@@ -598,7 +598,7 @@ type EngagementEventType =
 
 ### 2.3 API Contract (Full Specification)
 
-See accompanying `API_SPECIFICATION.md` (generated from frontend requirements).
+See accompanying `historical-plans/API_SPECIFICATION.md` (generated from frontend requirements).
 
 Key principles:
 - ✅ All endpoints hub-scoped (`/api/v1/hubs/{hubId}/...`)

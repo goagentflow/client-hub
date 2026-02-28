@@ -1,123 +1,103 @@
-# AgentFlow Client Hub v0.1
+# AgentFlow Client Hub
 
-A client relationship portal built on Microsoft 365. AgentFlow is building this to use with our own clients before selling the full platform to professional services firms.
+Client-facing and staff-facing hub application for managing ongoing client work.
 
-## What This Is
+## What This Repo Contains
 
-Two hub types, each with staff and client views:
+- `src/`: React frontend (staff and portal experiences)
+- `middleware/`: Express API (auth, access control, hub workflows, documents, messages)
+- `docs/`: operational docs (live state, roadmap, UAT)
+- `tests/`: Playwright frontend smoke/e2e coverage
+- `middleware/src/__tests__/`: API contract and behavior tests
 
-- **Pitch Hubs** — Managing new business pitches (proposals, videos, documents, meetings)
-- **Client Hubs** — Ongoing client relationships (projects, status updates, health scoring, expansion opportunities)
+## Current Snapshot (28 Feb 2026)
 
-The frontend wireframe is largely complete for both hub types. Some client-portal routes intentionally show "Coming Soon" placeholders where backend capabilities are still in development. The middleware API layer is in active development, with production deployment live for the implemented subset.
+- Production frontend: `https://www.goagentflow.com/clienthub/`
+- Production middleware: `https://clienthub-api-axiw2ydgeq-uc.a.run.app`
+- Backend tests: `232` passing across `18` files
+- Frontend build: passing (`npm run build`)
+- Core live features: hub lifecycle, portal access controls, invite/member revoke flows, staff+client messaging, document upload/preview/download, status updates, and consent-managed GA4 tracking.
+- UAT status: GA4 + consent UAT completed with production `GO` across marketing/access/assess/clienthub surfaces.
 
-## New Developer? Start Here
+For exact live-vs-placeholder behavior, use [docs/CURRENT_STATE.md](./docs/CURRENT_STATE.md).
 
-1. **`README.md`** — You're here. Setup instructions and project overview.
-2. **`docs/CURRENT_STATE.md`** — Canonical live-vs-aspirational status.
-3. **`docs/PRODUCTION_ROADMAP.md`** — Detailed phase plan and endpoint inventory.
-4. **`progress/STATUS.md`** — Implementation log and decisions history.
-5. **`AGENTS.md`** — Architecture canon and coding standards.
-6. **`docs/API_SPECIFICATION.md`** — Historical aspirational API contract draft (not source of truth for live behavior).
+## New Developer Start Here
 
-## Tech Stack
+1. [docs/README.md](./docs/README.md)
+2. [docs/CURRENT_STATE.md](./docs/CURRENT_STATE.md)
+3. [docs/PRODUCTION_ROADMAP.md](./docs/PRODUCTION_ROADMAP.md)
+4. [docs/UAT_PLAN_LIVE_CLIENT_HUB_RELEASE.md](./docs/UAT_PLAN_LIVE_CLIENT_HUB_RELEASE.md)
+5. [docs/GA4_CONSENT_UAT_RESULTS_2026-02-28.md](./docs/GA4_CONSENT_UAT_RESULTS_2026-02-28.md)
+6. [progress/STATUS.md](./progress/STATUS.md)
+7. [AGENTS.md](./AGENTS.md)
 
-**Frontend:**
-- Vite (build tool)
-- TypeScript
-- React
-- Tailwind CSS
-- shadcn/ui components
-- MSAL.js (@azure/msal-browser) for Azure AD login
+Historical planning docs are kept for context in `docs/archive/` (index: `docs/archive/README.md`), but are not source of truth.
 
-**Middleware:**
-- Express (Node.js)
-- TypeScript
-- Prisma 6 (ORM)
-- jose (JWT validation — Azure AD RS256 + portal HS256)
-- Zod (input validation)
-- Pino (structured logging)
+## Local Setup
 
-## Development
+## Prerequisites
 
-### Prerequisites
-- Node.js 20+ — [install with nvm](https://github.com/nvm-sh/nvm)
-- pnpm — `npm install -g pnpm`
+- Node.js 20+
+- `pnpm`
 
-### Frontend
+## Frontend
+
 ```sh
 git clone <REPO_URL>
 cd client-hub
 npm install
-npm run dev              # http://localhost:5173
+npm run dev
 ```
 
-### Middleware
+Frontend runs at `http://localhost:5173`.
+
+## Middleware
+
 ```sh
 cd middleware
 pnpm install
-cp .env.example .env     # Defaults: AUTH_MODE=demo, DATA_BACKEND=azure_pg
-# Edit .env — set DATABASE_URL to your PostgreSQL connection string
-npx prisma generate      # Generate Prisma client
-pnpm run dev             # http://localhost:3001
+cp .env.example .env
+npx prisma generate
+pnpm run dev
 ```
 
-### Tests
+Middleware runs at `http://localhost:3001`.
+
+Important local env values are documented in `middleware/.env.example`.
+
+## Useful Commands
+
 ```sh
+# backend tests
 cd middleware
-pnpm test                # 159 tests across 11 files
+pnpm test
+
+# frontend build
+cd ..
+npm run build
+
+# frontend tests (Playwright)
+npm run test:e2e
 ```
 
-## Project Structure
+## Live vs Placeholder (High-Level)
 
-```
-/src                        # Frontend (React)
-  /components               # UI components
-  /pages                    # Page views
-  /services                 # API client, auth service
-  /lib                      # Utilities
-/middleware                  # Backend (Express)
-  /src
-    /config                 # Environment config (AUTH_MODE, DATA_BACKEND)
-    /middleware              # Auth, hub-access, inject-repository
-    /routes                 # API route modules (real + placeholder endpoints)
-    /adapters               # Data layer adapters
-    /db                     # Prisma client, TenantRepository, AdminRepository
-  /prisma
-    schema.prisma           # Database schema
-/docs                       # Architecture docs, API spec, phase plans
-/progress                   # STATUS.md — master project status
-```
+Live now:
+- Overview, Documents, Messages, Client Portal controls, Status Updates
 
-## Brand Guidelines
+Still placeholder/partial:
+- Meetings
+- Questionnaires
+- Proposal comments
+- Document engagement analytics endpoint
+- Intelligence endpoints (decisions, performance, history, relationship health)
+- Legacy threaded message endpoints
 
-| Colour | Hex | Usage |
-|--------|-----|-------|
-| Gradient Blue | `#a6c3e8` | Headers, buttons, hero sections |
-| Gradient Purple | `#c6b8e4` | Backgrounds, accents, gradients |
-| Deep Navy | `#2c3e50` | Text overlays, navigation, icons |
-| Warm Cream | `#fdfaf6` | Main background |
-| Soft Coral | `#f7a89d` | Call-to-action buttons (use sparingly) |
-| Sage Green | `#a1bba2` | Illustrations, icons, balance elements |
-| Dark Grey | `#3c3c3c` | Primary body text |
-| Medium Grey | `#6b6b6b` | Secondary text, metadata |
-| Bold Royal Blue | `#3d5fa8` | Headings, emphasis |
-| Rich Violet | `#7952b3` | Alternating headings, key terms |
+## Documentation Rules
 
-**Font:** Calibri (fallback to system sans-serif)
+When behavior changes, update these in the same PR:
 
-**Logo:** https://www.goagentflow.com/assets/images/AgentFlowLogo.svg
-
-## Current Status
-
-MVP is live on Cloud Run + Supabase PostgreSQL. Phase 0b (codebase refactor), Phase 1.5 (portal email verification), Phase 2a (invite endpoints), and Phase 2b (status updates) are complete and deployed. For exact live-vs-aspirational behavior, read `docs/CURRENT_STATE.md`.
-
-## Key Documents
-
-- [docs/CURRENT_STATE.md](./docs/CURRENT_STATE.md) — Canonical live vs aspirational state
-- [progress/STATUS.md](./progress/STATUS.md) — Master project status and roadmap
-- [AGENTS.md](./AGENTS.md) — Architecture canon and coding standards
-- [docs/PRODUCTION_ROADMAP.md](./docs/PRODUCTION_ROADMAP.md) — Detailed phase plan
-- [docs/API_SPECIFICATION.md](./docs/API_SPECIFICATION.md) — Historical aspirational API contract draft
-- [docs/PHASE_2_CLIENT_HUBS.md](./docs/PHASE_2_CLIENT_HUBS.md) — Historical Phase 2 product spec (goal-state)
-- [docs/Vision_and_Assumptions.md](./docs/Vision_and_Assumptions.md) — Product vision and long-horizon assumptions
+1. [docs/CURRENT_STATE.md](./docs/CURRENT_STATE.md)
+2. [docs/PRODUCTION_ROADMAP.md](./docs/PRODUCTION_ROADMAP.md)
+3. [progress/STATUS.md](./progress/STATUS.md)
+4. Any impacted onboarding/setup doc (`README.md`, `middleware/.env.example`)

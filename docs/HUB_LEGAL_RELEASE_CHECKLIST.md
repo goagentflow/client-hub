@@ -44,3 +44,14 @@ Use: Mandatory checks for releases touching hub auth, hub messaging/docs, or leg
 ## 4. Approval
 
 Release owner signs off only when all checks are complete and evidence is attached.
+
+## 5. Latest Completed Record
+
+Release window: 2026-02-28  
+Decision: `GO`
+
+Summary:
+
+1. Consent + GA4 release gate passed (pre-consent, post-consent, withdrawal, SPA route tracking).
+2. Legal links and consent preferences verified functional.
+3. Evidence captured in `docs/GA4_CONSENT_UAT_RESULTS_2026-02-28.md`.

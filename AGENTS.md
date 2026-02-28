@@ -41,11 +41,11 @@ SIMPLE → CLEAN → DRY → SECURE
 
 ## Architecture Canon
 
-> **Updated Feb 2026** — Architecture evolved from customer-hosted SharePoint to AgentFlow-hosted Azure.
-> **MVP deployment** uses Google Cloud Run + Supabase PostgreSQL (existing infrastructure, near-zero cost).
-> **Production target** remains Azure App Service + Azure PostgreSQL (Phase 0a).
+> **Updated Feb 2026** — Architecture evolved from customer-hosted SharePoint to AgentFlow-hosted infrastructure.
+> **MVP deployment** uses Google Cloud Run + Supabase PostgreSQL + Supabase Storage for live document files.
+> **Production target** remains Azure App Service + Azure PostgreSQL (migration track).
 > Both use the same Prisma schema — migration is a config change (`DATABASE_URL`).
-> See `docs/PRODUCTION_ROADMAP.md` (v4.4) for the full rationale, MVP section, and migration plan.
+> See `docs/CURRENT_STATE.md` and `docs/PRODUCTION_ROADMAP.md` for the current operational baseline.
 
 ### Architecture Overview
 
@@ -75,9 +75,9 @@ SIMPLE → CLEAN → DRY → SECURE
 │                              │  │                              │
 │  PostgreSQL (hub data)       │  │  Outlook (email via OBO)     │
 │  MVP: Supabase PG            │  │  Teams (meetings via OBO)    │
-│  Prod: Azure PG (Phase 0a)   │  │  Calendar (events via OBO)   │
-│  Blob Storage (files, later) │  │                              │
-│  Azure AD (auth, later)      │  │  Customer controls M365 data │
+│  Prod: Azure PG (migration)  │  │  Calendar (events via OBO)   │
+│  Supabase Storage (files)    │  │                              │
+│  Azure AD (staff auth)       │  │  Customer controls M365 data │
 └──────────────────────────────┘  └──────────────────────────────┘
 ```
 
@@ -87,7 +87,7 @@ SIMPLE → CLEAN → DRY → SECURE
 |----------|-----------|-----------|
 | **OBO Flow** | Frontend never sees Graph tokens; secrets server-side only | Minimal latency overhead |
 | **PostgreSQL (via Prisma)** | MVP: Supabase PG (existing). Production: Azure PG (Phase 0a). Same Prisma schema, config-only migration. | AgentFlow hosts hub data |
-| **Azure Blob Storage** | Private container, AV scanning, auth-checked download proxy (Phase 1). MVP uses OneDrive links. | AgentFlow hosts files (covered by Microsoft DPA) |
+| **Supabase Storage (MVP files)** | Private bucket + signed URL download/preview for live document uploads. | Interim storage platform until Azure migration decision |
 | **Hub-scoped endpoints** | Multi-tenant isolation trivial to enforce | Longer URLs |
 | **Stateless middleware** | Infinite horizontal scalability | Each request validates tenant |
 | **TenantRepository** | Centralised tenant guard on every query; no direct DB calls | Discipline required (enforced by CI lint) |
@@ -96,7 +96,7 @@ SIMPLE → CLEAN → DRY → SECURE
 ### Data Ownership Principle
 
 - **Hub metadata, members, engagement, AI jobs** → PostgreSQL (MVP: Supabase PG; Production: Azure PG)
-- **Files (documents, proposals, videos)** → MVP: OneDrive links; Production: Azure Blob Storage (Phase 1)
+- **Files (documents)** → MVP: Supabase Storage signed URLs (legacy external links still supported); target migration to Azure Blob if required
 - **Emails, calendar events, Teams meetings** → Customer's M365 tenant (they own, accessed via Graph OBO)
 - **We never store email bodies, file contents from M365, or Graph API responses** in our database
 
@@ -266,13 +266,15 @@ If any answer is "no", reconsider the approach.
 ## References
 
 **Start Here:**
-- [docs/PRODUCTION_ROADMAP.md](./docs/PRODUCTION_ROADMAP.md) — **Current architecture and implementation plan** (v4.4, MVP + Azure roadmap)
+- [docs/README.md](./docs/README.md) — Documentation map and source-of-truth order
+- [docs/CURRENT_STATE.md](./docs/CURRENT_STATE.md) — Canonical live-vs-placeholder state
+- [docs/PRODUCTION_ROADMAP.md](./docs/PRODUCTION_ROADMAP.md) — Active roadmap and production criteria
 
 **Standards:**
 - [GOLDEN_RULES.md](./GOLDEN_RULES.md) — Coding standards
-- [Vision_and_Assumptions.md](./docs/Vision_and_Assumptions.md) — Product vision (note: section 4.2 on storage is superseded by the roadmap)
+- [Vision_and_Assumptions.md](./docs/archive/historical-plans/Vision_and_Assumptions.md) — Historical product vision (section 4.2 on storage is superseded by the roadmap)
 
 **Implementation:**
-- [docs/PRODUCTION_ROADMAP.md](./docs/PRODUCTION_ROADMAP.md) — Production phase plan and architecture (canon)
-- [docs/API_SPECIFICATION.md](./docs/API_SPECIFICATION.md) — Complete API contract (113 endpoints)
-- [docs/middleware/MSAL_AUTH_IMPLEMENTATION_PLAN.md](./docs/middleware/MSAL_AUTH_IMPLEMENTATION_PLAN.md) — Auth design (approved)
+- [docs/UAT_PLAN_LIVE_CLIENT_HUB_RELEASE.md](./docs/UAT_PLAN_LIVE_CLIENT_HUB_RELEASE.md) — Launch-readiness UAT coverage
+- [docs/archive/historical-plans/API_SPECIFICATION.md](./docs/archive/historical-plans/API_SPECIFICATION.md) — Historical API contract draft (not live source of truth)
+- [docs/archive/middleware/MSAL_AUTH_IMPLEMENTATION_PLAN.md](./docs/archive/middleware/MSAL_AUTH_IMPLEMENTATION_PLAN.md) — Historical auth implementation planning

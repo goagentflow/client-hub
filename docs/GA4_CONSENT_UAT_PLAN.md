@@ -159,3 +159,20 @@ Release is Go only if all are true:
 3. Core UX flows unaffected (staff/client/pitch).
 4. Legal links + consent preferences are visible and functional.
 5. Evidence package is attached to release notes.
+
+## 10. Execution Record (2026-02-28)
+
+Final status: `GO`
+
+Validated outcomes:
+
+1. Pre-consent: no non-essential analytics collection.
+2. Post-consent: analytics requests fired successfully (`g/collect` `204`).
+3. Post-withdrawal: analytics collection stopped.
+4. SPA route tracking: verified for Assess and Client Hub route navigation.
+5. UX non-regression: key sign-in paths, access forms, and consent controls remained functional.
+6. Legal links: `/hub-terms.html`, `/hub-privacy.html`, `/hub-cookie-notice.html` confirmed reachable with correct content.
+
+Detailed run record:
+
+1. `docs/GA4_CONSENT_UAT_RESULTS_2026-02-28.md`

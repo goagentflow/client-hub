@@ -1,5 +1,9 @@
 # Phase 1.5: Portal Email Verification — Implementation Plan
 
+> **HISTORICAL IMPLEMENTATION PLAN (completed).**
+> Email verification access mode is live in production.
+> Use `docs/CURRENT_STATE.md` for current behavior and `docs/PRODUCTION_ROADMAP.md` for remaining roadmap work.
+
 **Date:** 23 Feb 2026 (v4 — IMPLEMENTED AND DEPLOYED)
 **Author:** Hamish Nicklin / Claude Code
 **Status:** COMPLETE — deployed to production 23 Feb 2026

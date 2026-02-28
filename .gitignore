@@ -33,3 +33,7 @@ repomix-output*.xml
 
 # Supabase local temp files
 middleware/supabase/.temp/
+
+# Test artifacts
+playwright-report/
+test-results/

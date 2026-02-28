@@ -253,4 +253,4 @@ GET /hubs/{hubId}/documents?projectId=unassigned  # Not assigned
 
 ---
 
-*This document captures implementation decisions for future reference. See `PHASE_2_CLIENT_HUBS.md` for the full specification.*
+*This document captures implementation decisions for future reference. See `historical-plans/PHASE_2_CLIENT_HUBS.md` for the full specification.*

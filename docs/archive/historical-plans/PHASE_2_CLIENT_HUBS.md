@@ -365,7 +365,7 @@ UserPermissions {
 ### Phase 8: API Specification & Documentation
 
 **Files to modify:**
-- `docs/API_SPECIFICATION.md` — Add all new endpoints
+- `docs/archive/historical-plans/API_SPECIFICATION.md` — Add all new endpoints
 - `.cursorrules`, `README.md`, `CLAUDE.md` — Update scope
 
 ---

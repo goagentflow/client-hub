@@ -1,8 +1,12 @@
 # Phase 1 (MVP): Document Upload + Authenticated Download via Supabase Storage
 
+> **HISTORICAL IMPLEMENTATION PLAN (completed).**
+> Document upload/download has been implemented and deployed.
+> Use `docs/CURRENT_STATE.md` for live behavior and `docs/PRODUCTION_ROADMAP.md` for what remains.
+
 **Date:** 24 Feb 2026  
-**Status:** Proposed (senior-dev reviewed)  
-**Audience:** Middleware + frontend developers implementing document file storage in the live MVP stack
+**Status:** Complete (implemented + deployed; retained for history)  
+**Audience:** Historical reference
 
 ---
 
@@ -361,4 +365,3 @@ Specifically:
 
 4. Endpoint count/documentation drift
 - Mitigation: update CURRENT_STATE/ROADMAP/STATUS in same PR.
-
