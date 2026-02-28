@@ -1,6 +1,6 @@
 # Hub Legal/Compliance Release Checklist
 
-Last updated: 2026-02-27
+Last updated: 2026-02-28
 Owner: Engineering release lead
 Use: Mandatory checks for releases touching hub auth, hub messaging/docs, or legal/user-data behavior
 
@@ -24,6 +24,8 @@ Use: Mandatory checks for releases touching hub auth, hub messaging/docs, or leg
 6. Access recovery token flow remains opaque and one-time.
 7. Retention controls are active (cleanup logs observed).
 8. Consent behavior verified on impacted pages (no pre-consent non-essential analytics).
+9. GA4 pageview tracking verified on SPA routes (`/clienthub/*`, `/assess/*`) after consent.
+10. Termly consent log evidence captured for the release window.
 
 ## 2. Evidence to Attach in Release Notes
 
@@ -31,6 +33,7 @@ Use: Mandatory checks for releases touching hub auth, hub messaging/docs, or leg
 2. Route smoke checks for key public auth endpoints.
 3. Screenshot or HTTP evidence for legal pages and links.
 4. Consent validation notes for changed pages.
+5. Termly consent-log export or screenshots for the validation session.
 
 ## 3. Mandatory Doc Updates for Legal-Impacting Changes
 

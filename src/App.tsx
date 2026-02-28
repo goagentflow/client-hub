@@ -3,7 +3,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, useNavigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useLocation, useNavigate } from "react-router-dom";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
 import HubList from "./pages/HubList";
@@ -15,6 +15,7 @@ import NotFound from "./pages/NotFound";
 import { RequireStaff, RequireAdmin, RequireClient } from "./routes/guards";
 import { setUnauthorizedHandler, setTokenGetter, isMockApiEnabled, ApiRequestError } from "./services/api";
 import { getAccessToken, completeMsalRedirect } from "./services/auth.service";
+import { trackPageView } from "./lib/analytics";
 
 const NON_RETRIABLE = new Set([400, 401, 403, 404, 409, 422, 501]);
 
@@ -82,6 +83,17 @@ function MsalRedirectHandler() {
   return null;
 }
 
+function AnalyticsPageTracker() {
+  const location = useLocation();
+
+  useEffect(() => {
+    const pagePath = `${location.pathname}${location.search}${location.hash}`;
+    trackPageView(pagePath, document.title);
+  }, [location.pathname, location.search, location.hash]);
+
+  return null;
+}
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
@@ -90,6 +102,7 @@ const App = () => (
       <BrowserRouter basename={import.meta.env.BASE_URL}>
         <UnauthorizedHandler />
         <MsalRedirectHandler />
+        <AnalyticsPageTracker />
         <Routes>
           <Route path="/" element={<Index />} />
           <Route path="/login" element={<Login />} />
