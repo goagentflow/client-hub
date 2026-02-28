@@ -16,6 +16,7 @@ import { hasAdminAccess } from "@/types";
 import type { HubStatus, HubType } from "@/types";
 import { CreateHubDialog } from "@/components/CreateHubDialog";
 import { HubCard } from "@/components/HubCard";
+import { ProductSwitcher } from "@/components/ProductSwitcher";
 
 const formatStatus = (status: HubStatus) => {
   return status.charAt(0).toUpperCase() + status.slice(1);
@@ -61,12 +62,15 @@ const HubList = () => {
       {/* Header */}
       <header className="bg-white border-b border-border sticky top-0 z-50 shadow-sm">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
-          {/* Logo */}
-          <img
-            src="https://www.goagentflow.com/assets/images/AgentFlowLogo.svg"
-            alt="AgentFlow Logo"
-            className="h-10 w-auto"
-          />
+          {/* Logo + Product Switcher */}
+          <div className="flex items-center gap-3">
+            <img
+              src="https://www.goagentflow.com/assets/images/AgentFlowLogo.svg"
+              alt="AgentFlow Logo"
+              className="h-10 w-auto"
+            />
+            <ProductSwitcher current="clienthub" />
+          </div>
 
           {/* Title */}
           <h1 className="text-lg font-semibold text-royal-blue hidden md:block">
