@@ -27,6 +27,7 @@
 - Status updates: staff creation and portal visibility
 - Public access recovery endpoints: `POST /api/v1/public/access/request-link`, `GET /api/v1/public/access/items`
 - Staff launcher route: `/clienthub/launcher`
+- Staff cross-product links now use Azure SSO deep links (`/assess/auth?sso=azure...`) for Assess/CRM/Discovery handoff
 - Consent-managed GA4 rollout across marketing/access/clienthub/assess entry points (including SPA route pageview tracking)
 - GA4 + consent UAT execution completed with production `GO` sign-off (pre-consent, post-consent, withdrawal, SPA tracking)
 

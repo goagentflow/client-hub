@@ -30,7 +30,7 @@ These capabilities are live in production today:
 - Documents upload/download/preview via Supabase Storage signed URLs
 - Message feed (staff + portal), message audience visibility, teammate access request
 - Public access recovery API (`POST /api/v1/public/access/request-link`, `GET /api/v1/public/access/items`)
-- Staff launcher route (`/clienthub/launcher`) with product routing links
+- Staff launcher route (`/clienthub/launcher`) with product routing links and Azure SSO deep links for Assess/Discovery staff entry
 - Hub legal baseline (`/hub-privacy.html`, `/hub-terms.html`, `/hub-cookie-notice.html`, `/hub-subprocessors.html`)
 - Access-recovery retention cleanup for used/expired token artifacts
 - Consent-managed GA4 tracking with Termly controls across marketing/access/clienthub/assess

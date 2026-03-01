@@ -46,7 +46,7 @@ If any other document conflicts with this file, treat this file as source of tru
 - Messages: post/list feed messages and view message audience (who can read).
 - Documents: upload files (50MB limit, MIME + extension allowlist), preview/download via signed URLs, delete and bulk actions.
 - Status updates: create and list fortnightly updates.
-- Staff launcher: authenticated `/clienthub/launcher` route with links to Discovery, Co-Pilot Quiz, and Client Hub admin.
+- Staff launcher: authenticated `/clienthub/launcher` route with Azure SSO deep links to Discovery and Co-Pilot/CRM plus Client Hub admin routing.
 
 ## 3.2 Portal Client Flows (Live)
 

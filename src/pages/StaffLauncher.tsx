@@ -3,6 +3,7 @@ import { Building2, Compass, ClipboardList, ExternalLink, PieChart } from "lucid
 import type { ComponentType } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { PRODUCT_LINKS } from "@/config/product-links";
 import { useCurrentUser, useLogout } from "@/hooks";
 
 interface ToolCard {
@@ -24,28 +25,28 @@ const StaffLauncher = () => {
       title: "Client Hub Admin",
       description: "Manage hubs, portal access, and client engagement.",
       icon: Building2,
-      onOpen: () => navigate("/hubs"),
+      onOpen: () => navigate(PRODUCT_LINKS.CLIENT_HUB),
     },
     {
       key: "copilot",
       title: "Co-Pilot Quiz",
       description: "Go to the Co-Pilot Quiz app.",
       icon: ClipboardList,
-      onOpen: () => window.location.assign("/assess/auth"),
+      onOpen: () => window.location.assign(PRODUCT_LINKS.COPILOT_AUTH),
     },
     {
       key: "discovery",
       title: "Discovery",
       description: "Go to Discovery tools and reports.",
       icon: Compass,
-      onOpen: () => window.location.assign("/discovery/admin/login"),
+      onOpen: () => window.location.assign(PRODUCT_LINKS.DISCOVERY_ADMIN),
     },
     {
       key: "crm",
       title: "CRM & Pipeline",
       description: "Revenue tracking, deal pipeline, and client CRM.",
       icon: PieChart,
-      onOpen: () => window.location.assign("/assess/admin"),
+      onOpen: () => window.location.assign(PRODUCT_LINKS.CRM_ADMIN),
     },
   ];
 
@@ -100,10 +101,6 @@ const StaffLauncher = () => {
               );
             })}
           </div>
-
-          <p className="mt-6 text-sm text-medium-grey">
-            You might need to sign in again for Co-Pilot Quiz and Discovery - we're working on fixing that.
-          </p>
         </div>
       </main>
     </div>

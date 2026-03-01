@@ -9,6 +9,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
+import { PRODUCT_LINKS } from "@/config/product-links";
 
 const products = [
   {
@@ -16,28 +17,28 @@ const products = [
     title: "Client Hub",
     icon: Building2,
     action: "navigate" as const,
-    path: "/hubs",
+    path: PRODUCT_LINKS.CLIENT_HUB,
   },
   {
     key: "copilot",
     title: "Co-Pilot Quiz",
     icon: ClipboardList,
     action: "external" as const,
-    path: "/assess/auth",
+    path: PRODUCT_LINKS.COPILOT_AUTH,
   },
   {
     key: "discovery",
     title: "Discovery",
     icon: Compass,
     action: "external" as const,
-    path: "/discovery/admin/login",
+    path: PRODUCT_LINKS.DISCOVERY_ADMIN,
   },
   {
     key: "crm",
     title: "CRM & Pipeline",
     icon: PieChart,
     action: "external" as const,
-    path: "/assess/admin",
+    path: PRODUCT_LINKS.CRM_ADMIN,
   },
 ];
 
