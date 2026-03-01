@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import type { Questionnaire } from "@/types";
+import { copyTextToClipboard } from "@/lib/clipboard";
 
 interface QuestionnaireShareTabProps {
   questionnaire: Questionnaire;
@@ -18,7 +19,7 @@ export function QuestionnaireShareTab({ questionnaire: q }: QuestionnaireShareTa
   const [selectedContacts, setSelectedContacts] = useState<string[]>([]);
 
   const handleCopyLink = () => {
-    navigator.clipboard.writeText(q.formUrl);
+    void copyTextToClipboard(q.formUrl);
   };
 
   const toggleContact = (userId: string) => {

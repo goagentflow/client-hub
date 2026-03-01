@@ -14,7 +14,7 @@ export function WelcomeModal({ isOpen, onClose, welcomeVideoUrl }: WelcomeModalP
       <DialogContent className="max-w-2xl bg-white">
         <div className="flex flex-col items-center text-center space-y-6 py-6">
           <img
-            src="https://www.goagentflow.com/assets/images/AgentFlowLogo.svg"
+            src="/agentflow-logo.svg"
             alt="AgentFlow"
             className="h-10"
           />

@@ -58,7 +58,7 @@ export function HubSidebar() {
       <SidebarContent className="bg-[hsl(var(--deep-navy))]">
         <div className="p-4">
           <img
-            src="https://www.goagentflow.com/assets/images/AgentFlowLogo.svg"
+            src="/agentflow-logo.svg"
             alt="AgentFlow"
             className={state === "collapsed" ? "h-8 w-8" : "h-10"}
           />

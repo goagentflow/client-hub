@@ -51,7 +51,7 @@ export function HubLayout({
           <div className="flex items-center gap-3">
             <SidebarTrigger className="md:hidden" aria-label="Toggle sidebar navigation" />
             <img
-              src="https://www.goagentflow.com/assets/images/AgentFlowLogo.svg"
+              src="/agentflow-logo.svg"
               alt="AgentFlow"
               className="h-8 cursor-pointer hidden md:block"
               onClick={() => navigate("/hubs")}

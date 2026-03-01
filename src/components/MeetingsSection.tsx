@@ -17,6 +17,7 @@ import {
   ScheduleMeetingDialog,
   MeetingsSidebar,
 } from "./meetings";
+import { copyTextToClipboard } from "@/lib/clipboard";
 
 export function MeetingsSection() {
   const hubId = useHubId();
@@ -73,10 +74,14 @@ export function MeetingsSection() {
 
   const handleCopyLink = (joinUrl: string | undefined) => {
     if (joinUrl) {
-      navigator.clipboard.writeText(joinUrl);
-      toast({
-        title: "Link copied",
-        description: "Meeting join link copied to clipboard",
+      void copyTextToClipboard(joinUrl).then((copied) => {
+        toast({
+          title: copied ? "Link copied" : "Could not copy link",
+          description: copied
+            ? "Meeting join link copied to clipboard"
+            : "Clipboard access is blocked in this browser context.",
+          variant: copied ? "default" : "destructive",
+        });
       });
     }
   };

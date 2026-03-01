@@ -55,7 +55,7 @@ const StaffLauncher = () => {
       <header className="border-b border-border bg-white">
         <div className="container mx-auto flex h-16 items-center justify-between px-4">
           <img
-            src="https://www.goagentflow.com/assets/images/AgentFlowLogo.svg"
+            src="/agentflow-logo.svg"
             alt="AgentFlow Logo"
             className="h-10 w-auto"
           />

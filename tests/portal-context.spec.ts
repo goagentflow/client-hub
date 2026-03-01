@@ -69,8 +69,8 @@ test.describe("Portal Context (useHubId)", () => {
       await waitForLoading(page);
       expect(page.url()).toContain(`/portal/${MOCK_HUB_ID}/documents`);
 
-      // Navigate to messages
-      await page.getByRole("link", { name: /messages/i }).click();
+      // Navigate to messages from in-page CTA (always available in portal layout)
+      await page.getByRole("link", { name: /send a message/i }).click();
       await waitForLoading(page);
       expect(page.url()).toContain(`/portal/${MOCK_HUB_ID}/messages`);
 
@@ -98,15 +98,31 @@ test.describe("Portal Context (useHubId)", () => {
   test.describe("Invalid/Unauthorized Hub Handling", () => {
     test("shows error for non-existent hub", async ({ page }) => {
       await page.goto("/portal/nonexistent-hub-123/overview");
+      await waitForLoading(page);
 
-      // Should show error message or redirect
-      const hasErrorOrRedirect =
-        (await page.getByText(/not found/i).isVisible().catch(() => false)) ||
-        (await page.getByText(/access denied/i).isVisible().catch(() => false)) ||
-        (await page.getByText(/unauthorized/i).isVisible().catch(() => false)) ||
-        !page.url().includes("nonexistent-hub-123");
+      // Current behavior can be:
+      // - Access denied screen in demo mode
+      // - Hub unavailable screen in live mode
+      // - Redirect to login
+      await expect
+        .poll(async () => {
+          if (page.url().includes("/login")) return "login";
 
-      expect(hasErrorOrRedirect).toBeTruthy();
+          const hasAccessDenied = await page
+            .getByRole("heading", { name: /access denied/i })
+            .isVisible()
+            .catch(() => false);
+          if (hasAccessDenied) return "access_denied";
+
+          const hasUnavailable = await page
+            .getByRole("heading", { name: /hub unavailable|invalid portal link/i })
+            .isVisible()
+            .catch(() => false);
+          if (hasUnavailable) return "unavailable";
+
+          return "pending";
+        }, { timeout: 10000 })
+        .toMatch(/login|access_denied|unavailable/);
     });
 
     test("handles missing hubId in URL gracefully", async ({ page }) => {

@@ -60,7 +60,7 @@ export function PasswordGate({ hubId, companyName, onSuccess }: PasswordGateProp
         {/* Logo */}
         <div className="flex justify-center mb-8">
           <img
-            src="https://www.goagentflow.com/assets/images/AgentFlowLogo.svg"
+            src="/agentflow-logo.svg"
             alt="AgentFlow"
             className="h-12 w-auto"
           />

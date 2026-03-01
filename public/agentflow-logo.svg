@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="220" height="48" viewBox="0 0 220 48" fill="none">
+  <rect x="1" y="1" width="46" height="46" rx="10" fill="#0B1D4D"/>
+  <path d="M12 30.5L21.5 15L31 30.5H26.3L21.5 22.4L16.7 30.5H12Z" fill="#F9735B"/>
+  <rect x="20" y="24" width="3" height="9" fill="#F9735B"/>
+  <text x="58" y="31" fill="#0B1D4D" font-family="Segoe UI, Arial, sans-serif" font-size="22" font-weight="700">AgentFlow</text>
+</svg>

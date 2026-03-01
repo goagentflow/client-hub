@@ -65,7 +65,7 @@ const HubList = () => {
           {/* Logo + Product Switcher */}
           <div className="flex items-center gap-3">
             <img
-              src="https://www.goagentflow.com/assets/images/AgentFlowLogo.svg"
+              src="/agentflow-logo.svg"
               alt="AgentFlow Logo"
               className="h-10 w-auto"
             />

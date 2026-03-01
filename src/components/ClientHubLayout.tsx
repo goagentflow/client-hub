@@ -161,7 +161,7 @@ export function ClientHubLayout({
           <div className="flex items-center gap-4">
             <SidebarTrigger className="md:hidden" aria-label="Toggle sidebar navigation" />
             <img
-              src="https://www.goagentflow.com/assets/images/AgentFlowLogo.svg"
+              src="/agentflow-logo.svg"
               alt="AgentFlow"
               className="h-8 cursor-pointer hidden md:block"
               onClick={() => navigate(`/portal/${hubId}/overview`)}
@@ -226,7 +226,7 @@ export function ClientHubLayout({
                 </Link>
                 <div className="pt-4">
                   <img 
-                    src="https://www.goagentflow.com/assets/images/AgentFlowLogo.svg" 
+                    src="/agentflow-logo.svg" 
                     alt="AgentFlow" 
                     className="h-6 mx-auto opacity-50"
                   />

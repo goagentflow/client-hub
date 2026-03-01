@@ -70,7 +70,7 @@ const Login = () => {
               {/* Logo */}
               <div className="flex justify-center">
                 <img 
-                  src="https://www.goagentflow.com/assets/images/AgentFlowLogo.svg" 
+                  src="/agentflow-logo.svg" 
                   alt="AgentFlow Logo" 
                   className="h-16 w-auto"
                 />

@@ -33,6 +33,7 @@ import {
   useTrackEngagement,
   useToast,
 } from "@/hooks";
+import { copyTextToClipboard } from "@/lib/clipboard";
 import {
   WelcomeSection,
   PortalSectionsConfig,
@@ -110,7 +111,18 @@ export function ClientPortalSection() {
   };
 
   const handleCopyLink = () => {
-    navigator.clipboard.writeText(portalUrl);
+    void copyTextToClipboard(portalUrl).then((copied) => {
+      if (copied) {
+        toast({ title: "Link copied", description: "Portal link copied to clipboard." });
+        return;
+      }
+
+      toast({
+        title: "Could not copy link",
+        description: "Clipboard access is blocked in this browser context.",
+        variant: "destructive",
+      });
+    });
   };
 
   const handlePublish = () => {
