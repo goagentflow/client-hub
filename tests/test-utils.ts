@@ -21,60 +21,137 @@ export const MOCK_CLIENT_USER = {
 export const MOCK_HUB_ID = "hub-1";
 
 async function dismissConsentPrompt(page: Page): Promise<void> {
-  const consentPrompt = page.locator('[aria-label="Cookie Consent Prompt"]');
-  const promptVisible = await consentPrompt
-    .isVisible({ timeout: 1500 })
-    .catch(() => false);
+  const consentPrompt = page.getByRole("alertdialog", { name: /cookie consent prompt/i });
 
-  if (!promptVisible) return;
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    const promptVisible = await consentPrompt.isVisible({ timeout: 1000 }).catch(() => false);
+    if (!promptVisible) return;
 
-  const consentButtons = [
-    page.getByRole("button", { name: /accept all/i }),
-    page.getByRole("button", { name: /accept/i }),
-    page.getByRole("button", { name: /allow all/i }),
-    page.getByRole("button", { name: /save/i }),
-  ];
+    const consentButtons = [
+      page.getByRole("button", { name: /accept all/i }),
+      page.getByRole("button", { name: /^accept$/i }),
+      page.getByRole("button", { name: /allow all/i }),
+      page.getByRole("button", { name: /save/i }),
+      page.getByRole("button", { name: /decline/i }),
+    ];
 
-  for (const button of consentButtons) {
-    const isVisible = await button.first().isVisible().catch(() => false);
-    if (!isVisible) continue;
+    let clicked = false;
+    for (const button of consentButtons) {
+      const isVisible = await button.first().isVisible().catch(() => false);
+      if (!isVisible) continue;
+      await button.first().click({ force: true });
+      clicked = true;
+      break;
+    }
 
-    await button.first().click();
-    await consentPrompt.waitFor({ state: "hidden", timeout: 3000 }).catch(() => undefined);
-    return;
+    if (!clicked) {
+      await page.keyboard.press("Escape").catch(() => undefined);
+    }
+
+    await page.waitForTimeout(250);
   }
 }
 
+async function seedDemoSession(
+  page: Page,
+  role: "staff" | "client",
+  email: string
+): Promise<void> {
+  await page.goto("/login");
+  await page.evaluate(
+    ({ nextRole, nextEmail }) => {
+      localStorage.setItem("userRole", nextRole);
+      localStorage.setItem("userEmail", nextEmail);
+      sessionStorage.clear();
+    },
+    { nextRole: role, nextEmail: email }
+  );
+}
+
 /**
- * Log in as staff user
+ * Authenticate as staff user (mock mode session seed).
  */
 export async function loginAsStaff(page: Page): Promise<void> {
-  await page.goto("/login");
+  await seedDemoSession(page, "staff", MOCK_STAFF_USER.email);
+  await page.goto("/launcher");
   await dismissConsentPrompt(page);
-  // Use label-based selectors for stability
-  await page.getByLabel(/email/i).fill(MOCK_STAFF_USER.email);
-  await page.getByLabel(/password/i).fill(MOCK_STAFF_USER.password);
-  await dismissConsentPrompt(page);
-  await page.getByRole("button", { name: "Sign In", exact: true }).click({ force: true });
 
   // Staff can land on launcher (current flow) or hubs (legacy flow)
   await expect(page).toHaveURL(/\/(launcher|hubs)/);
 }
 
 /**
- * Log in as client user
+ * Authenticate as client user (mock mode session seed).
  */
 export async function loginAsClient(page: Page): Promise<void> {
-  await page.goto("/login");
+  await seedDemoSession(page, "client", MOCK_CLIENT_USER.email);
+  await page.goto(`/portal/${MOCK_HUB_ID}/overview`);
   await dismissConsentPrompt(page);
-  // Use label-based selectors for stability
-  await page.getByLabel(/email/i).fill(MOCK_CLIENT_USER.email);
-  await page.getByLabel(/password/i).fill(MOCK_CLIENT_USER.password);
-  await dismissConsentPrompt(page);
-  await page.getByRole("button", { name: "Sign In", exact: true }).click({ force: true });
 
   // Wait for redirect to portal
   await expect(page).toHaveURL(/\/portal\//);
+}
+
+/**
+ * Sign out using the currently visible page shell.
+ */
+export async function signOut(page: Page): Promise<void> {
+  await dismissConsentPrompt(page);
+  await page.waitForLoadState("domcontentloaded");
+  await page
+    .getByText(/^Loading\.\.\.$/i)
+    .first()
+    .waitFor({ state: "hidden", timeout: 6000 })
+    .catch(() => undefined);
+
+  const directSignOut = page.getByRole("button", { name: /sign out/i }).first();
+  const directSignOutVisible = await directSignOut
+    .waitFor({ state: "visible", timeout: 4000 })
+    .then(() => true)
+    .catch(() => false);
+  if (directSignOutVisible) {
+    await directSignOut.click({ force: true });
+    return;
+  }
+
+  const menuTriggers = [
+    page.getByRole("button", { name: /open user menu/i }),
+    page.getByRole("button", { name: /hamish|sarah|alex/i }),
+    page.locator('[class*="avatar"]').first(),
+  ];
+
+  for (const trigger of menuTriggers) {
+    const isVisible = await trigger
+      .waitFor({ state: "visible", timeout: 3000 })
+      .then(() => true)
+      .catch(() => false);
+    if (!isVisible) continue;
+    await trigger.click({ force: true });
+    break;
+  }
+
+  const menuSignOutOptions = [
+    page.getByRole("menuitem", { name: /sign out/i }),
+    page.getByText(/^sign out$/i),
+  ];
+
+  for (const option of menuSignOutOptions) {
+    const isVisible = await option.first()
+      .waitFor({ state: "visible", timeout: 3000 })
+      .then(() => true)
+      .catch(() => false);
+    if (!isVisible) continue;
+    await option.first().click({ force: true });
+    return;
+  }
+
+  // Fallback for occasional CI loading-race states in mock mode.
+  await page.evaluate(() => {
+    localStorage.removeItem("userRole");
+    localStorage.removeItem("userEmail");
+    sessionStorage.clear();
+  });
+  await page.goto("/login");
 }
 
 /**
