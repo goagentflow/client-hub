@@ -16,11 +16,12 @@ interface MetricItemProps {
   value: number | string;
   color: string;
   bgColor: string;
+  testId: string;
 }
 
-function MetricItem({ icon: Icon, label, value, color, bgColor }: MetricItemProps) {
+function MetricItem({ icon: Icon, label, value, color, bgColor, testId }: MetricItemProps) {
   return (
-    <div className="flex items-center gap-4">
+    <div className="flex items-center gap-4" data-testid={testId}>
       <div className={`p-3 rounded-lg ${bgColor}`}>
         <Icon className={`w-5 h-5 ${color}`} />
       </div>
@@ -34,7 +35,7 @@ function MetricItem({ icon: Icon, label, value, color, bgColor }: MetricItemProp
 
 export function PortfolioOverviewCard({ overview }: PortfolioOverviewCardProps) {
   return (
-    <Card>
+    <Card data-testid="portfolio-overview-card">
       <CardContent className="pt-6">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
           <MetricItem
@@ -43,6 +44,7 @@ export function PortfolioOverviewCard({ overview }: PortfolioOverviewCardProps) 
             value={overview.totalClients}
             color="text-[hsl(var(--bold-royal-blue))]"
             bgColor="bg-[hsl(var(--bold-royal-blue))]/10"
+            testId="portfolio-metric-total-clients"
           />
           <MetricItem
             icon={AlertTriangle}
@@ -50,6 +52,7 @@ export function PortfolioOverviewCard({ overview }: PortfolioOverviewCardProps) 
             value={overview.atRiskCount}
             color="text-[hsl(var(--soft-coral))]"
             bgColor="bg-[hsl(var(--soft-coral))]/10"
+            testId="portfolio-metric-at-risk"
           />
           <MetricItem
             icon={TrendingUp}
@@ -57,6 +60,7 @@ export function PortfolioOverviewCard({ overview }: PortfolioOverviewCardProps) 
             value={overview.expansionReadyCount}
             color="text-[hsl(var(--sage-green))]"
             bgColor="bg-[hsl(var(--sage-green))]/10"
+            testId="portfolio-metric-expansion-ready"
           />
           <MetricItem
             icon={Activity}
@@ -64,6 +68,7 @@ export function PortfolioOverviewCard({ overview }: PortfolioOverviewCardProps) 
             value={overview.avgHealthScore}
             color="text-[hsl(var(--dark-grey))]"
             bgColor="bg-[hsl(var(--light-grey))]"
+            testId="portfolio-metric-avg-health-score"
           />
         </div>
       </CardContent>

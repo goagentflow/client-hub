@@ -165,7 +165,7 @@ const LeadershipPortfolio = () => {
           {/* User Menu */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="h-10 gap-2 px-2">
+              <Button variant="ghost" className="h-10 gap-2 px-2" aria-label="Open user menu">
                 <Avatar className="h-9 w-9">
                   <AvatarFallback className="bg-[hsl(var(--gradient-blue))] text-white text-sm font-medium">
                     {userInitials}

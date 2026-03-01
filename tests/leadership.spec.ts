@@ -28,11 +28,12 @@ test.describe("Leadership Portfolio", () => {
       await page.goto("/leadership");
       await waitForLoading(page);
 
-      // Check for overview card with metrics
-      await expect(page.getByText(/total clients/i)).toBeVisible();
-      await expect(page.getByText(/at risk/i)).toBeVisible();
-      await expect(page.getByText(/expansion ready/i)).toBeVisible();
-      await expect(page.getByText(/avg health score/i)).toBeVisible();
+      const overviewCard = page.getByTestId("portfolio-overview-card");
+      await expect(overviewCard).toBeVisible();
+      await expect(page.getByTestId("portfolio-metric-total-clients")).toContainText(/total clients/i);
+      await expect(page.getByTestId("portfolio-metric-at-risk")).toContainText(/at risk/i);
+      await expect(page.getByTestId("portfolio-metric-expansion-ready")).toContainText(/expansion ready/i);
+      await expect(page.getByTestId("portfolio-metric-avg-health-score")).toContainText(/avg health score/i);
       expectNoConsoleErrors(errors);
     });
 
@@ -84,11 +85,13 @@ test.describe("Leadership Portfolio", () => {
       await waitForLoading(page);
 
       // Click sort dropdown
-      const sortTrigger = page.locator('[class*="SelectTrigger"]').first();
+      const sortTrigger = page.getByLabel(/sort clients/i);
+      await expect(sortTrigger).toBeVisible();
       await sortTrigger.click();
 
       // Select different sort option
       await page.getByRole("option", { name: /expansion potential/i }).click();
+      await expect(sortTrigger).toContainText(/expansion potential/i);
 
       expectNoConsoleErrors(errors);
     });
@@ -99,7 +102,7 @@ test.describe("Leadership Portfolio", () => {
       await waitForLoading(page);
 
       // Check for client cards (at least one should be visible in mock data)
-      const cards = page.locator('[class*="Card"]');
+      const cards = page.getByTestId("leadership-client-card");
       await expect(cards.first()).toBeVisible({ timeout: 5000 });
 
       expectNoConsoleErrors(errors);
@@ -111,7 +114,7 @@ test.describe("Leadership Portfolio", () => {
       await waitForLoading(page);
 
       // Click on first client card
-      const firstCard = page.locator('[class*="Card"][class*="cursor-pointer"]').first();
+      const firstCard = page.getByTestId("leadership-client-card").first();
       await firstCard.click();
 
       // Should navigate to hub detail
@@ -136,7 +139,7 @@ test.describe("Leadership Portfolio", () => {
       await waitForLoading(page);
 
       // Open user menu
-      await page.locator('[class*="avatar"]').first().click();
+      await page.getByRole("button", { name: /open user menu/i }).click();
       await page.getByText(/hub list/i).click();
 
       await expect(page).toHaveURL(/\/hubs/);
@@ -149,13 +152,21 @@ test.describe("Leadership Portfolio", () => {
       await loginAsClient(page);
 
       await page.goto("/leadership");
+      await waitForLoading(page);
 
-      // Should either redirect to login or show access denied
-      const isBlocked =
-        page.url().includes("/login") ||
-        (await page.getByText(/access denied/i).isVisible().catch(() => false));
+      await expect
+        .poll(async () => {
+          if (page.url().includes("/login")) return "login";
 
-      expect(isBlocked).toBeTruthy();
+          const hasAccessDeniedHeading = await page
+            .getByRole("heading", { name: /access denied/i })
+            .isVisible()
+            .catch(() => false);
+          if (hasAccessDeniedHeading) return "denied";
+
+          return "pending";
+        }, { timeout: 10000 })
+        .toMatch(/login|denied/);
     });
 
     test("unauthenticated users redirected to login", async ({ page }) => {
@@ -211,7 +222,7 @@ test.describe("Leadership Portfolio", () => {
       await page.getByRole("tab", { name: /at risk/i }).click();
 
       // Either shows client cards or empty state
-      const hasCards = await page.locator('[class*="Card"][class*="cursor-pointer"]').isVisible({ timeout: 2000 }).catch(() => false);
+      const hasCards = await page.getByTestId("leadership-client-card").first().isVisible({ timeout: 2000 }).catch(() => false);
       const hasEmptyState = await page.getByText(/no at-risk clients/i).isVisible({ timeout: 2000 }).catch(() => false);
 
       expect(hasCards || hasEmptyState).toBeTruthy();

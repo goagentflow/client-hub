@@ -45,7 +45,7 @@ export function PortfolioFilters({ filters, onChange }: PortfolioFiltersProps) {
           })
         }
       >
-        <SelectTrigger className="w-[160px]">
+        <SelectTrigger className="w-[160px]" aria-label="Sort clients">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>

@@ -77,6 +77,7 @@ export function ClientCard({ client }: ClientCardProps) {
 
   return (
     <Card
+      data-testid="leadership-client-card"
       className="cursor-pointer hover:shadow-md transition-shadow"
       onClick={() => navigate(`/hub/${client.hubId}`)}
     >
