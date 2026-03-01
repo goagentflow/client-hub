@@ -39,7 +39,7 @@ test.describe("Authentication & Route Guards", () => {
       const errors = await setupConsoleErrorGate(page);
       await page.goto("/hubs");
       await expect(page).toHaveURL(/\/hubs/);
-      await expect(page.getByRole("heading", { name: /pitch hubs/i })).toBeVisible();
+      await expect(page.getByRole("heading", { name: /hubs/i })).toBeVisible();
       expectNoConsoleErrors(errors);
     });
 

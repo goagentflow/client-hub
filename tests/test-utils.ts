@@ -20,15 +20,42 @@ export const MOCK_CLIENT_USER = {
 // Must match a hub ID from mock data (hub-1 through hub-5)
 export const MOCK_HUB_ID = "hub-1";
 
+async function dismissConsentPrompt(page: Page): Promise<void> {
+  const consentPrompt = page.locator('[aria-label="Cookie Consent Prompt"]');
+  const promptVisible = await consentPrompt
+    .isVisible({ timeout: 1500 })
+    .catch(() => false);
+
+  if (!promptVisible) return;
+
+  const consentButtons = [
+    page.getByRole("button", { name: /accept all/i }),
+    page.getByRole("button", { name: /accept/i }),
+    page.getByRole("button", { name: /allow all/i }),
+    page.getByRole("button", { name: /save/i }),
+  ];
+
+  for (const button of consentButtons) {
+    const isVisible = await button.first().isVisible().catch(() => false);
+    if (!isVisible) continue;
+
+    await button.first().click();
+    await consentPrompt.waitFor({ state: "hidden", timeout: 3000 }).catch(() => undefined);
+    return;
+  }
+}
+
 /**
  * Log in as staff user
  */
 export async function loginAsStaff(page: Page): Promise<void> {
   await page.goto("/login");
+  await dismissConsentPrompt(page);
   // Use label-based selectors for stability
   await page.getByLabel(/email/i).fill(MOCK_STAFF_USER.email);
   await page.getByLabel(/password/i).fill(MOCK_STAFF_USER.password);
-  await page.getByRole("button", { name: "Sign In", exact: true }).click();
+  await dismissConsentPrompt(page);
+  await page.getByRole("button", { name: "Sign In", exact: true }).click({ force: true });
 
   // Staff can land on launcher (current flow) or hubs (legacy flow)
   await expect(page).toHaveURL(/\/(launcher|hubs)/);
@@ -39,10 +66,12 @@ export async function loginAsStaff(page: Page): Promise<void> {
  */
 export async function loginAsClient(page: Page): Promise<void> {
   await page.goto("/login");
+  await dismissConsentPrompt(page);
   // Use label-based selectors for stability
   await page.getByLabel(/email/i).fill(MOCK_CLIENT_USER.email);
   await page.getByLabel(/password/i).fill(MOCK_CLIENT_USER.password);
-  await page.getByRole("button", { name: "Sign In", exact: true }).click();
+  await dismissConsentPrompt(page);
+  await page.getByRole("button", { name: "Sign In", exact: true }).click({ force: true });
 
   // Wait for redirect to portal
   await expect(page).toHaveURL(/\/portal\//);
