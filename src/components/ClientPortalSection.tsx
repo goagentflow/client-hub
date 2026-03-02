@@ -83,7 +83,9 @@ export function ClientPortalSection() {
   const hasProposal = !!proposalData;
   const hasQuestionnaire = (questionnairesData?.items || []).length > 0;
   const clientDomain = overview?.hub.clientDomain || "example.com";
-  const portalUrl = `https://hub.agentflow.com/${overview?.hub.companyName?.toLowerCase().replace(/\s+/g, "") || "client"}`;
+  const basePath = import.meta.env.BASE_URL || "/";
+  const normalizedBasePath = basePath.endsWith("/") ? basePath : `${basePath}/`;
+  const portalUrl = new URL(`${normalizedBasePath}portal/${hubId}`, window.location.origin).toString();
 
   const handleHeadlineChange = (value: string) => {
     updateConfig({ welcomeHeadline: value });

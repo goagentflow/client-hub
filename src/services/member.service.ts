@@ -165,7 +165,7 @@ export async function createShareLink(
       id: `link-${Date.now()}`,
       hubId,
       token: `sharetoken-${Date.now()}`,
-      url: `https://hub.agentflow.com/join/sharetoken-${Date.now()}`,
+      url: `https://www.goagentflow.com/clienthub/portal/${hubId}`,
       accessLevel: data.accessLevel,
       createdBy: "user-staff-1",
       createdByName: "Hamish Nicklin",
