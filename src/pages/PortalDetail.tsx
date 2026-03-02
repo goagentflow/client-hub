@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Routes, Route, Navigate, useParams, useSearchParams } from "react-router-dom";
+import { Routes, Route, Navigate, useLocation, useParams, useSearchParams } from "react-router-dom";
 import { Loader2, AlertCircle, Calendar, ClipboardCheck, BarChart3, Sparkles, History } from "lucide-react";
 import { ClientHubLayout } from "@/components/ClientHubLayout";
 import { ClientOverviewSection } from "@/components/ClientOverviewSection";
@@ -22,6 +22,7 @@ import type { PortalMeta } from "@/types";
 
 const PortalDetail = () => {
   const { hubId } = useParams<{ hubId: string }>();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
   const { data: authData, isLoading } = useCurrentUser();
   const isStaff = authData?.user?.role === "staff";
@@ -90,6 +91,15 @@ const PortalDetail = () => {
         </Card>
       </div>
     );
+  }
+
+  // Legacy slug links resolve to a canonical hub ID via portal-meta.
+  // Redirect once so all downstream API calls use the real hub ID.
+  if (hubMeta && hubId !== hubMeta.id) {
+    const marker = `/portal/${hubId}`;
+    const markerIndex = location.pathname.indexOf(marker);
+    const suffix = markerIndex >= 0 ? location.pathname.slice(markerIndex + marker.length) : "";
+    return <Navigate to={`/portal/${hubMeta.id}${suffix}${location.search}${location.hash}`} replace />;
   }
 
   // Live hub not found or unpublished — show "unavailable" (not login redirect)

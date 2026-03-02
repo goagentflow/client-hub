@@ -237,7 +237,7 @@ publicRouter.post('/hubs/:hubId/verify-password', passwordLimit, async (req: Req
     // Issue portal JWT
     const token = await new SignJWT({ type: 'portal' })
       .setProtectedHeader({ alg: 'HS256' })
-      .setSubject(hubId)
+      .setSubject(hub.id)
       .setIssuer(ISSUER)
       .setAudience(AUDIENCE)
       .setIssuedAt()

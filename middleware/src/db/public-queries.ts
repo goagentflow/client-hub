@@ -7,9 +7,13 @@
  */
 
 import { getPrisma } from './prisma.js';
+import { resolveHubId } from './hub-identifier.js';
 
 /** Minimal hub info for portal-meta (published only) */
-export async function findPublishedHub(hubId: string) {
+export async function findPublishedHub(hubIdentifier: string) {
+  const hubId = await resolveHubId(hubIdentifier, { publishedOnly: true });
+  if (!hubId) return null;
+
   return getPrisma().hub.findFirst({
     where: { id: hubId, isPublished: true },
     select: {
@@ -33,7 +37,10 @@ export async function findPublishedHub(hubId: string) {
 }
 
 /** Full hub lookup for verify-password (any publish state — checked by caller) */
-export async function findHubForPasswordVerify(hubId: string) {
+export async function findHubForPasswordVerify(hubIdentifier: string) {
+  const hubId = await resolveHubId(hubIdentifier);
+  if (!hubId) return null;
+
   return getPrisma().hub.findFirst({
     where: { id: hubId },
     select: { id: true, passwordHash: true, isPublished: true },
