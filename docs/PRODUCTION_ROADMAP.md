@@ -1,6 +1,6 @@
 # AgentFlow Client Hub - Production Roadmap (v6)
 
-**Last updated:** 28 February 2026  
+**Last updated:** 2 March 2026  
 **Audience:** Product, engineering, and new developers onboarding to active delivery  
 **Companion docs:** `docs/README.md`, `docs/CURRENT_STATE.md`, `docs/UAT_PLAN_LIVE_CLIENT_HUB_RELEASE.md`
 
@@ -31,6 +31,7 @@ These capabilities are live in production today:
 - Message feed (staff + portal), message audience visibility, teammate access request
 - Public access recovery API (`POST /api/v1/public/access/request-link`, `GET /api/v1/public/access/items`)
 - Staff launcher route (`/clienthub/launcher`) with product routing links and Azure SSO deep links for Assess/Discovery staff entry
+- Portal URL hardening: canonical link pattern is `/clienthub/portal/{hubId}`; legacy slug links now resolve to canonical hub IDs for published hubs
 - Hub legal baseline (`/hub-privacy.html`, `/hub-terms.html`, `/hub-cookie-notice.html`, `/hub-subprocessors.html`)
 - Access-recovery retention cleanup for used/expired token artifacts
 - Consent-managed GA4 tracking with Termly controls across marketing/access/clienthub/assess
@@ -57,6 +58,7 @@ Close high-risk behavior gaps in already-live areas before wider client rollout.
 2. Harden password access mode with explicit password lifecycle management.
 3. Add stronger operational visibility for notification failures (Resend failures are currently mostly log-only).
 4. Tighten client-share UX so all visible actions map to working backend routes.
+5. Finalize legacy domain strategy for `hub.agentflow.com` (map and redirect, or formally retire) to prevent accidental reuse of invalid hostnames.
 
 ### Production-ready exit criteria
 
@@ -64,6 +66,7 @@ Close high-risk behavior gaps in already-live areas before wider client rollout.
 2. Password mode cannot be enabled in an unsafe/unconfigured state.
 3. Notification failure path has clear observability (logs + alerting/monitoring hook).
 4. UAT P0/P1 cases for invites, revocation, and messaging notifications all pass.
+5. Legacy domain handling is explicit and documented (either active redirect or retired host with zero references).
 
 ---
 
@@ -144,6 +147,9 @@ Meetings/questionnaires/intelligence remain largely non-live.
 
 4. **Operational observability depth**
 Some asynchronous failure paths are currently best-effort logging only.
+
+5. **Legacy domain ownership gap**
+`hub.agentflow.com` cannot currently be mapped from this GCP project because `agentflow.com` is not verified in the active account. This is an infrastructure ownership/configuration dependency, not an application-code limitation.
 
 ---
 

@@ -1,6 +1,6 @@
 # AgentFlow Client Hub - Status Log
 
-**Last updated:** 28 February 2026
+**Last updated:** 2 March 2026
 
 > This file is a delivery log and quick snapshot.  
 > For authoritative live behavior, use `docs/CURRENT_STATE.md`.
@@ -26,6 +26,8 @@
 - Documents: upload, preview, download, delete, bulk actions
 - Status updates: staff creation and portal visibility
 - Public access recovery endpoints: `POST /api/v1/public/access/request-link`, `GET /api/v1/public/access/items`
+- Canonical portal URL pattern now standardised: `/clienthub/portal/{hubId}`
+- Legacy slug URLs (`/clienthub/portal/{companyslug}`) now resolve to canonical hub IDs for published hubs
 - Staff launcher route: `/clienthub/launcher`
 - Staff cross-product links now use Azure SSO deep links (`/assess/auth?sso=azure...`) for Assess/CRM/Discovery handoff
 - Consent-managed GA4 rollout across marketing/access/clienthub/assess entry points (including SPA route pageview tracking)
@@ -49,6 +51,7 @@
 12. Access recovery retention enforcement: periodic cleanup of used/expired recovery token records.
 13. GA4 + consent UAT completed across marketing/access/assess/clienthub with final `GO` outcome.
 14. Repository documentation hygiene pass: archived superseded plans/specs and updated source-of-truth indexing.
+15. Portal link reliability fix deployed: removed `hub.agentflow.com` link generation, added server-side slug-to-hubId resolution on public portal endpoints, and added frontend canonical redirect to `/clienthub/portal/{hubId}` (deployed 2 Mar 2026).
 
 ---
 
@@ -58,6 +61,7 @@
 2. Password mode needs stronger lifecycle hardening.
 3. Meetings/questionnaires/intelligence endpoints are still largely placeholder.
 4. Document engagement analytics endpoint is still 501.
+5. Legacy domain `hub.agentflow.com` is not currently mapped in this GCP project; operationally, only `www.goagentflow.com/clienthub/portal/*` should be sent.
 
 ---
 

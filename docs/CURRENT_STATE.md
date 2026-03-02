@@ -1,7 +1,7 @@
 # AgentFlow Client Hub - Current State (Live vs Placeholder)
 
-**Last verified:** 28 February 2026  
-**Verification basis:** route audit (`middleware/src/routes`), backend tests (`232/232`), frontend production build, GA4+consent UAT `GO` execution.
+**Last verified:** 2 March 2026  
+**Verification basis:** route audit (`middleware/src/routes`), backend tests baseline (`232/232`), targeted slug-resolution unit tests, frontend production build, production smoke checks for canonical portal URL + public access endpoints.
 
 ---
 
@@ -26,6 +26,9 @@ If any other document conflicts with this file, treat this file as source of tru
 - Frontend: `https://www.goagentflow.com/clienthub/`
 - Middleware API: `https://clienthub-api-axiw2ydgeq-uc.a.run.app`
 - Hosting: Google Cloud Run (frontend and middleware)
+- Canonical client portal URL pattern: `https://www.goagentflow.com/clienthub/portal/{hubId}`
+- Legacy URL compatibility: `/clienthub/portal/{companyslug}` is accepted and resolved to canonical `{hubId}` for published hubs
+- Legacy custom domain note: `https://hub.agentflow.com/*` is not mapped in current GCP project and must not be used for new links
 - Database: Supabase PostgreSQL via Prisma
 - Staff auth: Azure AD JWT
 - Portal auth: Hub-scoped portal JWT (`email`, `password`, or `open` access methods)
@@ -51,6 +54,7 @@ If any other document conflicts with this file, treat this file as source of tru
 ## 3.2 Portal Client Flows (Live)
 
 - Access gates: email verification (code + device token), password gate, and open-link mode.
+- URL normalization: legacy slug links are resolved server-side and redirected client-side to canonical `/clienthub/portal/{hubId}`.
 - Overview: welcome copy, latest status update + history, recent documents card, message summary card.
 - Documents: list client-visible documents, preview and download client-visible documents.
 - Messages: post/list feed messages, view message audience, submit teammate access request to staff.
@@ -96,6 +100,7 @@ These areas are not fully wired for production usage:
 - Access recovery tokens are one-time and periodically pruned (14-day cleanup retention for used/expired records).
 - Status updates are append-only (no edit/delete API path).
 - Invite domain is constrained by hub `clientDomain` (with internal bypass domain support).
+- Public hub bootstrap endpoints accept both canonical hub ID and legacy company slug for link continuity (`portal-meta`, `password-status`, `verify-password`, `access-method`).
 
 ---
 
@@ -113,6 +118,10 @@ These areas are not fully wired for production usage:
 3. Frontend build currently passes with non-blocking warnings:
 - Large JS chunk warning
 - Dynamic/static import chunking warnings
+
+4. Legacy domain redirect remains infra-blocked:
+- `hub.agentflow.com` cannot currently be mapped/redirected from this project because the `agentflow.com` domain is not verified in the active GCP account.
+- Operational guidance: only send `www.goagentflow.com/clienthub/portal/*` links.
 
 ---
 
