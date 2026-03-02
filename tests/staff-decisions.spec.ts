@@ -264,13 +264,12 @@ test.describe("Staff Decisions (Waiting on Client)", () => {
       await loginAsStaff(page);
     });
 
-    test("decisions nav item in sidebar navigates correctly", async ({ page }) => {
+    test("decisions page is accessible via direct navigation", async ({ page }) => {
       const errors = await setupConsoleErrorGate(page);
-      await page.goto(`/hub/${CLIENT_HUB_ID}/overview`);
-      await waitForLoading(page);
 
-      // Click Decisions in sidebar
-      await page.getByRole("link", { name: /decisions/i }).click();
+      // Decisions is accessible via URL (sidebar link removed from client hub nav)
+      await page.goto(`/hub/${CLIENT_HUB_ID}/decisions`);
+      await waitForLoading(page);
 
       await expect(page).toHaveURL(`/hub/${CLIENT_HUB_ID}/decisions`);
       expectNoConsoleErrors(errors);

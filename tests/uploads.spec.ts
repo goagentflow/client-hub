@@ -28,7 +28,7 @@ test.describe("Upload Flows", () => {
         (await dropZone.isVisible().catch(() => false));
 
       // Proposal section should have upload capability
-      await expect(page.getByRole("heading", { name: /proposal/i })).toBeVisible();
+      await expect(page.getByRole("heading", { name: "Proposal", exact: true })).toBeVisible();
 
       expectNoConsoleErrors(errors);
     });
@@ -146,6 +146,12 @@ test.describe("Upload Flows", () => {
           const nameField = dialog.getByLabel(/name/i);
           if (await nameField.isVisible().catch(() => false)) {
             await nameField.fill("Test Document");
+          }
+
+          // Fill summary (required for client-visible documents)
+          const summaryField = dialog.getByLabel(/summary/i);
+          if (await summaryField.isVisible().catch(() => false)) {
+            await summaryField.fill("Test document summary for upload verification");
           }
 
           // Find file input and upload
