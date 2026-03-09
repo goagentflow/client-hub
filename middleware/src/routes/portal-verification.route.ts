@@ -16,6 +16,7 @@ import { z } from 'zod';
 import { env } from '../config/env.js';
 import { emailDomainForLogs } from '../utils/email-log.js';
 import { logger } from '../utils/logger.js';
+import { portalHubUrl } from '../utils/portal-urls.js';
 import { getPrisma } from '../db/prisma.js';
 import { sendVerificationCode } from '../services/email.service.js';
 import { upsertClientMember } from '../services/membership.service.js';
@@ -24,8 +25,9 @@ import {
   findPortalContact,
   upsertVerification,
   findActiveVerification,
+  findVerificationByMagicToken,
   incrementAttempts,
-  markVerificationUsed,
+  consumeVerification,
   createDeviceRecord,
   findValidDevice,
   pruneExpiredPortalAuthArtifacts,
@@ -54,6 +56,10 @@ const verifyCodeSchema = z.object({
 const verifyDeviceSchema = z.object({
   email: z.string().trim().toLowerCase().email().max(254),
   deviceToken: z.string().regex(/^[a-f0-9]{64}$/i),
+});
+
+const verifyMagicSchema = z.object({
+  token: z.string().regex(/^[a-f0-9]{64}$/i),
 });
 
 let lastCleanupAt = 0;
@@ -134,7 +140,7 @@ async function recordPortalLoginEvent(params: {
   tenantId: string | null | undefined;
   email: string;
   name: string | null;
-  method: 'code' | 'device';
+  method: 'code' | 'device' | 'magic_link';
 }): Promise<void> {
   const { hubId, tenantId, email, name, method } = params;
   if (!tenantId) return;
@@ -199,15 +205,18 @@ portalVerificationRouter.post(
       const contact = await findPortalContact(hubId, email);
       const hub = await findHubAccessMethod(hubId);
 
-      // Generate code regardless of match (uniform work)
+      // Generate code + magic token regardless of match (uniform work)
       const code = String(randomInt(100000, 999999));
       const codeHash = sha256(code);
+      const magicToken = randomBytes(32).toString('hex');
+      const magicTokenHash = sha256(magicToken);
       const expiresAt = new Date(Date.now() + CODE_EXPIRY_MS);
 
       // Only send if hub exists, is email-gated, and contact is authorised
       if (contact && hub && hub.accessMethod === 'email') {
-        await upsertVerification(hubId, email, codeHash, expiresAt);
-        sendVerificationCode(email, code, hub.companyName)
+        await upsertVerification(hubId, email, codeHash, expiresAt, magicTokenHash);
+        const magicLinkUrl = `${portalHubUrl(hubId)}#verify=${magicToken}`;
+        sendVerificationCode(email, code, hub.companyName, magicLinkUrl)
           .catch(err => logger.error(
             { err, hubId, emailDomain: emailDomainForLogs(email) },
             'Failed to send verification email',
@@ -265,14 +274,23 @@ portalVerificationRouter.post(
         return;
       }
 
-      // Success — verify contact still exists before issuing token
+      // Atomically consume — prevents concurrent replay
+      const consumed = await consumeVerification({
+        id: verification.id,
+        codeHash: verification.codeHash,
+      });
+      if (consumed === 0) {
+        res.json({ data: { valid: false } });
+        return;
+      }
+
+      // Verify contact still exists before issuing token
       const contact = await findPortalContact(hubId, email);
       if (!contact) {
         res.json({ data: { valid: false } });
         return;
       }
 
-      await markVerificationUsed(verification.id);
       const token = await issuePortalToken(hubId, email, contact.name || undefined);
 
       // Generate device token for remember-me
@@ -364,6 +382,94 @@ portalVerificationRouter.post(
       });
 
       res.json({ data: { valid: true, token } });
+    } catch (err) { next(err); }
+  },
+);
+
+// POST /public/hubs/:hubId/verify-magic — exchange magic token for portal JWT
+portalVerificationRouter.post(
+  '/hubs/:hubId/verify-magic',
+  verifyLimit,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      maybeRunPortalAuthCleanup();
+
+      const hubId = req.params.hubId as string;
+      const parsedRequest = verifyMagicSchema.safeParse(req.body);
+      if (!parsedRequest.success) {
+        res.json({ data: { valid: false } });
+        return;
+      }
+      const { token } = parsedRequest.data;
+
+      // Enforce email access method
+      const hub = await findHubAccessMethod(hubId);
+      if (!hub || hub.accessMethod !== 'email') {
+        res.json({ data: { valid: false } });
+        return;
+      }
+
+      const tokenHash = sha256(token);
+      const verification = await findVerificationByMagicToken(hubId, tokenHash);
+
+      // No match (query pre-filters: not used, not expired) or locked out
+      if (!verification || verification.attempts >= MAX_CODE_ATTEMPTS) {
+        res.json({ data: { valid: false, reason: 'expired' } });
+        return;
+      }
+
+      // Atomically consume — prevents concurrent replay
+      const consumed = await consumeVerification({
+        id: verification.id,
+        magicTokenHash: tokenHash,
+      });
+      if (consumed === 0) {
+        res.json({ data: { valid: false, reason: 'expired' } });
+        return;
+      }
+
+      // Verify contact still authorised
+      const contact = await findPortalContact(hubId, verification.email);
+      if (!contact) {
+        res.json({ data: { valid: false } });
+        return;
+      }
+
+      const portalToken = await issuePortalToken(hubId, verification.email, contact.name || undefined);
+
+      // Generate device token for remember-me
+      const deviceTokenRaw = randomBytes(32).toString('hex');
+      const deviceTokenHash = sha256(deviceTokenRaw);
+      const deviceExpiresAt = new Date(Date.now() + DEVICE_EXPIRY_MS);
+      await createDeviceRecord(hubId, verification.email, deviceTokenHash, deviceExpiresAt);
+
+      if (hub.tenantId) {
+        await upsertClientMember(getPrisma() as Parameters<typeof upsertClientMember>[0], {
+          hubId,
+          tenantId: hub.tenantId,
+          email: verification.email,
+          displayName: contact.name || null,
+          source: 'system',
+          lastActiveAt: new Date(),
+        });
+      }
+
+      await recordPortalLoginEvent({
+        hubId,
+        tenantId: hub.tenantId,
+        email: verification.email,
+        name: contact.name || null,
+        method: 'magic_link',
+      });
+
+      res.json({
+        data: {
+          valid: true,
+          portalToken,
+          deviceToken: deviceTokenRaw,
+          email: verification.email,
+        },
+      });
     } catch (err) { next(err); }
   },
 );

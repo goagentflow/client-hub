@@ -11,6 +11,7 @@ import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
 import { env } from '../config/env.js';
+import { portalHubUrl } from '../utils/portal-urls.js';
 import { findAccessRecoveryHubsByEmail, type AccessRecoveryHubRow } from '../db/access-recovery-queries.js';
 import {
   createAccessRecoveryToken,
@@ -66,7 +67,7 @@ function productWeight(product: ProductLabel): number {
 }
 
 function toPortalUrl(hubId: string): string {
-  return new URL(`/clienthub/portal/${hubId}`, env.CORS_ORIGIN).toString();
+  return portalHubUrl(hubId);
 }
 
 function toMyAccessUrl(token: string): string {

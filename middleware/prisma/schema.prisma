@@ -209,14 +209,15 @@ model PortalContact {
 }
 
 model PortalVerification {
-  id        String   @id @default(uuid())
-  hubId     String   @map("hub_id")
-  email     String
-  codeHash  String   @map("code_hash")
-  attempts  Int      @default(0)
-  expiresAt DateTime @map("expires_at")
-  used      Boolean  @default(false)
-  createdAt DateTime @default(now()) @map("created_at")
+  id             String   @id @default(uuid())
+  hubId          String   @map("hub_id")
+  email          String
+  codeHash       String   @map("code_hash")
+  magicTokenHash String?  @map("magic_token_hash")
+  attempts       Int      @default(0)
+  expiresAt      DateTime @map("expires_at")
+  used           Boolean  @default(false)
+  createdAt      DateTime @default(now()) @map("created_at")
 
   @@unique([hubId, email])
   @@map("portal_verification")

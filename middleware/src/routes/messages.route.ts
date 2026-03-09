@@ -3,7 +3,6 @@
  * Thread endpoints remain 501 for future threading support.
  */
 
-import { URL } from 'node:url';
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import { hubAccessMiddleware } from '../middleware/hub-access.js';
@@ -11,7 +10,7 @@ import { requireStaffAccess } from '../middleware/require-staff.js';
 import { sendItem, sendList, send501 } from '../utils/response.js';
 import { Errors } from '../middleware/error-handler.js';
 import { logger } from '../utils/logger.js';
-import { env } from '../config/env.js';
+import { portalHubUrl } from '../utils/portal-urls.js';
 import { queryMessages } from '../services/message-queries.js';
 import { getMessageAudience } from '../services/message-audience.service.js';
 import { sendNewMessageNotification } from '../services/email.service.js';
@@ -100,7 +99,7 @@ async function notifyPortalContacts(
     return;
   }
 
-  const portalUrl = new URL(`/clienthub/portal/${hubId}/messages`, env.CORS_ORIGIN).toString();
+  const portalUrl = portalHubUrl(hubId, 'messages');
   const preview = messagePreview(body);
 
   await Promise.allSettled(

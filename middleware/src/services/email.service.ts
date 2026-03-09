@@ -78,11 +78,12 @@ export async function sendVerificationCode(
   to: string,
   code: string,
   hubName: string,
+  magicLinkUrl?: string,
 ): Promise<void> {
   await sendEmail(
     to,
     `Your AgentFlow sign-in code: ${code}`,
-    buildVerificationCodeHtml(code, escapeHtml(hubName)),
+    buildVerificationCodeHtml(code, escapeHtml(hubName), magicLinkUrl ? escapeHtml(magicLinkUrl) : undefined),
   );
 }
 
@@ -218,14 +219,27 @@ function buildInviteHtml(hubName: string, inviterName: string, portalUrl: string
   `.trim();
 }
 
-function buildVerificationCodeHtml(code: string, hubName: string): string {
+function buildVerificationCodeHtml(code: string, hubName: string, magicLinkUrl?: string): string {
+  const magicLinkBlock = magicLinkUrl
+    ? `
+      <div style="text-align: center; margin-bottom: 24px;">
+        <a href="${magicLinkUrl}" style="display: inline-block; padding: 14px 32px; background: #6366f1; color: #fff; text-decoration: none; border-radius: 8px; font-weight: bold;">Open secure sign-in</a>
+      </div>
+      <div style="text-align: center; margin-bottom: 24px;">
+        <p style="color: #888; font-size: 13px; margin: 0 0 8px 0;">You'll confirm sign-in on the next page.</p>
+        <p style="color: #888; font-size: 13px; margin: 0;">Or enter this code manually:</p>
+      </div>
+    `
+    : '';
+
   return `
     <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">
-      Use this 6-digit code to sign in securely. Expires in 10 minutes.
+      Open your secure sign-in page, then continue to ${hubName}, or use the 6-digit code below.
     </div>
     <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px;">
-      <h2 style="color: #1a1a2e; margin-bottom: 8px;">Your sign-in code</h2>
-      <p style="color: #555; margin-bottom: 24px;">Enter this code to sign in to <strong>${hubName}</strong>:</p>
+      <h2 style="color: #1a1a2e; margin-bottom: 8px;">Sign in to ${hubName}</h2>
+      <p style="color: #555; margin-bottom: 24px;">${magicLinkUrl ? 'Open the secure sign-in page below, then continue on the next screen. Or use the code if the link doesn\'t work.' : 'Enter this code to sign in:'}</p>
+      ${magicLinkBlock}
       <div style="background: #f4f4f8; border-radius: 8px; padding: 24px; text-align: center; margin-bottom: 24px;">
         <p style="margin: 0 0 8px 0; color: #555; font-size: 13px; text-transform: uppercase; letter-spacing: .04em;">Verification code</p>
         <span style="font-size: 32px; letter-spacing: 8px; font-weight: bold; color: #1a1a2e;">${code}</span>

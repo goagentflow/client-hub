@@ -16,6 +16,7 @@ import { RequireStaff, RequireAdmin, RequireClient } from "./routes/guards";
 import { setUnauthorizedHandler, setTokenGetter, isMockApiEnabled, ApiRequestError } from "./services/api";
 import { getAccessToken, completeMsalRedirect } from "./services/auth.service";
 import { trackPageView } from "./lib/analytics";
+import { sanitizeSensitiveHash } from "./lib/location-hash";
 
 const NON_RETRIABLE = new Set([400, 401, 403, 404, 409, 422, 501]);
 
@@ -87,7 +88,8 @@ function AnalyticsPageTracker() {
   const location = useLocation();
 
   useEffect(() => {
-    const pagePath = `${location.pathname}${location.search}${location.hash}`;
+    const safeHash = sanitizeSensitiveHash(location.hash);
+    const pagePath = `${location.pathname}${location.search}${safeHash}`;
     trackPageView(pagePath, document.title);
   }, [location.pathname, location.search, location.hash]);
 

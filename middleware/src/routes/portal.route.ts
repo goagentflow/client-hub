@@ -4,7 +4,7 @@
  */
 
 import { Router } from 'express';
-import { URL } from 'node:url';
+
 import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
 import { mapVideo } from '../db/video.mapper.js';
@@ -21,7 +21,7 @@ import { getMessageAudience } from '../services/message-audience.service.js';
 import { logger } from '../utils/logger.js';
 import { emailDomainForLogs } from '../utils/email-log.js';
 import { Errors } from '../middleware/error-handler.js';
-import { env } from '../config/env.js';
+import { hubAdminUrl } from '../utils/portal-urls.js';
 import { resolveDisplayName } from '../utils/person-name.js';
 import type { Request, Response, NextFunction } from 'express';
 
@@ -108,7 +108,7 @@ async function notifyStaffOnPortalMessage(
     return;
   }
 
-  const hubUrl = new URL(`/clienthub/hub/${hubId}/messages`, env.CORS_ORIGIN).toString();
+  const hubUrl = hubAdminUrl(hubId, 'messages');
   const preview = previewFromBody(body);
 
   await Promise.allSettled(
@@ -326,7 +326,7 @@ portalRouter.post('/messages/request-access', portalAccessRequestLimiter, async 
     }
 
     const requesterName = resolveDisplayName(req.user.name, requesterEmail);
-    const hubUrl = new URL(`/clienthub/hub/${hubId}/members`, env.CORS_ORIGIN).toString();
+    const hubUrl = hubAdminUrl(hubId, 'members');
 
     await Promise.allSettled(
       staffRecipients.map((staffEmail) =>

@@ -1,10 +1,12 @@
 import { useNavigate } from "react-router-dom";
 import { Building2, Compass, ClipboardList, ExternalLink, PieChart } from "lucide-react";
 import type { ComponentType } from "react";
+import { useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { PRODUCT_LINKS } from "@/config/product-links";
 import { useCurrentUser, useLogout } from "@/hooks";
+import { getMsalInstance, isMsalConfigured } from "@/config/msal";
 
 interface ToolCard {
   key: "clienthub" | "copilot" | "discovery" | "crm";
@@ -14,10 +16,40 @@ interface ToolCard {
   onOpen: () => void;
 }
 
+const BRIDGE_STORAGE_KEY = 'af_bridge_id_token';
+
 const StaffLauncher = () => {
   const navigate = useNavigate();
   const { data: authData } = useCurrentUser();
   const { mutate: logout } = useLogout();
+
+  /**
+   * Relay MSAL ID token to sessionStorage before cross-app navigation.
+   * The destination Auth.tsx reads it via signInWithIdToken() for instant sign-in.
+   * Graceful degradation: if token acquisition fails, navigate anyway.
+   */
+  const navigateWithBridge = useCallback(async (url: string) => {
+    if (isMsalConfigured()) {
+      try {
+        const msalInstance = getMsalInstance();
+        let account = msalInstance.getActiveAccount();
+        if (!account) {
+          const accounts = msalInstance.getAllAccounts();
+          if (accounts.length > 0) account = accounts[0];
+        }
+        if (account) {
+          const result = await msalInstance.acquireTokenSilent({
+            scopes: ['openid', 'profile', 'email'],
+            account,
+          });
+          sessionStorage.setItem(BRIDGE_STORAGE_KEY, result.idToken);
+        }
+      } catch {
+        // Graceful degradation — navigate without bridge token
+      }
+    }
+    window.location.assign(url);
+  }, []);
 
   const tools: ToolCard[] = [
     {
@@ -32,21 +64,21 @@ const StaffLauncher = () => {
       title: "Co-Pilot Quiz",
       description: "Go to the Co-Pilot Quiz app.",
       icon: ClipboardList,
-      onOpen: () => window.location.assign(PRODUCT_LINKS.COPILOT_AUTH),
+      onOpen: () => void navigateWithBridge(PRODUCT_LINKS.COPILOT_AUTH),
     },
     {
       key: "discovery",
       title: "Discovery",
       description: "Go to Discovery tools and reports.",
       icon: Compass,
-      onOpen: () => window.location.assign(PRODUCT_LINKS.DISCOVERY_ADMIN),
+      onOpen: () => void navigateWithBridge(PRODUCT_LINKS.DISCOVERY_ADMIN),
     },
     {
       key: "crm",
       title: "CRM & Pipeline",
       description: "Revenue tracking, deal pipeline, and client CRM.",
       icon: PieChart,
-      onOpen: () => window.location.assign(PRODUCT_LINKS.CRM_ADMIN),
+      onOpen: () => void navigateWithBridge(PRODUCT_LINKS.CRM_ADMIN),
     },
   ];
 

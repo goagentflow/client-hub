@@ -14,8 +14,9 @@ const mockFindHubAccessMethod = vi.fn();
 const mockFindPortalContact = vi.fn();
 const mockUpsertVerification = vi.fn();
 const mockFindActiveVerification = vi.fn();
+const mockFindVerificationByMagicToken = vi.fn();
 const mockIncrementAttempts = vi.fn();
-const mockMarkVerificationUsed = vi.fn();
+const mockConsumeVerification = vi.fn();
 const mockCreateDeviceRecord = vi.fn();
 const mockFindValidDevice = vi.fn();
 const mockPruneExpiredPortalAuthArtifacts = vi.fn();
@@ -27,8 +28,9 @@ vi.mock('../db/portal-verification-queries.js', () => ({
   findPortalContact: (...args: unknown[]) => mockFindPortalContact(...args),
   upsertVerification: (...args: unknown[]) => mockUpsertVerification(...args),
   findActiveVerification: (...args: unknown[]) => mockFindActiveVerification(...args),
+  findVerificationByMagicToken: (...args: unknown[]) => mockFindVerificationByMagicToken(...args),
   incrementAttempts: (...args: unknown[]) => mockIncrementAttempts(...args),
-  markVerificationUsed: (...args: unknown[]) => mockMarkVerificationUsed(...args),
+  consumeVerification: (...args: unknown[]) => mockConsumeVerification(...args),
   createDeviceRecord: (...args: unknown[]) => mockCreateDeviceRecord(...args),
   findValidDevice: (...args: unknown[]) => mockFindValidDevice(...args),
   pruneExpiredPortalAuthArtifacts: (...args: unknown[]) => mockPruneExpiredPortalAuthArtifacts(...args),
@@ -50,7 +52,8 @@ vi.mock('../db/prisma.js', () => ({
 let app: Express;
 beforeAll(async () => { app = await loadApp(); });
 beforeEach(() => {
-  vi.clearAllMocks();
+  vi.resetAllMocks();
+  mockSendVerificationCode.mockResolvedValue(undefined);
   mockPruneExpiredPortalAuthArtifacts.mockResolvedValue({ verificationsDeleted: 0, devicesDeleted: 0 });
 });
 
@@ -85,6 +88,12 @@ describe('POST /public/hubs/:hubId/request-code', () => {
     expect(res.status).toBe(200);
     expect(res.body.data).toEqual({ sent: true });
     expect(mockSendVerificationCode).toHaveBeenCalledOnce();
+    expect(mockSendVerificationCode).toHaveBeenCalledWith(
+      'a@t.com',
+      expect.stringMatching(/^\d{6}$/),
+      'Test',
+      expect.stringMatching(/^http:\/\/localhost:5173\/clienthub\/portal\/hub-rc-1#verify=[a-f0-9]{64}$/),
+    );
   });
 
   it('returns { sent: true } but does NOT send for unknown email', async () => {
@@ -137,7 +146,7 @@ describe('POST /public/hubs/:hubId/verify-code', () => {
       id: 'v-1', codeHash: hash, attempts: 0, used: false,
       expiresAt: new Date(Date.now() + 600000),
     });
-    mockMarkVerificationUsed.mockResolvedValueOnce({});
+    mockConsumeVerification.mockResolvedValueOnce(1);
     mockFindPortalContact.mockResolvedValueOnce({ id: 'c-1', name: 'Test' });
     mockCreateDeviceRecord.mockResolvedValueOnce({});
 
@@ -159,7 +168,7 @@ describe('POST /public/hubs/:hubId/verify-code', () => {
       id: 'v-1', codeHash: hash, attempts: 0, used: false,
       expiresAt: new Date(Date.now() + 600000),
     });
-    mockMarkVerificationUsed.mockResolvedValueOnce({});
+    mockConsumeVerification.mockResolvedValueOnce(1);
     mockFindPortalContact.mockResolvedValueOnce({ id: 'c-1', name: 'Test Client' });
     mockCreateDeviceRecord.mockResolvedValueOnce({});
     mockHubMemberUpsert.mockResolvedValueOnce({});
@@ -203,12 +212,16 @@ describe('POST /public/hubs/:hubId/verify-code', () => {
       expiresAt: new Date(Date.now() + 600000),
     });
     mockFindPortalContact.mockResolvedValueOnce(null); // contact removed
+    mockConsumeVerification.mockResolvedValueOnce(1);
 
     const res = await request(app)
       .post('/api/v1/public/hubs/hub-vc-7/verify-code')
       .send({ email: 'a@t.com', code: '123456' });
     expect(res.body.data.valid).toBe(false);
-    expect(mockMarkVerificationUsed).not.toHaveBeenCalled();
+    expect(mockConsumeVerification).toHaveBeenCalledWith({
+      id: 'v-1',
+      codeHash: hash,
+    });
   });
 
   it('rejects wrong code and increments attempts', async () => {
@@ -268,6 +281,29 @@ describe('POST /public/hubs/:hubId/verify-code', () => {
       .post('/api/v1/public/hubs/hub-vc-6/verify-code')
       .send({ email: 'a@t.com', code: '123456' });
     expect(res.body.data.valid).toBe(false);
+  });
+
+  it('rejects when verification was rotated or consumed before the atomic consume step', async () => {
+    const crypto = await import('node:crypto');
+    const hash = crypto.createHash('sha256').update('123456').digest('hex');
+
+    mockFindHubAccessMethod.mockResolvedValueOnce(EMAIL_HUB);
+    mockFindActiveVerification.mockResolvedValueOnce({
+      id: 'v-1', codeHash: hash, attempts: 0, used: false,
+      expiresAt: new Date(Date.now() + 600000),
+    });
+    mockConsumeVerification.mockResolvedValueOnce(0);
+
+    const res = await request(app)
+      .post('/api/v1/public/hubs/hub-vc-9/verify-code')
+      .send({ email: 'a@t.com', code: '123456' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.valid).toBe(false);
+    expect(mockConsumeVerification).toHaveBeenCalledWith({
+      id: 'v-1',
+      codeHash: hash,
+    });
   });
 });
 
@@ -339,5 +375,68 @@ describe('POST /public/hubs/:hubId/verify-device', () => {
       .post('/api/v1/public/hubs/hub-d-4/verify-device')
       .send({ email: 'a@t.com', deviceToken: 'a'.repeat(64) });
     expect(res.body.data.valid).toBe(false);
+  });
+});
+
+describe('POST /public/hubs/:hubId/verify-magic', () => {
+  it('issues JWT + device token for a valid magic link', async () => {
+    const crypto = await import('node:crypto');
+    const token = 'a'.repeat(64);
+    const magicTokenHash = crypto.createHash('sha256').update(token).digest('hex');
+
+    mockFindHubAccessMethod.mockResolvedValueOnce(EMAIL_HUB);
+    mockFindVerificationByMagicToken.mockResolvedValueOnce({
+      id: 'v-m-1',
+      email: 'a@t.com',
+      magicTokenHash,
+      attempts: 0,
+      used: false,
+      expiresAt: new Date(Date.now() + 600000),
+    });
+    mockConsumeVerification.mockResolvedValueOnce(1);
+    mockFindPortalContact.mockResolvedValueOnce({ id: 'c-1', name: 'Magic User' });
+    mockCreateDeviceRecord.mockResolvedValueOnce({});
+
+    const res = await request(app)
+      .post('/api/v1/public/hubs/hub-m-1/verify-magic')
+      .send({ token });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.valid).toBe(true);
+    expect(typeof res.body.data.portalToken).toBe('string');
+    expect(typeof res.body.data.deviceToken).toBe('string');
+    expect(res.body.data.email).toBe('a@t.com');
+    expect(mockConsumeVerification).toHaveBeenCalledWith({
+      id: 'v-m-1',
+      magicTokenHash,
+    });
+  });
+
+  it('rejects a magic link when the record was already rotated or consumed', async () => {
+    const crypto = await import('node:crypto');
+    const token = 'b'.repeat(64);
+    const magicTokenHash = crypto.createHash('sha256').update(token).digest('hex');
+
+    mockFindHubAccessMethod.mockResolvedValueOnce(EMAIL_HUB);
+    mockFindVerificationByMagicToken.mockResolvedValueOnce({
+      id: 'v-m-2',
+      email: 'a@t.com',
+      magicTokenHash,
+      attempts: 0,
+      used: false,
+      expiresAt: new Date(Date.now() + 600000),
+    });
+    mockConsumeVerification.mockResolvedValueOnce(0);
+
+    const res = await request(app)
+      .post('/api/v1/public/hubs/hub-m-2/verify-magic')
+      .send({ token });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.valid).toBe(false);
+    expect(mockConsumeVerification).toHaveBeenCalledWith({
+      id: 'v-m-2',
+      magicTokenHash,
+    });
   });
 });

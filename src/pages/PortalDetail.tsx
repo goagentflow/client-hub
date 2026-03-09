@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Routes, Route, Navigate, useLocation, useParams, useSearchParams } from "react-router-dom";
 import { Loader2, AlertCircle, Calendar, ClipboardCheck, BarChart3, Sparkles, History } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 import { ClientHubLayout } from "@/components/ClientHubLayout";
 import { ClientOverviewSection } from "@/components/ClientOverviewSection";
 import { ClientProposalSection } from "@/components/ClientProposalSection";
@@ -15,6 +16,7 @@ import { PortalMessageFeed } from "@/components/messages/PortalMessageFeed";
 import { HubProvider } from "@/contexts/hub-context";
 import { useCurrentUser } from "@/hooks";
 import { isMockApiEnabled, api } from "@/services/api";
+import { extractMagicVerifyToken, sanitizeSensitiveHash } from "@/lib/location-hash";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -25,8 +27,20 @@ const PortalDetail = () => {
   const location = useLocation();
   const [searchParams] = useSearchParams();
   const { data: authData, isLoading } = useCurrentUser();
+  const { toast } = useToast();
   const isStaff = authData?.user?.role === "staff";
   const forcePublicPreview = searchParams.get("preview") === "client";
+  const safeLocationHash = sanitizeSensitiveHash(location.hash);
+
+  // Read magic link token from the fragment and scrub it before any later navigation.
+  const [verifyToken] = useState(() => {
+    const token = extractMagicVerifyToken(window.location.hash);
+    if (token) {
+      window.history.replaceState(null, '', window.location.pathname + window.location.search);
+      return token;
+    }
+    return null;
+  });
 
   // Portal meta:
   // - normal staff mode: try staff preview endpoint first, then fallback to public endpoint
@@ -60,12 +74,91 @@ const PortalDetail = () => {
     () => hubId ? sessionStorage.getItem(`hub_access_${hubId}`) === "true" : false
   );
 
+  // Scrubbed magic-link token waits for an explicit user click before exchange.
+  const [magicLinkPending, setMagicLinkPending] = useState(!!verifyToken);
+  const [magicLinkVerifying, setMagicLinkVerifying] = useState(false);
+
+  const handleVerifyMagicLink = async () => {
+    if (!verifyToken || !hubId || magicLinkVerifying) return;
+
+    setMagicLinkVerifying(true);
+    try {
+      const result = await api.post<{
+        data: { valid: boolean; portalToken?: string; deviceToken?: string; email?: string };
+      }>(`/public/hubs/${hubId}/verify-magic`, { token: verifyToken });
+
+      if (result.data.valid && result.data.portalToken) {
+        sessionStorage.setItem(`portal_token_${hubId}`, result.data.portalToken);
+        sessionStorage.setItem(`hub_access_${hubId}`, "true");
+        if (result.data.deviceToken && result.data.email) {
+          localStorage.setItem(
+            `device_token_${hubId}`,
+            JSON.stringify({ email: result.data.email, token: result.data.deviceToken }),
+          );
+        }
+        setPasswordUnlocked(true);
+        setMagicLinkPending(false);
+        return;
+      }
+
+      setMagicLinkPending(false);
+      toast({
+        title: "Sign-in link expired",
+        description: "This sign-in link has expired or already been used. Please enter your email to get a new code.",
+        variant: "destructive",
+      });
+    } catch {
+      setMagicLinkPending(false);
+      toast({
+        title: "Sign-in link failed",
+        description: "Something went wrong. Please enter your email to get a new code.",
+        variant: "destructive",
+      });
+    } finally {
+      setMagicLinkVerifying(false);
+    }
+  };
+
   const isLiveHub = !isMockApiEnabled();
 
   // Verify user has access to this hub (mock/demo flow)
   const hubAccess = authData?.hubAccess?.find((h) => h.hubId === hubId);
   const hubName = hubAccess?.hubName || hubMeta?.companyName || "Your AgentFlow Hub";
   const hubType = hubMeta?.hubType || "pitch";
+
+  if (magicLinkPending) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Card className="w-full max-w-md mx-4">
+          <CardContent className="pt-8 text-center space-y-5">
+            <div className="space-y-2">
+              <h1 className="text-2xl font-semibold text-[hsl(var(--dark-grey))]">{hubName}</h1>
+              <p className="text-sm text-[hsl(var(--medium-grey))]">
+                Continue to securely sign in to this hub.
+              </p>
+            </div>
+            <Button
+              className="w-full"
+              onClick={() => void handleVerifyMagicLink()}
+              disabled={magicLinkVerifying}
+            >
+              {magicLinkVerifying ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Signing you in...
+                </>
+              ) : (
+                "Continue Secure Sign-In"
+              )}
+            </Button>
+            <p className="text-xs text-[hsl(var(--medium-grey))]">
+              This extra click prevents email security scanners from consuming your one-time sign-in link.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   // Show loading state while auth or hub meta is being fetched
   if (hubLoading || isLoading) {
@@ -99,7 +192,7 @@ const PortalDetail = () => {
     const marker = `/portal/${hubId}`;
     const markerIndex = location.pathname.indexOf(marker);
     const suffix = markerIndex >= 0 ? location.pathname.slice(markerIndex + marker.length) : "";
-    return <Navigate to={`/portal/${hubMeta.id}${suffix}${location.search}${location.hash}`} replace />;
+    return <Navigate to={`/portal/${hubMeta.id}${suffix}${location.search}${safeLocationHash}`} replace />;
   }
 
   // Live hub not found or unpublished — show "unavailable" (not login redirect)

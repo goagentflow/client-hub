@@ -12,13 +12,14 @@
  */
 
 import crypto from 'node:crypto';
-import { URL } from 'node:url';
+
 import { Router } from 'express';
 import { z } from 'zod';
 import { hubAccessMiddleware } from '../middleware/hub-access.js';
 import { requireStaffAccess } from '../middleware/require-staff.js';
 import { getPrisma } from '../db/prisma.js';
 import { env } from '../config/env.js';
+import { portalHubUrl } from '../utils/portal-urls.js';
 import { sendPortalInvite } from '../services/email.service.js';
 import {
   ACCESS_LEVELS,
@@ -556,7 +557,7 @@ invitesRouter.post('/', async (req: Request, res: Response, next: NextFunction) 
     });
 
     // Fire-and-forget email
-    const portalUrl = new URL('/clienthub/portal/' + hubId, env.CORS_ORIGIN).toString();
+    const portalUrl = portalHubUrl(hubId);
     sendPortalInvite(email, hub.companyName, req.user.name, portalUrl, message).catch((err) =>
       logger.error({ err, hubId, emailDomain: emailDomainForLogs(email) }, 'Failed to send invite email'),
     );

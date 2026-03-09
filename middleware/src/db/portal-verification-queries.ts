@@ -28,11 +28,24 @@ export async function upsertVerification(
   email: string,
   codeHash: string,
   expiresAt: Date,
+  magicTokenHash?: string,
 ) {
   return getPrisma().portalVerification.upsert({
     where: { hubId_email: { hubId, email } },
-    create: { hubId, email, codeHash, expiresAt, attempts: 0 },
-    update: { codeHash, expiresAt, used: false, attempts: 0 },
+    create: { hubId, email, codeHash, magicTokenHash: magicTokenHash ?? null, expiresAt, attempts: 0 },
+    update: { codeHash, magicTokenHash: magicTokenHash ?? null, expiresAt, used: false, attempts: 0 },
+  });
+}
+
+/** Find unexpired, unused verification by magic token hash */
+export async function findVerificationByMagicToken(hubId: string, magicTokenHash: string) {
+  return getPrisma().portalVerification.findFirst({
+    where: {
+      hubId,
+      magicTokenHash,
+      used: false,
+      expiresAt: { gt: new Date() },
+    },
   });
 }
 
@@ -51,12 +64,29 @@ export async function incrementAttempts(id: string) {
   });
 }
 
-/** Mark verification as used */
-export async function markVerificationUsed(id: string) {
-  return getPrisma().portalVerification.update({
-    where: { id },
+interface VerificationConsumeMatch {
+  id: string;
+  codeHash?: string;
+  magicTokenHash?: string;
+}
+
+/**
+ * Atomically consume a verification record only if the verified secret still matches.
+ * Returns the number of rows updated (0 = already consumed, rotated, or expired).
+ */
+export async function consumeVerification(match: VerificationConsumeMatch) {
+  const { id, codeHash, magicTokenHash } = match;
+  const result = await getPrisma().portalVerification.updateMany({
+    where: {
+      id,
+      used: false,
+      expiresAt: { gt: new Date() },
+      ...(codeHash ? { codeHash } : {}),
+      ...(magicTokenHash ? { magicTokenHash } : {}),
+    },
     data: { used: true },
   });
+  return result.count;
 }
 
 /** Create a device token record */
