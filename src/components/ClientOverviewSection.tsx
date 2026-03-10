@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Loader2 } from "lucide-react";
 import { useHubId } from "@/contexts/hub-context";
 import {
@@ -160,17 +160,21 @@ function PortalOverviewSection({ hubMeta }: { hubMeta?: PortalMeta | null }) {
   const companyName = hubMeta?.companyName || "Your Project";
   const isClientHubType = hubMeta?.hubType === "client";
 
-  const config: PortalConfig | null = hubMeta
-    ? {
-        hubId: hubMeta.id,
-        isPublished: hubMeta.isPublished,
-        welcomeHeadline: hubMeta.welcomeHeadline,
-        welcomeMessage: hubMeta.welcomeMessage,
-        heroContentType: hubMeta.heroContentType as HeroContentType,
-        heroContentId: hubMeta.heroContentId,
-        sections: hubMeta.sections,
-      }
-    : null;
+  const config: PortalConfig | null = useMemo(
+    () =>
+      hubMeta
+        ? {
+            hubId: hubMeta.id,
+            isPublished: hubMeta.isPublished,
+            welcomeHeadline: hubMeta.welcomeHeadline,
+            welcomeMessage: hubMeta.welcomeMessage,
+            heroContentType: hubMeta.heroContentType as HeroContentType,
+            heroContentId: hubMeta.heroContentId,
+            sections: hubMeta.sections,
+          }
+        : null,
+    [hubMeta]
+  );
 
   // Portal-safe data hooks only — NO useHub, usePortalConfig, useHubActivity
   const { data: proposal, isLoading: loadingProposal } = usePortalProposal(hubId);

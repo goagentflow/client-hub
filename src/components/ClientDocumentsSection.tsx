@@ -11,6 +11,8 @@ import { usePortalDocuments, useTrackEngagement, useInviteColleague } from "@/ho
 import { DocumentCard, DocumentPreviewDialog } from "./client-documents";
 import type { Document } from "@/types";
 
+const EMPTY_DOCUMENTS: Document[] = [];
+
 export function ClientDocumentsSection() {
   const hubId = useHubId();
   const { toast } = useToast();
@@ -31,7 +33,7 @@ export function ClientDocumentsSection() {
     trackHubViewed("portal-documents");
   }, [trackHubViewed]);
 
-  const documents = documentsData?.items || [];
+  const documents = documentsData?.items ?? EMPTY_DOCUMENTS;
 
   // Filter documents by search
   const filteredDocuments = useMemo(() => {
