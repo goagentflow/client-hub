@@ -23,10 +23,11 @@ import {
   AddLinkDialog,
   EditVideoDialog,
 } from "./videos";
-import type { VideoVisibility, AddVideoLinkRequest, UpdateVideoRequest } from "@/types";
+import type { Video, VideoVisibility, AddVideoLinkRequest, UpdateVideoRequest } from "@/types";
 
 type ViewMode = "grid" | "list";
 type SortOption = "newest" | "oldest" | "most-viewed";
+const EMPTY_VIDEOS: Video[] = [];
 
 export function VideosSection() {
   const hubId = useHubId();
@@ -70,7 +71,7 @@ export function VideosSection() {
     setRecordModalOpen(false);
   };
 
-  const videos = videosData?.items || [];
+  const videos = videosData?.items ?? EMPTY_VIDEOS;
 
   // Filter and sort videos
   const filteredVideos = useMemo(() => {

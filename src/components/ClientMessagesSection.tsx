@@ -13,6 +13,8 @@ import { usePortalMessages, useMessageThread, useSendPortalMessage, useTrackEnga
 import { cn } from "@/lib/utils";
 import type { MessageThreadSummary } from "@/types";
 
+const EMPTY_THREADS: MessageThreadSummary[] = [];
+
 export function ClientMessagesSection() {
   const hubId = useHubId();
   const { toast } = useToast();
@@ -36,7 +38,7 @@ export function ClientMessagesSection() {
     trackHubViewed("portal-messages");
   }, [trackHubViewed]);
 
-  const threads = messagesData?.items || [];
+  const threads = messagesData?.items ?? EMPTY_THREADS;
   const currentUserEmail = authData?.user?.email || "";
 
   // Auto-select first thread on load
